@@ -71,7 +71,7 @@
     "tests/integration/test_phase0_api_quality_cli.py",
     "tests/integration/test_phase0_cli.py"
   ],
-  "report": "harness/workspace/reports/2026-09-28-codex-phase0-api-quality-report.md",
+  "report": "harness/workspace/reports/2026-09-28-post-rebase-merge-verification-report.md",
   "dynamic_paths": [
     "harness/workspace/reports/*.md",
     "harness/workspace/checkpoints/*.md"
