@@ -15,13 +15,17 @@ class HarnessPolicyTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)
         self.registry = json.loads((ROOT / "harness/registry.json").read_text(encoding="utf-8"))
-        for name in self.registry["required_files"]:
+        # Registry에서 빠진 기록도 실제 저장소처럼 복사해야 같은 누락을 테스트가 숨기지 않는다.
+        files = subprocess.check_output(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=ROOT, text=True,
+        ).split("\0")
+        for name in filter(None, files):
             source = ROOT / name
             destination = self.directory / name
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
+            shutil.copy2(source, destination, follow_symlinks=False)
         self.git("init", "-b", "dev")
-        self.git("add", "--", *self.registry["required_files"])
+        self.git("add", "--", *filter(None, files))
 
     def git(self, *args):
         result = subprocess.run(["git", *args], cwd=self.directory, capture_output=True, text=True)
@@ -46,11 +50,173 @@ class HarnessPolicyTests(unittest.TestCase):
             json.dumps(self.registry, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
         )
 
-    def test_independent_initial_review_is_complete_but_current_fixes_are_pending(self):
+    def test_historical_initial_review_is_complete_but_current_task_is_pending(self):
+        self.update_registry(agy_review_evidence="harness/workspace/reports/agy-initial-harness-review.md")
         result = self.check("harness")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("result=pass_with_fixes", result.stdout)
         self.assertIn("CURRENT REPORT REVIEW: pending; human review PENDING", result.stdout)
+
+    def test_targeted_review_is_complete_but_current_task_is_pending(self):
+        result = self.check("harness")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("result=pass; reviewed_report=harness/workspace/reports/2026-09-27-codex-harness-fix-report.md", result.stdout)
+        self.assertIn("CURRENT REPORT REVIEW: pending; human review PENDING", result.stdout)
+        self.assertNotIn(self.registry["agy_review_evidence"], self.registry["required_files"])
+
+    def add_workspace_file(self, directory, filename, tracked=True):
+        name = f"harness/workspace/{directory}/{filename}"
+        path = self.directory / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# 합성 기록\n\n회귀 테스트용 기록이며 실제 Review 판정이 아니다.\n", encoding="utf-8")
+        if tracked:
+            self.git("add", "--", name)
+        return name
+
+    def remove_workspace_file(self, name):
+        # Commit 없는 임시 fixture에서 staged 파일을 지울 때 실제 저장소에 강제 삭제 명령을 적용하지 않는다.
+        self.git("rm", "--cached", "--", name)
+        (self.directory / name).unlink()
+
+    def test_new_tracked_report_does_not_require_individual_registration(self):
+        name = self.add_workspace_file("reports", "new-report.md")
+        self.assertNotIn(name, self.registry["required_files"])
+        for mode in ("harness", "git-tracked"):
+            result = self.check(mode)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_new_tracked_checkpoint_does_not_require_individual_registration(self):
+        name = self.add_workspace_file("checkpoints", "checkpoint-001.md")
+        self.assertNotIn(name, self.registry["required_files"])
+        for mode in ("harness", "git-tracked"):
+            result = self.check(mode)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_dynamic_workspace_rejects_code_and_non_markdown_files(self):
+        for directory in ("reports", "checkpoints"):
+            for filename in ("malicious.py", "script.sh", "report.json"):
+                with self.subTest(directory=directory, filename=filename):
+                    name = self.add_workspace_file(directory, filename)
+                    for mode in ("harness", "git-tracked"):
+                        result = self.check(mode)
+                        self.assertEqual(result.returncode, 1)
+                        self.assertIn("unsafe dynamic Workspace file", result.stderr)
+                    self.remove_workspace_file(name)
+
+    def test_dynamic_workspace_rejects_symlinks(self):
+        for directory in ("reports", "checkpoints"):
+            with self.subTest(directory=directory):
+                name = f"harness/workspace/{directory}/symlink.md"
+                (self.directory / name).symlink_to(self.directory / "AGENTS.md")
+                self.git("add", "--", name)
+                for mode in ("harness", "git-tracked"):
+                    result = self.check(mode)
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("unsafe dynamic Workspace file", result.stderr)
+                self.remove_workspace_file(name)
+
+    def test_dynamic_workspace_requires_git_tracking(self):
+        for directory in ("reports", "checkpoints"):
+            with self.subTest(directory=directory):
+                name = self.add_workspace_file(directory, "untracked.md", tracked=False)
+                for mode in ("harness", "git-tracked"):
+                    result = self.check(mode)
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("untracked", result.stderr)
+                (self.directory / name).unlink()
+
+    def test_dynamic_workspace_cannot_be_hidden_by_ignore(self):
+        path = self.directory / ".gitignore"
+        original = path.read_text(encoding="utf-8")
+        for directory in ("reports", "checkpoints"):
+            for tracked in (True, False):
+                with self.subTest(directory=directory, tracked=tracked):
+                    name = self.add_workspace_file(directory, "hidden.md", tracked=tracked)
+                    path.write_text(original + f"/{name}\n", encoding="utf-8")
+                    self.git("add", "--", ".gitignore")
+                    for mode in ("harness", "git-tracked"):
+                        result = self.check(mode)
+                        self.assertEqual(result.returncode, 1)
+                        self.assertIn("ignored", result.stderr)
+                    if tracked:
+                        self.remove_workspace_file(name)
+                    else:
+                        (self.directory / name).unlink()
+                    path.write_text(original, encoding="utf-8")
+                    self.git("add", "--", ".gitignore")
+
+    def test_unregistered_static_harness_file_still_causes_registry_drift(self):
+        name = "harness/rules/random-rule.md"
+        (self.directory / name).write_text("# 미등록 규칙\n", encoding="utf-8")
+        self.git("add", "--", name)
+        result = self.check("harness")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Registry drift", result.stderr)
+        self.assertIn(name, result.stderr)
+
+    def test_new_report_is_not_trusted_review_evidence(self):
+        name = self.add_workspace_file("reports", "new-agy-review.md")
+        self.update_registry(agy_review_evidence=name)
+        result = self.check("harness")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("independent evidence must be user-acknowledged", result.stderr)
+        self.update_registry(agy_review="pending", agy_review_evidence=None)
+        result = self.check("harness")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("PENDING: independent AGY review", result.stdout)
+
+    def test_dynamic_workspace_path_policy_cannot_expand_to_static_files(self):
+        self.update_registry(dynamic_paths=[*self.registry["dynamic_paths"], "harness/rules/*.md"])
+        result = self.check("harness")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("dynamic Workspace path policy drift", result.stderr)
+
+    def test_dynamic_workspace_rejects_nested_files_and_executable_markdown(self):
+        for directory in ("reports", "checkpoints"):
+            for filename in ("nested/report.md", "executable.md"):
+                with self.subTest(directory=directory, filename=filename):
+                    name = self.add_workspace_file(directory, filename)
+                    path = self.directory / name
+                    if filename == "executable.md":
+                        path.chmod(0o755)
+                        self.git("add", "--", name)
+                    result = self.check("harness")
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("unsafe dynamic Workspace file", result.stderr)
+                    self.remove_workspace_file(name)
+                    if filename.startswith("nested/"):
+                        path.parent.rmdir()
+
+    def test_fixed_checkpoint_readme_remains_required(self):
+        name = "harness/workspace/checkpoints/README.md"
+        self.assertIn(name, self.registry["required_files"])
+        self.remove_workspace_file(name)
+        result = self.check("harness")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Registry drift", result.stderr)
+        self.assertIn(name, result.stderr)
+
+    def test_dynamic_report_must_not_be_individually_registered(self):
+        name = self.add_workspace_file("reports", "new-report.md")
+        self.update_registry(required_files=sorted([*self.registry["required_files"], name]))
+        result = self.check("harness")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("must not be individually registered", result.stderr)
+
+    def test_artifacts_cannot_hide_code_rules_or_final_reports(self):
+        path = self.directory / ".gitignore"
+        original = path.read_text(encoding="utf-8")
+        for filename in ("final-report.md", "code.py", "script.sh"):
+            with self.subTest(filename=filename):
+                name = f"harness/workspace/artifacts/{filename}"
+                path.write_text(original + f"/{name}\n", encoding="utf-8")
+                (self.directory / name).write_text("금지된 숨김 결과\n", encoding="utf-8")
+                self.git("add", "--", ".gitignore")
+                result = self.check("git-tracked")
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("ignored project result", result.stderr)
+                (self.directory / name).unlink()
+        path.write_text(original, encoding="utf-8")
 
     def test_pending_without_evidence_is_valid_for_a_new_review_cycle(self):
         self.update_registry(agy_review="pending", agy_review_evidence=None)
@@ -86,7 +252,7 @@ class HarnessPolicyTests(unittest.TestCase):
         (self.directory / self.registry["agy_review_evidence"]).unlink()
         result = self.check("harness")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("missing or unsafe evidence/basis", result.stderr)
+        self.assertIn("unsafe dynamic Workspace file", result.stderr)
 
     def test_forged_complete_heading_cannot_replace_independent_review(self):
         path = self.directory / self.registry["agy_review_evidence"]
@@ -96,7 +262,7 @@ class HarnessPolicyTests(unittest.TestCase):
         self.assertIn("checksum mismatch", result.stderr)
 
     def test_review_basis_report_change_invalidates_the_evidence(self):
-        path = self.directory / "harness/workspace/reports/2026-09-27-codex-harness-report.md"
+        path = self.directory / "harness/workspace/reports/2026-09-27-codex-harness-fix-report.md"
         path.write_text(path.read_text(encoding="utf-8") + "\n변경된 검토 대상\n", encoding="utf-8")
         result = self.check("harness")
         self.assertEqual(result.returncode, 1)
@@ -108,7 +274,7 @@ class HarnessPolicyTests(unittest.TestCase):
         path.symlink_to(ROOT / self.registry["agy_review_evidence"])
         result = self.check("harness")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("missing or unsafe evidence/basis", result.stderr)
+        self.assertIn("unsafe dynamic Workspace file", result.stderr)
 
     def test_stale_registry_report_cannot_approve_the_current_task(self):
         self.update_registry(report="harness/workspace/reports/2026-09-27-codex-harness-report.md")

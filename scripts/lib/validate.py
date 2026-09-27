@@ -16,6 +16,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import phase0
 
 
+DYNAMIC_WORKSPACE_PATHS = [
+    "harness/workspace/reports/*.md",
+    "harness/workspace/checkpoints/*.md",
+]
+
+
 # 사용자가 독립 AGY 결과로 확인한 원문만 신뢰 기준에 고정해 Codex 보고서로 자기 승인하지 못하게 한다.
 # 새 증거 추가는 별도 사용자 승인 Task이며 Registry의 경로나 checksum만 바꿔서는 승인되지 않는다.
 ACCEPTED_AGY_REVIEWS = {
@@ -24,6 +30,12 @@ ACCEPTED_AGY_REVIEWS = {
         "reviewed_report": "harness/workspace/reports/2026-09-27-codex-harness-report.md",
         "reviewed_report_sha256": "c7c8b1c1da01746305cabe5b5f4790a870605b3f258d65792555443d78059d8c",
         "result": "pass_with_fixes",
+    },
+    "harness/workspace/reports/agy-harness-fix-review.md": {
+        "sha256": "7516021d9945f67d662a5e4fe6e68fe51f1e1ebdb4510ec84f73bcb70985c1d4",
+        "reviewed_report": "harness/workspace/reports/2026-09-27-codex-harness-fix-report.md",
+        "reviewed_report_sha256": "1d5e68a85b599d59156d0e9038c73c4cbcf18d453ee282ebf46de96e2f852ada",
+        "result": "pass",
     },
 }
 
@@ -47,6 +59,43 @@ def project_files():
 
 def registry():
     return phase0.read_json(ROOT / "harness/registry.json")
+
+
+def dynamic_workspace(spec):
+    # 경로 예외를 넓혀 정적 규칙이나 실행 코드를 우회 등록하지 못하도록 승인된 두 경계만 인정한다.
+    if spec["dynamic_paths"] != DYNAMIC_WORKSPACE_PATHS:
+        raise ValueError("dynamic Workspace path policy drift")
+    tracked = set(run("git", "ls-files", "-z", capture=True).split("\0")) - {""}
+    listed = set(project_files())
+    workspace = set()
+    for pattern in spec["dynamic_paths"]:
+        directory = ROOT / Path(pattern).parent
+        if directory.is_symlink() or directory.resolve() != directory or not directory.is_dir():
+            raise ValueError(f"unsafe dynamic Workspace directory: {directory.relative_to(ROOT)}")
+        # Git이 제외한 파일도 직접 검사해야 ignore나 symlink로 외부 기억을 숨길 수 없다.
+        names = {str(path.relative_to(ROOT)) for path in directory.iterdir()}
+        names.update(name for name in listed if (ROOT / name).is_relative_to(directory))
+        for name in sorted(names):
+            path = ROOT / name
+            if (path.parent != directory or path.suffix != ".md" or path.is_symlink()
+                    or path.resolve() != path or not path.is_file() or os.access(path, os.X_OK)):
+                raise ValueError(f"unsafe dynamic Workspace file: direct non-executable Markdown regular file required: {name}")
+            if name in spec["required_files"] and path.name != "README.md":
+                raise ValueError(f"dynamic Workspace files must not be individually registered: {name}")
+        if names:
+            ignored = subprocess.run(
+                ["git", "check-ignore", "--no-index", *sorted(names)],
+                cwd=ROOT, text=True, capture_output=True,
+            )
+            if ignored.returncode not in (0, 1):
+                raise ValueError("git check-ignore failed")
+            if ignored.stdout:
+                raise ValueError("dynamic Workspace files are ignored:\n" + ignored.stdout)
+        for name in sorted(names):
+            if name not in tracked:
+                raise ValueError(f"untracked dynamic Workspace file: {name}")
+        workspace.update(names)
+    return workspace
 
 
 def compose():
@@ -186,6 +235,7 @@ def git_check():
     for name in tracked.split("\0"):
         if name and allowed_ignored(name):
             raise ValueError(f"raw/secret/cache must not be tracked: {name}")
+    dynamic_workspace(registry())
     print("PASS: dev policy, tracked changes, ignore boundary, index visibility")
     run("git", "status", "--short", "--branch")
 
@@ -233,7 +283,7 @@ def markdown_links(path):
             raise ValueError(f"broken/outside documentation link: {path.relative_to(ROOT)} -> {target}")
 
 
-def review_status(spec):
+def review_status(spec, workspace):
     state = spec["agy_review"]
     evidence = spec["agy_review_evidence"]
     if state not in ("pending", "review_complete"):
@@ -251,7 +301,7 @@ def review_status(spec):
     ):
         path = ROOT / name
         # Reviewer 이름이나 COMPLETE 문구만으로는 저자를 증명할 수 없어 독립 원문과 검토 대상의 byte를 대조한다.
-        if name not in spec["required_files"] or path.is_symlink() or path.resolve() != path or not path.is_file():
+        if name not in workspace or path.is_symlink() or path.resolve() != path or not path.is_file():
             raise ValueError(f"AGY review: missing or unsafe evidence/basis: {name}")
         if hashlib.sha256(path.read_bytes()).hexdigest() != expected_hash:
             raise ValueError(f"AGY review: evidence/basis checksum mismatch: {name}")
@@ -265,9 +315,11 @@ def harness_check():
     spec = registry()
     actual = set(project_files())
     expected = set(spec["required_files"])
-    # 문서 목록과 실제 파일을 함께 고정해 검증에 연결되지 않은 실행 코드나 결과물이 누락되지 않게 한다.
-    if actual != expected:
-        raise ValueError(f"Registry drift: missing={sorted(expected - actual)}, unregistered={sorted(actual - expected)}")
+    workspace = dynamic_workspace(spec)
+    # 기록은 경로·안전 규칙으로 검증하고 고정 README를 포함한 정적 구조는 개별 Registry와 대조한다.
+    static_actual = actual - (workspace - expected)
+    if static_actual != expected:
+        raise ValueError(f"Registry drift: missing={sorted(expected - static_actual)}, unregistered={sorted(static_actual - expected)}")
     if spec["phase"] != "phase0-preparation":
         raise ValueError("phase must reflect actual preparation")
     # 현재 Task가 과거 Report를 승인받은 것처럼 보이지 않도록 활성 Report 연결도 함께 검증한다.
@@ -277,7 +329,7 @@ def harness_check():
         ROOT / "harness/workspace" / final_reports[0]
     ).resolve() != (ROOT / spec["report"]).resolve():
         raise ValueError("current-task Final Report differs from Registry report")
-    status = review_status(spec)
+    status = review_status(spec, workspace)
     if spec["branches"] != {"development": "dev", "verified": "main", "deployment": "op"}:
         raise ValueError("branch policy drift")
     for name in actual:
@@ -325,7 +377,7 @@ def harness_check():
             raise ValueError(f"CI missing required command: {command}")
     compose()
     report = ROOT / spec["report"]
-    if not report.is_file() or not report.read_text(encoding="utf-8").strip():
+    if spec["report"] not in workspace or not report.is_file() or not report.read_text(encoding="utf-8").strip():
         raise ValueError("task Report missing")
     print("PASS: docs/links, Skills/Rules Registry, commands, phase, Compose/CI and external memory")
     print(status)

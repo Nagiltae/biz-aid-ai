@@ -5,7 +5,7 @@
 
 ## 최소 Format
 
-`harness/workspace/checkpoints/<run_id>/<순번>.md`에 아래 YAML block과 설명을 기록한다.
+`harness/workspace/checkpoints/<run_id>-<순번>.md`에 아래 YAML block과 설명을 기록한다.
 매 갱신은 순번을 늘려 새 파일로 보존한다. 이전 실패와 진행 증거를 덮어쓰지 않는다.
 현재 Stage에서 무엇을 한 item으로 세는지 notes에 정의하고 일관되게 적용한다.
 
@@ -79,4 +79,5 @@ status: blocked
 6. 재개 결과를 새 checkpoint에 기록한다. 증거가 불일치하면 멈추고 이유를 Report에 남긴다.
 
 완료 checkpoint도 삭제하지 않는다. 프로젝트 기록은 Git에 추적하고 payload·credential은 제외한다.
-새 checkpoint 경로는 Registry.required_files에도 등록해 Harness drift 검사에서 누락되지 않게 한다.
+새 checkpoint는 Dynamic Workspace 경로 규칙으로 검증하며 Registry.required_files에 개별 등록하지 않는다.
+바로 아래 Markdown 일반 파일을 Git 추적한다. ignore·symlink·실행 코드·하위 디렉터리는 금지한다.

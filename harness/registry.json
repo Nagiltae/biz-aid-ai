@@ -65,7 +65,11 @@
     "tests/contract/test_phase0.py",
     "tests/integration/test_phase0_cli.py"
   ],
-  "report": "harness/workspace/reports/2026-09-27-codex-harness-fix-report.md",
+  "report": "harness/workspace/reports/2026-09-27-codex-dynamic-workspace-fix-report.md",
+  "dynamic_paths": [
+    "harness/workspace/reports/*.md",
+    "harness/workspace/checkpoints/*.md"
+  ],
   "required_files": [
     ".env.example",
     ".github/workflows/ci.yml",
@@ -117,9 +121,6 @@
     "harness/workspace/artifacts/README.md",
     "harness/workspace/checkpoints/README.md",
     "harness/workspace/current-task.md",
-    "harness/workspace/reports/2026-09-27-codex-harness-fix-report.md",
-    "harness/workspace/reports/2026-09-27-codex-harness-report.md",
-    "harness/workspace/reports/agy-initial-harness-review.md",
     "infra/README.md",
     "scripts/check-all.sh",
     "scripts/check-comments.sh",
@@ -137,5 +138,5 @@
     "tests/contract/test_phase0.py",
     "tests/integration/test_phase0_cli.py"
   ],
-  "agy_review_evidence": "harness/workspace/reports/agy-initial-harness-review.md"
+  "agy_review_evidence": "harness/workspace/reports/agy-harness-fix-review.md"
 }
