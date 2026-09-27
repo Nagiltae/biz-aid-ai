@@ -67,3 +67,10 @@
 기본 정렬 선두 100건의 dev 전용 5×20 Batch / Raw 재현 분석 / 품질 계약 / 오프라인 회귀를 추가했다.
 전체 Collector·다운로드·DB·AI는 추가하지 않고 pending-only Gate / Trusted AGY Evidence / Secret 정책을 유지한다.
 실제 실행 결과와 변경 이유는 current-task의 Final Report에 기록한다.
+
+## 2026-09-28 — 제한된 Document Download Gate
+
+사용자가 동일 API 표본 100개의 Primary Candidate 다운로드를 승인했다. 별도 dev 도구·로컬 안전 계약·mock 회귀를 추가한다.
+Static Registry에는 코드 / 계약 / Test만 등록하며 Report / Checkpoint는 기존 Dynamic 정책으로 추적한다.
+API / prod Secret / Supplementary / Parser / GO-DROP·독립 Review Guardrail은 유지한다.
+체크포인트는 결과별 원문 checksum에서 재개하며 과거 AGY PASS를 이번 Task 승인으로 재사용하지 않는다.

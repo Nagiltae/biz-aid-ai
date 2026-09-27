@@ -36,3 +36,7 @@ Codex는 자동으로 GO/DROP을 결정하거나 숫자 임계값 통과만으�
 
 [API 품질 계약](schemas/phase0-api-quality.contract.json)은 승인된 dev 5×20 표본·상태·분모의 로컬 설정이다.
 scripts/phase0_api_quality.py가 Run / Raw checksum에서 품질 요약을 재현한다. 의미·URL 접속·문서 Gate는 미측정이고 pending-only Gate 계약은 유지한다.
+
+[Document Download 계약](schemas/phase0-document-download.contract.json)은 기존 표본 100개·dev·로컬 안전 경계·outcome을 정의한다.
+형식 식별의 공식 참고 자료는 계약의 format_sources에 있으며 공급자 다운로드 제한을 뜻하지 않는다.
+문서 checksum / metadata와 Gate Report는 scripts/phase0_document_download.py가 HTTP 없이 재현 검증한다.

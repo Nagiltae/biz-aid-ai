@@ -8,7 +8,7 @@ for check in setup check-format check-lint check-contract check-integration chec
     failed=1
   fi
 done
-printf '\nN/A: product Unit/Component/E2E/AI Evaluation/Build; services unimplemented; live Probe/API quality batch runs separately; document Gate unmeasured\n'
+printf '\nN/A: product Unit/Component/E2E/AI Evaluation/Build; services unimplemented; live Probe/API quality/document download gates run separately; document text Parsing/OCR unmeasured\n'
 printf 'PENDING: Data Feasibility GO/DROP and human review; AGY evidence/scope status is reported by check-harness\n'
 if [ "$failed" -ne 0 ]; then
   printf 'FAIL: one or more applicable validations failed\n' >&2

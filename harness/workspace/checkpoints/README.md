@@ -1,11 +1,11 @@
 # Checkpoint / Resume / Recovery
 
 장시간 Phase 0 Task는 Agent 대화 기억에 상태를 맡기지 않는다.
-현재 API 수집 기능과 실제 수집 checkpoint는 없으며 아래는 기록 규칙이다.
+API 품질 Batch는 Run metadata를 사용하고, 제한된 Document Download Gate는 아래 규칙의 실제 checkpoint를 생성한다.
 
 ## 최소 Format
 
-`harness/workspace/checkpoints/<run_id>-<순번>.md`에 아래 YAML block과 설명을 기록한다.
+`harness/workspace/checkpoints/<run_id>-<순번>.md`에 아래 YAML 또는 동등한 JSON block과 설명을 기록한다.
 매 갱신은 순번을 늘려 새 파일로 보존한다. 이전 실패와 진행 증거를 덮어쓰지 않는다.
 현재 Stage에서 무엇을 한 item으로 세는지 notes에 정의하고 일관되게 적용한다.
 
@@ -81,3 +81,13 @@ status: blocked
 완료 checkpoint도 삭제하지 않는다. 프로젝트 기록은 Git에 추적하고 payload·credential은 제외한다.
 새 checkpoint는 Dynamic Workspace 경로 규칙으로 검증하며 Registry.required_files에 개별 등록하지 않는다.
 바로 아래 Markdown 일반 파일을 Git 추적한다. ignore·symlink·실행 코드·하위 디렉터리는 금지한다.
+
+## Document Download Gate 적용
+
+시작·10개 Candidate 확정마다·실패·중단·다운로드 집계 완료 시 새 순번 Markdown / JSON block을 만든다.
+각 원본 / metadata는 매 Candidate마다 먼저 확정하므로 Checkpoint 사이 결과도 checksum으로 복원한다.
+completed_count=success_count, processed_count=success_count+failed_count이며 remaining_count=100-processed_count다.
+last_processed_pblancId와 원본 source run/hash를 추가한다. 순번 기록과 기존 byte를 덮어쓰지 않는다.
+다운로드 집계 완료 Checkpoint는 Report의 계산 근거이며 Task 종료 Validation / 독립 Review를 대신하지 않는다.
+--resume은 성공과 확정 실패를 모두 건너뛰고 미처리 대상만 요청한다. 자동 실패 재시도는 없다.
+고립 파일·checksum 불일치는 Report에 기록하고 사람의 확인 전 멈춘다.

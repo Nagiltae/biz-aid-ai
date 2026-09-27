@@ -1,0 +1,271 @@
+# Phase 0 Document Download Gate Report
+
+Evidence: LIVE_HTTP; dev; source=api-quality-dev-20260928-01, 동일한 100 Item.
+
+비율의 기본 분모는 Target 100이다. 크기는 완전한 비어 있지 않은 HTTP 2xx body, 형식은 식별을 시도한 body를 별도 집계한다.
+
+Primary Notice Candidate의 본문 의미·Parsing·OCR·장기 URL 안정성은 UNMEASURED다. GO/DROP은 판단하지 않는다.
+
+## Run / Reproducible Metrics
+
+```json
+{
+  "run": {
+    "run_id": "document-dev-20260928-01",
+    "profile": "dev",
+    "source_run_id": "api-quality-dev-20260928-01",
+    "evidence_kind": "LIVE_HTTP",
+    "started_at": "2026-09-27T17:16:57.458971+00:00",
+    "completed_at": "2026-09-27T17:18:07.920478+00:00",
+    "updated_at": "2026-09-27T17:18:07.920478+00:00",
+    "elapsed_seconds": 70.461507,
+    "status": "COMPLETED",
+    "checkpoint": "harness/workspace/checkpoints/document-dev-20260928-01-0011.md"
+  },
+  "metrics": {
+    "target_documents": 100,
+    "processed_candidates": 100,
+    "attempted_downloads": 100,
+    "http_requests": 100,
+    "successful_downloads": 100,
+    "download_success_rate": 1.0,
+    "outcome_denominator": 100,
+    "outcome_counts": {
+      "SUCCESS": 100,
+      "HTTP_ERROR": 0,
+      "TRANSPORT_ERROR": 0,
+      "REDIRECT_ERROR": 0,
+      "EMPTY_FILE": 0,
+      "SIZE_LIMIT_EXCEEDED": 0,
+      "FORMAT_MISMATCH": 0,
+      "UNKNOWN_FORMAT": 0,
+      "URL_POLICY_ERROR": 0,
+      "SECURITY_REJECTED": 0
+    },
+    "outcome_ratios": {
+      "SUCCESS": 1.0,
+      "HTTP_ERROR": 0.0,
+      "TRANSPORT_ERROR": 0.0,
+      "REDIRECT_ERROR": 0.0,
+      "EMPTY_FILE": 0.0,
+      "SIZE_LIMIT_EXCEEDED": 0.0,
+      "FORMAT_MISMATCH": 0.0,
+      "UNKNOWN_FORMAT": 0.0,
+      "URL_POLICY_ERROR": 0.0,
+      "SECURITY_REJECTED": 0.0
+    },
+    "unprocessed_candidates": 0,
+    "http_status_distribution": {
+      "200": 100
+    },
+    "redirected_document_count": 0,
+    "redirect_count_distribution": {
+      "0": 100
+    },
+    "url_quality": {
+      "total": 100,
+      "states": {
+        "VALID": 100
+      },
+      "invalid_url_syntax": 0,
+      "local_url_policy_rejected": 0,
+      "unique_url": 100,
+      "duplicate_url_extra_count": 0,
+      "duplicate_url_groups": [],
+      "host_distribution": {
+        "www.bizinfo.go.kr": 100
+      },
+      "http_reachable_2xx": 100,
+      "http_unreachable_or_non_2xx": 0
+    },
+    "file_size": {
+      "denominator_complete_nonempty_2xx_bodies": 100,
+      "min": 64097,
+      "max": 1613824,
+      "average": 384271.74,
+      "median": 253215.0
+    },
+    "declared_extensions": {
+      "PDF": 70,
+      "HWPX": 15,
+      "HWP": 15
+    },
+    "content_types": {
+      "application/octet-stream": 100
+    },
+    "actual_formats": {
+      "PDF": 70,
+      "HWPX": 15,
+      "HWP": 15
+    },
+    "actual_format_measured_count": 100,
+    "filename_actual_match_count": 100,
+    "filename_actual_match_rate_target": 1.0,
+    "content_type_mismatch_count": 100,
+    "final_host_distribution": {
+      "www.bizinfo.go.kr": 100
+    },
+    "duplicate_sha256_extra_count": 0,
+    "duplicate_sha256_denominator": 100,
+    "duplicate_sha256_groups": [],
+    "supplementary_pairing": {
+      "denominator": 86,
+      "PAIR_COUNT_MATCH": 86,
+      "PAIR_COUNT_MISMATCH": 0,
+      "mismatched_pblancIds": [],
+      "semantic_pairing": "UNCONFIRMED"
+    },
+    "primary_notice_hypothesis": "SUPPORTED_BY_DOWNLOAD_EVIDENCE",
+    "unmeasured": [
+      "document_body_semantics",
+      "PDF_HWP_HWPX_XLSX_text_parsing",
+      "OCR",
+      "complete_container_integrity",
+      "long_term_URL_stability",
+      "supplementary_download",
+      "RAG_value"
+    ],
+    "official_newest_first": "UNCONFIRMED",
+    "gate_decision": "pending"
+  }
+}
+```
+
+## Document Evidence
+
+| pblancId | HTTP | redirects | bytes stored | actual | outcome | SHA-256 |
+| --- | --- | --- | --- | --- | --- | --- |
+| PBLN_000000000126771 | 200 | 0 | 278731 | PDF | SUCCESS | e8dd5d58b7fc08ae8ad12ae4915ba57e27614e57a5c42673fe993a467a678894 |
+| PBLN_000000000126770 | 200 | 0 | 179187 | PDF | SUCCESS | 753f72579cf562fb49ccb7b1c9322a5f441a4702db44f9f3fc1b7131bdd381ee |
+| PBLN_000000000126769 | 200 | 0 | 119304 | HWPX | SUCCESS | 1d93276d52bfa415ea53adca89c95565859dd66db450832dbda0310f3db09f4f |
+| PBLN_000000000126768 | 200 | 0 | 64097 | HWPX | SUCCESS | e6596ae779f29b85588d07dad00279582eee0346fd4d39c8ef27334831b8e284 |
+| PBLN_000000000126767 | 200 | 0 | 115176 | HWPX | SUCCESS | e3964f8de06e3612325aa34cdfa52ef5352eab894f914b2325b33fea834153ee |
+| PBLN_000000000126766 | 200 | 0 | 244960 | PDF | SUCCESS | 6cec6372cfc1cfb59b7a5253a7091a60c1d7eadb5fdaf0165cc3334433b39ded |
+| PBLN_000000000126765 | 200 | 0 | 211392 | PDF | SUCCESS | c536637db8cd047170818b8302e620f7b7a133dea3ef50a957fc3ae7991a530c |
+| PBLN_000000000126764 | 200 | 0 | 183247 | PDF | SUCCESS | c6db9dc4a794ea8d0acd79fbf1da535c35b38bdbaefb9ac34c833f4265ca3d09 |
+| PBLN_000000000126763 | 200 | 0 | 627707 | PDF | SUCCESS | a7f1362d18906f07146cd7e02352783cd360a849f408eca1ac652265c97dd082 |
+| PBLN_000000000126762 | 200 | 0 | 650761 | PDF | SUCCESS | 96c8106a2adbf187636e19c69b5e94058eb6ab7b808f69afb2ddeb33f3379257 |
+| PBLN_000000000126761 | 200 | 0 | 218372 | PDF | SUCCESS | b27e17ee8ef2e13a47a1b648023545472dc3bc2206dbc5407d4be3fee5da47bc |
+| PBLN_000000000126760 | 200 | 0 | 150286 | HWPX | SUCCESS | a1ee70924ea464b4cf6826ec32eca2dd4f55b178eb9da2950903705225bf5feb |
+| PBLN_000000000126759 | 200 | 0 | 288957 | PDF | SUCCESS | afc99ba73dfe74fcf8bf1e59ea49b9e9d6606d16bf902528009d278b95311740 |
+| PBLN_000000000126757 | 200 | 0 | 176591 | PDF | SUCCESS | ae6c52e9f85683efcc2df8ee9a0f4fff5f8b02329ee4882f99e400628b8d3aaf |
+| PBLN_000000000126756 | 200 | 0 | 712408 | PDF | SUCCESS | 6e5cb83d2781740e0feacb023358fca227325023ddcbd2c09dc999434a59ed83 |
+| PBLN_000000000126755 | 200 | 0 | 332288 | HWP | SUCCESS | d936ec110a26ff2de74e486526f4b643ca5a08a09c685e00f56ff0e96839fb29 |
+| PBLN_000000000126754 | 200 | 0 | 637088 | PDF | SUCCESS | b4b8ebec69a58955e071dbff9c1de986cf4c25df1d98805e5483a610a7117bfa |
+| PBLN_000000000126753 | 200 | 0 | 595776 | PDF | SUCCESS | 07ceb6494738a9c0a28be83543e8ac3ef3c8b13067353aaf2cdd33bfdbb80be0 |
+| PBLN_000000000126752 | 200 | 0 | 106649 | HWPX | SUCCESS | 341e5b9c2a796423421a59447932b2e7ee1b6af5610eabdc8d5ece312cc8f7f4 |
+| PBLN_000000000126751 | 200 | 0 | 250204 | PDF | SUCCESS | ff6a8eb717985c70b59265fe6579069a53c8562587650e30b51f159538302a12 |
+| PBLN_000000000126750 | 200 | 0 | 352885 | PDF | SUCCESS | af629b90119429ae5675e589b3b3ea17f3e5dd8d8f16c03f6f6292dabd17094a |
+| PBLN_000000000126749 | 200 | 0 | 272084 | PDF | SUCCESS | 83b6db451612d89dfec8c37de5b1f68ea30fd68b17f12cec50c71149f5ea3ca9 |
+| PBLN_000000000126748 | 200 | 0 | 500268 | PDF | SUCCESS | cc1ba8b480b405aecf032466497448bbc7c162ca48fc8e77fc986e9e00b93f48 |
+| PBLN_000000000126747 | 200 | 0 | 269777 | PDF | SUCCESS | 6e839a3262086b27412d2fdd3db05217ab2b3a5ac27094757b695c50e5680845 |
+| PBLN_000000000126746 | 200 | 0 | 101205 | PDF | SUCCESS | f8d9d57affa130a77adcf08111e11562ad04b2fac0e10442bf12093ab1d4c458 |
+| PBLN_000000000126745 | 200 | 0 | 296960 | HWP | SUCCESS | 14249239bdcac8bdf0f2687437d7f2273ed20f08f29dad9c2880c5cdd77c4547 |
+| PBLN_000000000126744 | 200 | 0 | 858350 | PDF | SUCCESS | 640f6f0238782470f28449c25a56fcdf069e803aa861a3855bb145193f656d1d |
+| PBLN_000000000126743 | 200 | 0 | 243260 | PDF | SUCCESS | 84d77c32ed39288088b2df904c609843f26fda1a26d37114b988b168d9467123 |
+| PBLN_000000000126742 | 200 | 0 | 1034438 | PDF | SUCCESS | c62cbb095fb4a137e5b6a6ec78c2470e89f01e635300921c003bda124a584328 |
+| PBLN_000000000126741 | 200 | 0 | 166912 | HWP | SUCCESS | 3023dfe7e8d08471ed363531d82adb41149fd43ec423229b6f086e5028418819 |
+| PBLN_000000000126740 | 200 | 0 | 83456 | HWP | SUCCESS | 08ac7b1c82e4363a23fe16bb48831e3a824ee894927180a9c069d9a1621464e2 |
+| PBLN_000000000126739 | 200 | 0 | 224174 | PDF | SUCCESS | db79200c64108d58a67a2a71a10d6f1af9a4701d8735fee3fe4b9ac162d4c894 |
+| PBLN_000000000126738 | 200 | 0 | 173457 | PDF | SUCCESS | f952baedf45189167322cd50c3e2f33749d68672287b5f35e5357f6a1e0364bd |
+| PBLN_000000000126737 | 200 | 0 | 75776 | HWP | SUCCESS | 9ee89051b787dc7848dcd039f44179be65e88103dc77ac4386be6df8852a5d26 |
+| PBLN_000000000126736 | 200 | 0 | 138092 | PDF | SUCCESS | 240e77f55ff3918f582067d364761a2fcba8bd14ebedc7a920027b393e8eee91 |
+| PBLN_000000000126735 | 200 | 0 | 533882 | PDF | SUCCESS | 919c7e0a0d0c90e122d5ad52cc1be381a2b90e7f95cc7e1f53e9fefe0ab9e824 |
+| PBLN_000000000126734 | 200 | 0 | 68406 | HWPX | SUCCESS | c256a77c3f78681a9da57e3666ea38b8940c2eb235e23886a23ae4f306c3719d |
+| PBLN_000000000126733 | 200 | 0 | 205514 | PDF | SUCCESS | 102381a5ffbff343a7f6bf5808a25ee2ad94cf46fea8a5f9dcaa70d8210e468a |
+| PBLN_000000000126732 | 200 | 0 | 1293749 | HWPX | SUCCESS | fcaebb702db9bce705c6b98aa142dd2c3a1e0c37223ea4a4e56e3ca5a1a008d7 |
+| PBLN_000000000126731 | 200 | 0 | 247268 | PDF | SUCCESS | ee59f30c2fb5ba10ec45072f5b9f2c2a70579863163e2d32333e17b96a8a089f |
+| PBLN_000000000126730 | 200 | 0 | 203776 | HWP | SUCCESS | f9902ba76bc92fde3f7a0ba5ba22d90d300b1b00e86f9d91c8886cdc37d37608 |
+| PBLN_000000000126729 | 200 | 0 | 256226 | PDF | SUCCESS | 59645bca60f0e0b27d2d8423b6f6b34d71a000f3b41159519214ed593cf55284 |
+| PBLN_000000000126728 | 200 | 0 | 103009 | PDF | SUCCESS | cdf8b34f64495808fb3a389517f08d0f79398454512675132cbf0673f9f955a3 |
+| PBLN_000000000126727 | 200 | 0 | 65985 | HWPX | SUCCESS | b3fafdedc063641a10ba624b42472f100d2efaa225cca59a1e34df104feaffe8 |
+| PBLN_000000000126726 | 200 | 0 | 1304011 | HWPX | SUCCESS | 311c08a1bed1bbca57b0ae1090cb4624e9229987395384ae833116fb16dc2550 |
+| PBLN_000000000126725 | 200 | 0 | 79360 | HWP | SUCCESS | d37c6428e8e3ecbcc8e0a76109defdb0b810e8e3fbf894607556c98cbe952ecc |
+| PBLN_000000000126724 | 200 | 0 | 245436 | PDF | SUCCESS | 95e0bef29837afe20d09ac6ad0e87eb230cd28c88a67fdaeef9ebe8dfc708891 |
+| PBLN_000000000126723 | 200 | 0 | 222470 | PDF | SUCCESS | 39876062216f1184304b96c6692d7ddd1195e505b4485f43c853267ac1630cda |
+| PBLN_000000000126722 | 200 | 0 | 186126 | PDF | SUCCESS | ed60d3cc93b53e3d41920f6ca0c076db0bbe8b6273e06445d544feb84c2e0f0a |
+| PBLN_000000000126721 | 200 | 0 | 66261 | HWPX | SUCCESS | dae57ca02fe3bd53a6f0be48261a3c140134c068e0d243da83041b9b3701e4fa |
+| PBLN_000000000126720 | 200 | 0 | 948694 | HWPX | SUCCESS | 28c15d8e37609971c692dc0f4530e1f7c1e030c82540ef74b4fada4a8ccae41d |
+| PBLN_000000000126719 | 200 | 0 | 466602 | PDF | SUCCESS | e782444ac3355de3d33f9cd81f3752db3bb251ab94d923bbf5f7b70c1d266af0 |
+| PBLN_000000000126718 | 200 | 0 | 247050 | PDF | SUCCESS | e0550a3f65b6ac152a23cf191ceaf4ee66f74899d21fdbe1590c0bab1c75a306 |
+| PBLN_000000000126717 | 200 | 0 | 72981 | HWPX | SUCCESS | e3ed51965f5bef22431a0d0bb41637c954678f68482af0dd6162ca87f692676d |
+| PBLN_000000000126716 | 200 | 0 | 852480 | HWP | SUCCESS | a45734101059e03d1d426b74a74845a835875a45962a7ff5c6b0b4c2c6f84f6e |
+| PBLN_000000000126715 | 200 | 0 | 149022 | PDF | SUCCESS | b02bbe5e0c27570414be4e81d13e460da44bed42b06282f3df6920d4aa28579c |
+| PBLN_000000000126714 | 200 | 0 | 236587 | HWPX | SUCCESS | 53e8d18f21cef9e1af4f7029c275ca0bb4849308a333dd5eadce0a358e6db222 |
+| PBLN_000000000126713 | 200 | 0 | 258407 | PDF | SUCCESS | c171cf6ab39fc1a4212a9af871e5e4f6495111fc1301baf40fca7a60bc8dbc3e |
+| PBLN_000000000126712 | 200 | 0 | 716252 | PDF | SUCCESS | e139cf4d828233055ef0e1123b57acff27361ab77a7171ab16a7bca145e9a715 |
+| PBLN_000000000126711 | 200 | 0 | 330695 | PDF | SUCCESS | 3c8ad6e30505268c6a625a2ba071d49d0c04165ce787a97817fc7032a770e1a8 |
+| PBLN_000000000126710 | 200 | 0 | 140495 | PDF | SUCCESS | e7fbf890a939060d2387887563ce8094780731fe65d9cba0c1c29c14f95e1f1d |
+| PBLN_000000000126709 | 200 | 0 | 608806 | PDF | SUCCESS | edabc4ed0e4595febc21df9e3f89c02d5c5d1507f5c412f1837339b195b6411f |
+| PBLN_000000000126708 | 200 | 0 | 1147855 | PDF | SUCCESS | a36106dc4c2b3e40878038802d8f8dacc3ab3e909310bf5accf13d4fae85e1d9 |
+| PBLN_000000000126707 | 200 | 0 | 211538 | PDF | SUCCESS | 2cddc4e3335fa7c4fe64efd4d47d4716f62f14e9b1e5c1415e0d0fe719f455b6 |
+| PBLN_000000000126706 | 200 | 0 | 383766 | PDF | SUCCESS | 1c78bc335296006d43d6bbc85fa7f616fa6f94bbd562b2ceac7d4ab16b1593f0 |
+| PBLN_000000000126705 | 200 | 0 | 1082603 | PDF | SUCCESS | d9da6637ddbbed1992b46cb74606eee6c40e3691c3f082c15e38ea765391da21 |
+| PBLN_000000000126704 | 200 | 0 | 1613824 | HWP | SUCCESS | 1aa0ffa5562fed841b10ee72a2e924e14f4181ed920c6b76ff2270433e1c2ae3 |
+| PBLN_000000000126703 | 200 | 0 | 561650 | PDF | SUCCESS | 7bb28c0602e27a774f7cae7ce863fec3105b6c015f17746241f0cb56eb33a606 |
+| PBLN_000000000126702 | 200 | 0 | 195988 | PDF | SUCCESS | 424c34a608a0374e6c0cf378f003d29f62236c065cc4a0b6b9bbdfdbf30a9258 |
+| PBLN_000000000126701 | 200 | 0 | 463191 | PDF | SUCCESS | b2e99c30c33771f6b9ab72d2dac25f70ac389795687a1c5a719fd64526d25596 |
+| PBLN_000000000126700 | 200 | 0 | 178688 | HWP | SUCCESS | a7906b6e9d88151273a22faf2b9351d7243d79d1ab8138dc42ed59140aee7333 |
+| PBLN_000000000126699 | 200 | 0 | 259640 | PDF | SUCCESS | c484fe26688a05f01660e2609429f5a8b327448c7304354621cde845f67eaf37 |
+| PBLN_000000000126698 | 200 | 0 | 257440 | PDF | SUCCESS | b27f268c6690c517c01f987cae403c414e9536de19a4573d75e2f8d18f071ef6 |
+| PBLN_000000000126697 | 200 | 0 | 175104 | HWP | SUCCESS | 4b3fa6cafc4367038fc15374b3354c5e72487de738e87666de7fe467fc950866 |
+| PBLN_000000000126696 | 200 | 0 | 345762 | PDF | SUCCESS | 4afb1507701301a6b83a8a4c9b428319b4dda85f058055d4de8e4f24b6c7cb22 |
+| PBLN_000000000126695 | 200 | 0 | 958187 | PDF | SUCCESS | 3ec893b3705d94c3af6ce1691eb50d374eae289706711d82aa7faa2552e1eef1 |
+| PBLN_000000000126694 | 200 | 0 | 199072 | PDF | SUCCESS | ff390e7dbfd4a0a79f34aad9fb9324f6df71229305c85d8f24f46fa54dddf127 |
+| PBLN_000000000126693 | 200 | 0 | 368668 | PDF | SUCCESS | 9a9e3a038a04236c47b5ec1bc088223bbf7cecf256fca5d8e8750098d0d1c644 |
+| PBLN_000000000126692 | 200 | 0 | 490483 | PDF | SUCCESS | fe6c4e3af8df893cebc13da03a8d0143b1d58c7118ab4a0ecd6cb998e34aff15 |
+| PBLN_000000000126691 | 200 | 0 | 331934 | PDF | SUCCESS | 91ec58f121e37f6e752dd90886981fe7f0e4867b26efd4b9c755ef31b7196a80 |
+| PBLN_000000000126690 | 200 | 0 | 232925 | PDF | SUCCESS | e2704de020a25a6d4758c534bdfd88bd67faa11348f8e1f1539ef35ff6cb30a6 |
+| PBLN_000000000126689 | 200 | 0 | 317331 | PDF | SUCCESS | 7683b405e8dad252f9c1b827ff01399b76234a2b6803790b049a9c29db15efad |
+| PBLN_000000000126688 | 200 | 0 | 202238 | PDF | SUCCESS | da55dd1ad3f54f5b4047ea33945170fc0b132dbfc525d3a18ec440905cb55010 |
+| PBLN_000000000126687 | 200 | 0 | 101376 | HWP | SUCCESS | eb74b24857a21251f91b0844b42404c3fdebcbe299b3a49b77551fe5b361efdf |
+| PBLN_000000000126686 | 200 | 0 | 430569 | PDF | SUCCESS | e2a92de1c28195572992f9a20e7eab9db611efd3a04065ea20d8f8dec78caca3 |
+| PBLN_000000000126685 | 200 | 0 | 184129 | PDF | SUCCESS | d25a95ae244b486bf366e849b0bd40a9b875b5dbaa1febec6c7bbefbc25ca575 |
+| PBLN_000000000126684 | 200 | 0 | 829147 | PDF | SUCCESS | 9e842e04336f7f7cf04c125ec9a0d0982213c99a13cc5310cceba5f7fc8042b6 |
+| PBLN_000000000126683 | 200 | 0 | 88064 | HWP | SUCCESS | f4ac9892773de66bf533c97a263766477b1bdb8b04565b0eb84684d568226812 |
+| PBLN_000000000126681 | 200 | 0 | 70111 | HWPX | SUCCESS | 8c9d531820342b5dbca0b10f155bfb8fef123d149213cdef5009894bb5cf2e51 |
+| PBLN_000000000126679 | 200 | 0 | 493497 | PDF | SUCCESS | 65c8c3d70b5cbae5487567985049b8d54cbb74184bdc0216ae4180590765da42 |
+| PBLN_000000000126678 | 200 | 0 | 311831 | PDF | SUCCESS | 4d0e61aa0b34efafa6889c7954e7f20acc9396fe3fea99eef5a363170d29ef34 |
+| PBLN_000000000126677 | 200 | 0 | 111616 | HWP | SUCCESS | 587c0025871756af5de1eeda5c5c7a39a7f28a2fe754db113c1c91ff1f368ed1 |
+| PBLN_000000000126676 | 200 | 0 | 257589 | PDF | SUCCESS | 62311b53e869a6a2e5a93e700b9de2377a0c6966987f27b4748205884cdb0dd2 |
+| PBLN_000000000126675 | 200 | 0 | 97108 | HWPX | SUCCESS | ffd81c476250ab72f7640de5e57348b28cc165ac4bc065548ff94b2debce31b5 |
+| PBLN_000000000126674 | 200 | 0 | 970240 | HWP | SUCCESS | 4d7e0d255ee79d7a175a840af2be23e72b1a284cd6fb3c77245145a49620ec08 |
+| PBLN_000000000126673 | 200 | 0 | 578679 | PDF | SUCCESS | 75c0532fd142c433f877d43e3b02ea852c9bd0c53b4440ace4268e0068d995bb |
+| PBLN_000000000126672 | 200 | 0 | 709642 | PDF | SUCCESS | 7feca5cb8db27d26aaf4f26c27da516a0ae0de9e3962d902acab2858e5d79232 |
+| PBLN_000000000126671 | 200 | 0 | 766843 | PDF | SUCCESS | 5a83bdf5513336971d2084fe7baeec8cc810779f39e8f562b4a0f6eb9020e5fb |
+| PBLN_000000000126670 | 200 | 0 | 1228553 | PDF | SUCCESS | e5e88d386bc4d2e9d1c536db4bb47f784d098b6db136c5ce8ebc355e68fc278c |
+| PBLN_000000000126669 | 200 | 0 | 176468 | PDF | SUCCESS | 1d25d42ef5e0a2752a2377eefeef2a71ecabb8670f00d4841e44ff9db6079661 |
+
+## URL / Supplementary Metadata Quality
+
+API VALID는 타입/nonblank였다. 이번 URL syntax / local host policy / 실제 HTTP 접속은 별도 측정이다.
+
+| URL field state | Count / target 100 |
+| --- | --- |
+| VALID | 100 / 100 |
+| MISSING | 0 / 100 |
+| NULL | 0 / 100 |
+| BLANK | 0 / 100 |
+| INVALID | 0 / 100 |
+
+Supplementary token totals (전체 표본의 기록이 있을 때만 집계):
+
+```json
+{
+  "url_tokens": 138,
+  "filename_tokens": 138
+}
+```
+
+Count 일치는 의미상 positional pairing의 보장이 아니다. Supplementary HTTP 요청은 수행하지 않았다.
+
+Content-Type 차이는 Observation이다. application/octet-stream은 구체적 형식을 식별하지 못한다.
+
+각 행의 filename·Content-Type·final host·시각·source Raw/page/item reference는
+`data/downloaded/document-dev-20260928-01/<pblancId>/metadata.json`. 원본은 같은 디렉터리의 document.bin이다.
+
+## Recovery / Next Gate
+
+최신 Checkpoint와 manifest, 모든 metadata/hash를 검증하고 미처리 Candidate만 재개한다. 확정된 실패도 자동 재시도하지 않는다.
+고립 파일·변조 checksum을 발견하면 중단하고 사람이 Evidence를 확인한다. 기존 원본을 덮어쓰지 않는다.
+Parsing Gate는 별도 Task와 Human Review 후에 시작한다. 다운로드 가능 여부만으로 실제 본공고라는 의미를 보장하지 않는다.

@@ -170,14 +170,14 @@ def lint_check():
 
 def contract_check():
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/contract", "-p", "test_*.py", "-v")
-    print("PASS: snapshot/report, upstream Probe and bounded API-quality mock-transport Unit and Contract tests")
+    print("PASS: snapshot/report, upstream Probe, API-quality and bounded document mock-transport Unit and Contract tests")
     print("N/A in offline validation: live HTTP, full provider specification, product API and Qdrant contracts")
 
 
 def integration_check():
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/integration", "-p", "test_*.py", "-v")
-    print("PASS: local CLI integration including credential-missing Probe/API-quality and failure exits; no live HTTP")
-    print("N/A: live network API, document download/Parser, service/DB integration")
+    print("PASS: local CLI integration including credential-missing Probe/API-quality and bounded document failure exits; no live HTTP")
+    print("N/A: live API/document HTTP, document text Parser, service/DB integration")
 
 
 def allowed_ignored(name):

@@ -13,7 +13,7 @@
 | MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | 미구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | 미구현 |
 | Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 미구현 |
-| Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe와 승인된 5×20 API 품질 Batch; 문서 Gate 대기 |
+| Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe·5×20 API 품질 Batch·동일 표본의 제한된 문서 Download Gate |
 | Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
 
 React는 Spring Boot를 통해 AI를 호출한다. Frontend는 DB에 접근하지 않는다.
@@ -36,7 +36,7 @@ PROJECT_DESIGN.md §28은 확장 가능한 Target 구조이며 모든 하위 문
 빈 디렉터리·내용 없는 문서를 만들어 Target 구조를 흉내 내지 않는다.
 
 AGY Initial Review는 완료됐고 판정은 PASS WITH FIXES다.
-과거 보완 Targeted Re-review는 PASS다. 현재 API Task의 독립 검토·Human Review·Data Gate는 pending이다.
+과거 보완 Targeted Re-review는 PASS다. 현재 Task의 독립 검토·Human Review·Data Gate는 pending이다.
 Review Lifecycle과 증거 범위는 [workflow.md](workflow.md)에서 관리한다.
 
 ## Phase 해석과 선결정 목록
@@ -45,7 +45,7 @@ Review Lifecycle과 증거 범위는 [workflow.md](workflow.md)에서 관리한�
 2. §37·46·49의 전체 서비스 검증은 미구현 상태에 적용할 수 없다. 현재 적용 검증을 실행하고 제품 검증은 N/A로 공개한다. 제품 도입 때 해당 검증을 필수로 추가한다.
 3. §5 도식의 문서 Normalize와 §19 API Normalize는 대상이 다르다. 상세 Pipeline 설계 때 구분을 확정한다. 이번에 어느 쪽도 구현하지 않는다.
 4. 사용자 확인 Endpoint / 인증 정보와 실제 Sample의 pagination / envelope / field 타입은 [External API Contract](../../contracts/external-api/README.md)에 있다. Pagination·ID·no-data와 5×20 품질 Run은 OBSERVED다. 공식 정렬·일반 오류 보장은 미확정이다.
-5. §53의 이번 API 품질 Task는 12개 주요 필드·타입/nonblank 기준·실제 행 분모·기본 정렬 선두 100건을 사용한다. 의미 검증·문서 성공률·공식 최신순 보장은 미확정이다.
+5. §53의 이번 API 품질 Task는 12개 주요 필드·타입/nonblank 기준·실제 행 분모·기본 정렬 선두 100건을 사용한다. API 측정에서 의미·접속은 미측정이었다. 문서 성공률은 별도 Download Gate에서 측정하고 공식 최신순 보장은 미확정이다.
 6. HWP / HWPX / HTML의 근거 page 대체 규칙과 표 추출 품질 기준이 미결정이다. Parser 선택 전에 검증한다.
 7. §57의 과거 API 확인 서술과 이번 사용자 제공 Sample은 별개 Evidence다. Sample을 이번 Live 실행 결과로 재사용하지 않는다.
 

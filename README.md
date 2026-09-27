@@ -3,7 +3,7 @@
 기업 정보와 지원사업 공고문 근거를 결합하는 AI 서비스 프로젝트다.
 최상위 설계는 [PROJECT_DESIGN.md](PROJECT_DESIGN.md), 작업 진입점은 [AGENTS.md](AGENTS.md)다.
 
-현재는 **Phase 0 준비**다. 승인된 API 100건 품질 검증을 수행하며 문서 Gate와 GO / DROP 판단은 대기 중이다.
+현재는 **Phase 0 준비**다. API 100건 품질 표본을 보존하고 승인된 Document Download Gate를 수행한다. GO / DROP은 대기 중이다.
 제품 서비스, DB, 문서 Parser, RAG는 구현되지 않았다.
 
 ## 현재 실행 환경
@@ -35,7 +35,7 @@ python3 scripts/phase0.py validate-report harness/workspace/artifacts/phase0-rep
 Compose에서 snapshot을 만들려면 입력을 `data/raw/inbox/`에 두고
 `docker compose run --rm phase0 snapshot /data/raw/inbox/response.json --run-id sample-001 --media-type application/json`
 을 실행한다. 동일 run-id나 출력 파일은 덮어쓰지 않는다.
-실제 Collector·Downloader·Parser는 없다. 도구가 보고서 생성만으로 Gate를 통과시키지 않는다.
+전체 Collector·Production Downloader·Parser는 없다. 승인된 문서 Gate 도구는 아래 범위로 제한한다. 도구가 보고서 생성만으로 Gate를 통과시키지 않는다.
 
 사용자 확인 Request·실제 Sample 기반 [기업마당 API Contract](contracts/external-api/README.md)와
 최대 4요청의 Local Probe는 별도로 준비되어 있다. 사용자 관리 `.env.dev` / `.env.prod`는 Git에서 제외한다.
@@ -59,7 +59,7 @@ CI는 오프라인 검증만 수행한다. Compose Batch는 network_mode=none을
 독립 결과는 [AGY Initial Review](harness/workspace/reports/agy-initial-harness-review.md),
 과거 보완은 [보완 보고서](harness/workspace/reports/2026-09-27-codex-harness-fix-report.md),
 그 독립 PASS는 [AGY Targeted Re-review](harness/workspace/reports/agy-harness-fix-review.md)에 기록한다.
-현재 API Task의 독립 검토·사용자 판단은 대기 중이다.
+현재 Task의 독립 검토·사용자 판단은 대기 중이다.
 사용자가 Diff와 독립 Review를 확인한 뒤 다음 Task·Push·승격을 결정한다.
 
 ## Phase 0 API 품질 측정
@@ -73,3 +73,16 @@ python3 -B scripts/phase0_api_quality.py analyze --run-id api-quality-dev-unique
 
 분석은 HTTP 없이 Raw checksum에서 재현된다. Raw와 실행 JSON은 ignored이며 해석 Report는 Git 추적한다.
 100개 Item과 ID 유일성을 따로 계수한다. URL 접속·다운로드·Parser는 이 도구 범위에 없다.
+
+## 제한된 Document Download Gate
+
+기존 API 100개 Item의 printFlpthNm만 dev에서 순차 다운로드한다. Offline PASS 후 명시적으로 실행한다.
+
+```bash
+python3 -B scripts/phase0_document_download.py download --profile dev --run-id <unique-id>
+python3 -B scripts/phase0_document_download.py download --profile dev --run-id <same-id> --resume
+python3 -B scripts/phase0_document_download.py analyze --run-id <id> --output harness/workspace/reports/<report>.md
+```
+
+원본은 data/downloaded에서 checksum과 함께 보존하고 Git에서 제외한다.
+[Pipeline 경계](harness/docs/data-pipeline.md)에 크기·Redirect·형식 식별·재개 제한을 명시한다. 문서 본문 Parser는 없다.

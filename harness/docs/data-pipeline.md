@@ -54,3 +54,33 @@ URL 접속·field 의미는 UNMEASURED이며 INVALID가 아닌 값도 의미상 
 Run Artifact는 pages / 실패 / next action과 품질 JSON을 저장한다. 실패 시 기존 Raw를 보존하고 재요청은 새 승인·run-id로 수행한다.
 `analyze`는 Run / Raw checksum을 검증해 동일 지표와 tracked Markdown Report를 HTTP 없이 재현한다.
 [품질 계약](../../contracts/schemas/phase0-api-quality.contract.json)은 full Gate 계약을 대체하지 않으며 gate_decision=pending을 유지한다.
+
+## 승인된 Document Download Gate
+
+`scripts/phase0_document_download.py`는 source run `api-quality-dev-20260928-01`의 checksum을 검증한 동일 100개 Item만 사용한다.
+새 API 수집은 하지 않는다. `download --profile dev --run-id <unique-id>`는 printFlpthNm만 순차 요청한다.
+공개 파일 요청에는 API key·Cookie·Authorization·Referer가 없다. dev key는 반사 검출에만 사용하고 prod 파일은 읽지 않는다.
+HTTPS / www.bizinfo.go.kr / 공개 atchFileId·fileSn query만 허용하며 Redirect도 같은 경계를 따른다.
+최대 Redirect 3회, 파일 25 MiB, socket timeout 15초, Candidate 사이 0.25초는 Local Safety Boundary다.
+공급자 공식 Rate Limit이나 안전한 속도 보장이 아니다. Content-Length와 별개로 실제 stream read를 제한한다. 자동 재시도는 없다.
+
+`data/downloaded/<run-id>/manifest.json`은 표본·Raw reference·안전 설정을 고정한다.
+각 `<pblancId>/document.bin` / metadata.json은 원본 byte·HTTP·Redirect·host·시각·size·SHA·형식·outcome을 보존한다.
+SIZE_LIMIT_EXCEEDED의 저장 byte는 한도 내 prefix이며 observed size는 하한이다. 전체 파일 크기는 미측정이다.
+Secret 반사 응답·header·인증 URL은 저장/요청을 거부하며 예외 상세를 출력하지 않는다.
+PDF signature, HWP FileHeader signature, HWPX / XLSX ZIP 구조만 식별하며 본문·표·XML 내용을 추출하지 않는다.
+형식 식별은 완전한 파일 유효성 검사가 아니다. Content-Type 차이는 Observation이며 filename/actual 차이는 FORMAT_MISMATCH다.
+SUCCESS는 완전한 non-empty HTTP 2xx body의 식별 가능한 형식이 filename 확장자와 일치하는 경우다.
+
+원본·metadata·summary-<순번>.json은 exclusive write로 보존한다. 기존 run-id는 --resume에서만 사용한다.
+재개는 manifest / 이전 Source / 저장된 모든 checksum과 형식을 검증한 후 미처리 Candidate만 요청한다.
+확정 실패는 재시도하지 않는다. 중단된 고립 파일이나 불일치는 중단 후 사람의 검토 대상이며 SUCCESS로 세지 않는다.
+Checkpoint는 시작·10개 결과 확정마다·실패·중단·최종 Report용 집계 확정에 순번을 늘려 기록한다.
+completed_count=SUCCESS, processed_count=SUCCESS+실패, remaining_count=100-processed_count다.
+다운로드 종료 Checkpoint의 completed는 원본·결과가 확정됐다는 뜻이며 전체 Task Validation / Gate 승인이 아니다.
+Task 종료는 해석 Report·최종 Git index·check-all·AGY/Human Review로 별도 확인한다.
+
+`analyze --run-id <id> --output harness/workspace/reports/<report>.md`는 HTTP 없이 source·파일 checksum을 검증해 동일 지표를 재현한다.
+기본 분모는 Target 100이며 size / format / hash처럼 실제 body가 필요한 지표는 별도 측정 분모를 명시한다.
+Supplementary는 @ token count만 비교한다. 의미상 pairing·Primary 본공고 의미·장기 URL 안정성은 미확정이다.
+[Download 계약](../../contracts/schemas/phase0-document-download.contract.json)의 제한은 로컬 설정이며 pending-only Gate를 유지한다.

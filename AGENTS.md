@@ -13,7 +13,7 @@
 
 예정 경계: React → Spring Boot → FastAPI.
 Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는 AI와 문서 근거를 담당한다.
-현재 실행 코드는 `scripts/phase0.py`, 명시적인 Local `scripts/bizinfo_probe.py`, dev 전용 `scripts/phase0_api_quality.py`, 검증 도구다.
+현재 실행 코드는 `scripts/phase0.py`, 명시적인 Local `scripts/bizinfo_probe.py`, dev 전용 `scripts/phase0_api_quality.py`, 제한된 `scripts/phase0_document_download.py`, 검증 도구다.
 [Architecture](harness/docs/architecture.md), [기계 Registry](harness/registry.json)가 실제 구현 상태를 기록한다.
 
 ## 반드시 지킬 것

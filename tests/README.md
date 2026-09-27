@@ -17,3 +17,6 @@ Live Probe는 CI가 호출하지 않으며 별도 Local 명령과 ignored Eviden
 contract/test_phase0_api_quality.py는 합성 5×20 응답으로 중복·5종 field 상태·기간·확장자·정렬·부분 실패·Raw/Secret 경계를 검사한다.
 integration/test_phase0_api_quality_cli.py는 credential 없는 CLI의 NOT_RUN·dev 제한·재현·출력 경계·overwrite 금지를 검사한다.
 Live Batch와 offline mock 결과는 분리하며 GitHub CI는 API를 호출하지 않는다.
+
+contract/test_phase0_document_download.py는 합성 PDF/CFB/ZIP와 mock HTTP로 Download Gate의 제한·형식·실패·재개·checksum·Secret을 검증한다.
+integration/test_phase0_document_download_cli.py는 dev 제한·출력·분석/overwrite·실패 종료를 검사하며 Live 요청은 없다.

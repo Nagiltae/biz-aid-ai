@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "scope": "bounded Phase 0 Primary Notice Candidate download; no text parsing",
+  "source_run_id": "api-quality-dev-20260928-01",
+  "target_documents": 100,
+  "profile": "dev",
+  "source_pages": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "source_rows_per_page": 20,
+  "allowed_hosts": [
+    "www.bizinfo.go.kr"
+  ],
+  "allowed_scheme": "https",
+  "max_redirects": 3,
+  "max_file_bytes": 26214400,
+  "timeout_seconds": 15,
+  "pause_seconds": 0.25,
+  "automatic_retries": 0,
+  "formats": [
+    "PDF",
+    "HWP",
+    "HWPX",
+    "ZIP",
+    "XLSX",
+    "OTHER",
+    "UNKNOWN"
+  ],
+  "outcomes": [
+    "SUCCESS",
+    "HTTP_ERROR",
+    "TRANSPORT_ERROR",
+    "REDIRECT_ERROR",
+    "EMPTY_FILE",
+    "SIZE_LIMIT_EXCEEDED",
+    "FORMAT_MISMATCH",
+    "UNKNOWN_FORMAT",
+    "URL_POLICY_ERROR",
+    "SECURITY_REJECTED"
+  ],
+  "payload_root": "data/downloaded",
+  "checkpoints": "harness/workspace/checkpoints/*.md",
+  "safety_limit_authority": "local safety boundaries; not provider rate or size guarantees",
+  "identification": "PDF magic; HWP CFB FileHeader signature; bounded ZIP directory + HWPX mimetype / XLSX structure. Not full document validation.",
+  "format_sources": [
+    "https://tech.hancom.com/hwpxformat/",
+    "https://cdn.hancom.com/link/docs/%ED%95%9C%EA%B8%80%EB%AC%B8%EC%84%9C%ED%8C%8C%EC%9D%BC%ED%98%95%EC%8B%9D_5.0_revision1.2.pdf",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/e39a41fd-965c-481b-bb48-257d18aac1f0",
+    "https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/structure-of-a-spreadsheetml-document"
+  ],
+  "gate_decisions": [
+    "pending"
+  ]
+}

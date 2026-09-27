@@ -62,16 +62,19 @@
     "scripts/lib/validate.py",
     "scripts/phase0.py",
     "scripts/phase0_api_quality.py",
+    "scripts/phase0_document_download.py",
     "scripts/setup.sh",
     "tests/contract/test_bizinfo_probe.py",
     "tests/contract/test_harness_policy.py",
     "tests/contract/test_phase0.py",
     "tests/contract/test_phase0_api_quality.py",
+    "tests/contract/test_phase0_document_download.py",
     "tests/integration/test_bizinfo_probe_cli.py",
     "tests/integration/test_phase0_api_quality_cli.py",
-    "tests/integration/test_phase0_cli.py"
+    "tests/integration/test_phase0_cli.py",
+    "tests/integration/test_phase0_document_download_cli.py"
   ],
-  "report": "harness/workspace/reports/2026-09-28-post-rebase-merge-verification-report.md",
+  "report": "harness/workspace/reports/2026-09-28-codex-document-download-gate-report.md",
   "dynamic_paths": [
     "harness/workspace/reports/*.md",
     "harness/workspace/checkpoints/*.md"
@@ -89,6 +92,7 @@
     "contracts/external-api/bizinfo.contract.json",
     "contracts/frontend-backend/README.md",
     "contracts/schemas/phase0-api-quality.contract.json",
+    "contracts/schemas/phase0-document-download.contract.json",
     "contracts/schemas/phase0-report.contract.json",
     "contracts/schemas/raw-snapshot.contract.json",
     "data/downloaded/README.md",
@@ -142,16 +146,19 @@
     "scripts/lib/validate.py",
     "scripts/phase0.py",
     "scripts/phase0_api_quality.py",
+    "scripts/phase0_document_download.py",
     "scripts/setup.sh",
     "tests/README.md",
     "tests/contract/test_bizinfo_probe.py",
     "tests/contract/test_harness_policy.py",
     "tests/contract/test_phase0.py",
     "tests/contract/test_phase0_api_quality.py",
+    "tests/contract/test_phase0_document_download.py",
     "tests/fixtures/external-api/bizinfo-user-sample.json",
     "tests/integration/test_bizinfo_probe_cli.py",
     "tests/integration/test_phase0_api_quality_cli.py",
-    "tests/integration/test_phase0_cli.py"
+    "tests/integration/test_phase0_cli.py",
+    "tests/integration/test_phase0_document_download_cli.py"
   ],
   "agy_review_evidence": "harness/workspace/reports/agy-harness-fix-review.md"
 }

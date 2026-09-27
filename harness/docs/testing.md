@@ -11,7 +11,7 @@
 | check-format.sh | UTF-8·LF·newline·공백·JSON indent·Git whitespace | 제품 언어 formatter |
 | check-lint.sh | Python AST·Bash syntax·JSON key 중복·Shell 실행 권한 | 제품 lint, 정적 타입 검사 |
 | check-contract.sh | 로컬 snapshot / report, 실제 sanitized API Fixture·mock HTTP·Raw / secret 보존 Contract tests | Live API 측정·공급자 전체 명세·제품 API·Qdrant 계약 |
-| check-integration.sh | CLI snapshot → hash 확인 → 보고서 생성·검증, 실패 종료와 credential 없는 Probe CLI | Live HTTP·다운로드·Parser·서비스 DB 경계 |
+| check-integration.sh | CLI snapshot → hash 확인 → 보고서 생성·검증, 실패 종료와 credential 없는 Probe CLI | Live HTTP·문서 본문 Parser·서비스 DB 경계 |
 | check-git-tracked.sh | dev / CI ref·미추적 파일·금지 ignore·Profile Secret ignore / 추적 금지·example 추적·index 동기화·최종 status | Push·Merge 권한 강제 |
 | check-comments.sh | Python tokenize / AST docstring·Bash comment의 한글 여부 | 주석 WHY의 적절성·누락은 AGY / 사용자 검토 |
 | check-harness.sh | 문서 링크·Registry·Skill·명령·실제 module / Compose / CI·workspace·보고서·독립 Review 증거와 검토 범위 | AGY 독립 Architecture 판단·저자 신원 인증 |
@@ -45,3 +45,7 @@ Review Lifecycle은 [workflow.md](workflow.md)의 pending / review_complete를 �
 API 품질 Batch는 고정 5×20 계획·중복·MISSING/NULL/BLANK/INVALID·기간·확장자·부분 실패·재현/Raw checksum을 오프라인으로 검증한다.
 명시적인 Negative Probe만 03 NODATA_ERROR를 EXPECTED_NO_DATA로 분류하고 Positive Probe / Batch의 같은 결과는 API_ERROR다.
 Live Batch는 전체 Offline Validation PASS 이후 dev에서만 별도 실행한다. 제품·문서 Gate와 공식 정렬 보장 검증은 포함하지 않는다.
+
+문서 Gate는 임시 파일 / mock stream으로 순차 100개 계획·HTTP 오류·Redirect·크기·형식·중복·checksum·Partial/Resume·Checkpoint·Secret 경계를 검사한다.
+CI는 실제 파일 HTTP를 호출하지 않는다. Offline 전체 PASS 뒤 dev 다운로드를 별도 명령으로 수행한다.
+SYNTHETIC_MOCK와 LIVE_HTTP Evidence를 구분하고 다운로드 성공을 본문 Parsing 성공으로 계산하지 않는다.

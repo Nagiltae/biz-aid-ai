@@ -20,3 +20,8 @@ Local Probe는 Git Branch와 별개인 --profile dev / prod를 명시한다. 선
 승인된 Phase 0 API 품질 Batch는 dev만 선택하며 5 Page × 20건으로 제한한다. 재시도·prod 요청·다운로드는 없다.
 수집 시점 API 기본 정렬 기준 선두 100건을 표본으로 사용한다. 공식 최신순 보장은 추정하지 않는다.
 품질 분모는 성공 Envelope의 실제 Item 수이며 중복 행·null·blank·누락을 제거하지 않는다.
+
+승인된 Document Download Gate는 기존 api-quality-dev-20260928-01의 동일 100개 printFlpthNm만 순차 요청한다.
+Supplementary는 token 수만 측정하고 원본은 다운로드하지 않는다. dev key는 반사 검출만 수행하며 문서 요청에 전달하지 않는다.
+data/downloaded 원본·manifest·metadata/checksum은 Git에서 제외하고 최종 해석 Report / Checkpoint만 추적한다.
+재개는 검증된 확정 결과를 건너뛰며 실패 자동 재시도·원본 overwrite·본문 Parsing을 포함하지 않는다.
