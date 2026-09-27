@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "required_fields": [
+    "version",
+    "run_id",
+    "created_at",
+    "source",
+    "sample",
+    "metrics",
+    "exceptions",
+    "gate"
+  ],
+  "source": "bizinfo",
+  "target_sample_size": 100,
+  "metric_units": {
+    "sample_count": "count",
+    "api_collection_rate": "rate",
+    "pblanc_id_presence": "rate",
+    "pblanc_id_duplicates": "count",
+    "major_field_null_rates": "distribution",
+    "major_field_validity": "rate",
+    "notice_url_availability": "rate",
+    "file_extensions": "distribution",
+    "download_success": "rate",
+    "text_extraction_success": "rate",
+    "pdf_parse_success": "rate",
+    "hwpx_parse_success": "rate",
+    "hwp_parse_success": "rate",
+    "scan_pdf_rate": "rate",
+    "table_extraction_quality": "qualitative",
+    "heading_detection": "qualitative",
+    "average_pages": "number",
+    "application_period_parsing": "qualitative",
+    "source_update_tracking": "qualitative",
+    "url_stability": "qualitative",
+    "additional_information": "qualitative",
+    "rag_value": "qualitative",
+    "evidence_location_tracking": "qualitative",
+    "automation_feasibility": "qualitative"
+  },
+  "measurement_statuses": [
+    "not_measured",
+    "measured"
+  ],
+  "gate_decisions": [
+    "pending"
+  ],
+  "initial_thresholds": {
+    "sample_count": 100,
+    "api_collection_rate": 0.99,
+    "pblanc_id_presence": 1,
+    "major_field_validity": 0.95,
+    "notice_url_availability": 0.9,
+    "download_success": 0.95,
+    "text_extraction_success": 0.9
+  },
+  "threshold_application": "Human review after field, sampling and denominator definitions are agreed. No automatic GO."
+}

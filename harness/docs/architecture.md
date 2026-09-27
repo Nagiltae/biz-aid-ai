@@ -1,0 +1,53 @@
+# Architecture와 현재 상태
+
+근거: PROJECT_DESIGN.md §1–9, 19–25, 42–43, 48–58.
+목적은 기업 프로필을 활용해 현재 신청 가능한 사업과 상세 조건을 근거와 함께 제공하는 것이다.
+
+## 책임 경계
+
+| 대상 | 설계상 책임 | 현재 상태 |
+| --- | --- | --- |
+| React | UI, 서버 상태 캐시, 선택 기업·채팅 UI 상태 | 미구현 |
+| Spring Boot | 인증·기업·사업·대화·즐겨찾기 Source of Truth, 정확한 DB filtering, FastAPI 호출 | 미구현 |
+| FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 미구현 |
+| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | 미구현 |
+| Qdrant | 문서 Chunk vector와 근거 metadata | 미구현 |
+| Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 미구현 |
+| Phase 0 도구 | 확보한 로컬 원문 보존·무결성 확인·미측정 보고서 생성·계약 검증 | 구현 |
+| Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, Initial Review PASS WITH FIXES 보완 중 |
+
+React는 Spring Boot를 통해 AI를 호출한다. Frontend는 DB에 접근하지 않는다.
+FastAPI는 서비스 DB의 소유자가 아니다. 정확한 조건은 일반 코드와 MySQL이 결정한다.
+MySQL 후보 pblanc_id로 Qdrant 검색 범위를 제한하는 구조는 향후 계획이다.
+
+## 현재 실행 구성
+
+`docker-compose.yml`의 `phase0`만 실제 Batch 도구다.
+frontend / backend / ai / mysql / qdrant 컨테이너와 제품 모듈은 없다.
+Docker Compose는 개발환경 기준이며 운영 인프라는 미결정이다.
+MongoDB·Langfuse는 도입하지 않는다. LangSmith 계획은 [observability.md](observability.md)에 있다.
+
+## Target 구조와 현재 Skill 구조
+
+PROJECT_DESIGN.md §28은 확장 가능한 Target 구조이며 모든 하위 문서의 즉시 생성을 요구하지 않는다.
+현재 Phase 0 준비는 6개 SKILL.md와 data-pipeline-change의 기존 측정 workflow만 사용한다.
+나머지 Skill은 짧은 본문과 상세 Context / Rule 링크로 충분하므로 추가 workflow/reference가 필요하지 않다.
+복잡한 승인된 Task에서 독립 절차가 실제로 필요할 때만 하위 문서를 추가한다.
+빈 디렉터리·내용 없는 문서를 만들어 Target 구조를 흉내 내지 않는다.
+
+AGY Initial Review는 완료됐고 판정은 PASS WITH FIXES다.
+현재 보완 작업의 독립 검토·Human Review·Data Gate는 별도 pending이다.
+Review Lifecycle과 증거 범위는 [workflow.md](workflow.md)에서 관리한다.
+
+## Phase 해석과 선결정 목록
+
+1. §48·57의 Harness 배치와 이번 요청의 순서가 다르다. 이번 요청에 따라 Gate 준비용 Harness를 먼저 만든다. Phase 1 전체 착수로 간주하지 않는다.
+2. §37·46·49의 전체 서비스 검증은 미구현 상태에 적용할 수 없다. 현재 적용 검증을 실행하고 제품 검증은 N/A로 공개한다. 제품 도입 때 해당 검증을 필수로 추가한다.
+3. §5 도식의 문서 Normalize와 §19 API Normalize는 대상이 다르다. 상세 Pipeline 설계 때 구분을 확정한다. 이번에 어느 쪽도 구현하지 않는다.
+4. 실제 API endpoint / 인증 / pagination / envelope / 주요 필드 mapping이 저장소에 없다. 추정 계약을 만들지 않는다.
+5. §53의 주요 필드 목록, 유효성 정의, 수집률·문서 성공률의 분모, 최신 100건 선정 기준이 미결정이다. 실제 Gate 평가 전에 사용자와 확정한다.
+6. HWP / HWPX / HTML의 근거 page 대체 규칙과 표 추출 품질 기준이 미결정이다. Parser 선택 전에 검증한다.
+7. §57은 API 응답을 확인했다고 서술하지만 저장소에 증거가 없다. 확인 사실을 이번 실행 결과로 재사용하지 않는다.
+
+최상위 문서 자체는 수정하지 않는다. 미결정 사항은 기술 도입으로 해결하지 않는다.
+100건 Gate 후의 50건 Vertical Slice는 별도 작업이며 현재 범위에 없다.

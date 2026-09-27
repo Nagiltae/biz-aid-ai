@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "source": "bizinfo",
+  "hash_algorithm": "sha256",
+  "required_fields": [
+    "version",
+    "source",
+    "run_id",
+    "collected_at",
+    "preserved_at",
+    "payload_syntax",
+    "media_type",
+    "raw_path",
+    "sha256",
+    "byte_count"
+  ],
+  "media_types": {
+    "application/json": ".json",
+    "application/xml": ".xml"
+  },
+  "raw_path_base": "metadata directory",
+  "upstream_contract": "unconfirmed"
+}

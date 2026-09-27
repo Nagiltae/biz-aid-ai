@@ -1,0 +1,5 @@
+# raw 보존 정책
+
+공식 API 원본 byte와 snapshot metadata를 보존한다.
+README만 Git에 포함한다. 실제 데이터·credential은 commit하지 않는다.
+원문 삭제·덮어쓰기를 하지 않는다. 현재 실제 수집·다운로드·파싱 결과는 없다.
