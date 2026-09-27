@@ -13,13 +13,13 @@
 
 예정 경계: React → Spring Boot → FastAPI.
 Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는 AI와 문서 근거를 담당한다.
-현재 실행 코드는 `scripts/phase0.py`와 검증 도구뿐이다.
+현재 실행 코드는 `scripts/phase0.py`, 명시적인 Local `scripts/bizinfo_probe.py`, dev 전용 `scripts/phase0_api_quality.py`, 검증 도구다.
 [Architecture](harness/docs/architecture.md), [기계 Registry](harness/registry.json)가 실제 구현 상태를 기록한다.
 
 ## 반드시 지킬 것
 
 - 개발은 dev에서만 한다. 임의 Push / Merge / force push / branch 삭제는 금지한다.
-- 원문을 보존한다. Secret·원본 payload는 Git에 넣지 않는다. 프로젝트 결과물을 ignore로 숨기지 않는다.
+- 원문을 보존한다. Secret·Live payload는 Git에 넣지 않는다. 사용자 제공 sanitized Fixture 예외는 [Source 규칙](harness/rules/data-source-rules.md)을 따른다. 프로젝트 결과물을 ignore로 숨기지 않는다.
 - 설명성 코드 주석은 한글 WHY / BOUNDARY / EXCEPTION / RISK로 작성한다.
 - Codex는 Developer / Generator, AGY는 독립 Reviewer다. Codex가 AGY 승인 기록을 작성하지 않는다.
 - Harness 규칙 완화·삭제 또는 큰 Architecture 변경은 먼저 보고하고 사용자 판단을 받는다.

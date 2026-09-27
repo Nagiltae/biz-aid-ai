@@ -170,14 +170,14 @@ def lint_check():
 
 def contract_check():
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/contract", "-p", "test_*.py", "-v")
-    print("PASS: local snapshot/report Unit and Contract tests")
-    print("N/A: official upstream, product API and Qdrant payload contracts are unconfirmed/unimplemented")
+    print("PASS: snapshot/report, upstream Probe and bounded API-quality mock-transport Unit and Contract tests")
+    print("N/A in offline validation: live HTTP, full provider specification, product API and Qdrant contracts")
 
 
 def integration_check():
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/integration", "-p", "test_*.py", "-v")
-    print("PASS: real local CLI integration, corruption/overwrite/invalid-input failures")
-    print("N/A: network API, document download/Parser, service/DB integration")
+    print("PASS: local CLI integration including credential-missing Probe/API-quality and failure exits; no live HTTP")
+    print("N/A: live network API, document download/Parser, service/DB integration")
 
 
 def allowed_ignored(name):
@@ -208,6 +208,10 @@ def git_check():
               and os.environ.get("GITHUB_REF") == "refs/heads/dev")
     if branch != "dev" and not (not branch and ci_dev):
         raise ValueError(f"development must be on dev: {branch or 'detached HEAD'}")
+    # CI에 Secret 파일이 없어도 ignore 정책 누락을 잡아 향후 사용자 키가 추적되는 것을 막는다.
+    ignored_profiles = run("git", "check-ignore", "--no-index", ".env.dev", ".env.prod", capture=True).splitlines()
+    if set(ignored_profiles) != {".env.dev", ".env.prod"}:
+        raise ValueError("profile secret files must be ignored: .env.dev / .env.prod")
     untracked = run("git", "ls-files", "--others", "--exclude-standard", "-z", capture=True)
     if untracked:
         raise ValueError("untracked project files:\n" + untracked.replace("\0", "\n"))

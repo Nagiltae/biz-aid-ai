@@ -326,6 +326,48 @@ class HarnessPolicyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("must be on dev", result.stderr)
 
+    def test_profile_secrets_are_ignored_and_example_is_tracked(self):
+        result = subprocess.run(
+            ["git", "check-ignore", "--no-index", ".env.dev", ".env.prod"],
+            cwd=self.directory, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(set(result.stdout.splitlines()), {".env.dev", ".env.prod"})
+        ignored = subprocess.run(["git", "check-ignore", "--no-index", ".env.example"],
+                                 cwd=self.directory, capture_output=True, text=True)
+        self.assertEqual(ignored.returncode, 1)
+        tracked = subprocess.check_output(["git", "ls-files", ".env.example"], cwd=self.directory, text=True)
+        self.assertEqual(tracked.strip(), ".env.example")
+
+    def test_tracked_profile_secret_file_is_rejected(self):
+        # 실제 사용자 Secret은 복사하지 않고 격리된 Git fixture의 합성 설정으로만 추적 오류를 재현한다.
+        for name in (".env.dev", ".env.prod"):
+            with self.subTest(name=name):
+                path = self.directory / name
+                path.write_text("BIZINFO_SERVICE_KEY=synthetic-fixture-key\n", encoding="utf-8")
+                self.git("add", "-f", "--", name)
+                result = self.check("git-tracked")
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("raw/secret/cache must not be tracked", result.stderr)
+                self.git("rm", "--cached", "--", name)
+                path.unlink()
+
+    def test_ignored_env_example_is_rejected(self):
+        path = self.directory / ".gitignore"
+        path.write_text(path.read_text(encoding="utf-8") + "\n.env.example\n", encoding="utf-8")
+        self.git("add", "--", ".gitignore")
+        result = self.check("git-tracked")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("required files are ignored", result.stderr)
+
+    def test_profile_ignore_policy_is_required_even_without_secret_files(self):
+        path = self.directory / ".gitignore"
+        path.write_text(path.read_text(encoding="utf-8").replace(".env.*\n", ".env.dev\n"), encoding="utf-8")
+        self.git("add", "--", ".gitignore")
+        result = self.check("git-tracked")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("profile secret files must be ignored", result.stderr)
+
     def test_unimplemented_module_cannot_be_silently_added(self):
         (self.directory / "frontend").mkdir()
         result = self.check("harness")

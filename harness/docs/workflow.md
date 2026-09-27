@@ -88,6 +88,6 @@ Hash는 원문 무결성을 확인하며 저자의 신원을 서명으로 인증
 
 Initial Review 결과는 **PASS WITH FIXES**이며 이전 Foundation Report에 한정한다.
 Targeted Re-review는 보완 Report에 대한 **PASS**로 완료됐다. 최신 Evidence는 이 독립 원문이다.
-현재 Dynamic Workspace 수정 Report는 검토 대상이 달라 CURRENT REPORT REVIEW가 pending이다.
+Registry.report의 현재 Task Report는 검토 대상이 달라 CURRENT REPORT REVIEW가 pending이다.
 보완 구현과 check-all 통과만으로 과거 결과를 바꾸거나 현재 Task / Human Review를 승인하지 않는다.
 Human Review는 AGY 원문·Codex Report·최종 Validation·Git Diff를 대조해 다음 Task를 판단한다.

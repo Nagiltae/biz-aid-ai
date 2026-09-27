@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "scope": "Phase 0 API metadata quality only; not service normalization or full collector",
+  "sample_definition": "수집 시점 API 기본 정렬 기준 선두 100건",
+  "profiles": [
+    "dev"
+  ],
+  "pages": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "rows_per_page": 20,
+  "sample_target": 100,
+  "retries": 0,
+  "field_states": [
+    "VALID",
+    "MISSING",
+    "NULL",
+    "BLANK",
+    "INVALID"
+  ],
+  "major_fields": [
+    "pblancId",
+    "pblancNm",
+    "pblancUrl",
+    "jrsdInsttNm",
+    "excInsttNm",
+    "pldirSportRealmLclasCodeNm",
+    "creatPnttm",
+    "reqstBeginEndDe",
+    "updtPnttm",
+    "trgetNm",
+    "printFlpthNm",
+    "printFileNm"
+  ],
+  "attachment_fields": [
+    "printFlpthNm",
+    "printFileNm",
+    "flpthNm",
+    "fileNm"
+  ],
+  "valid_definition": "Known field type matches upstream observed type; string is nonblank. Semantic, URL reachability and date normalization unmeasured.",
+  "period_categories": [
+    "DATE_RANGE",
+    "FREE_TEXT",
+    "MISSING",
+    "INVALID"
+  ],
+  "extension_categories": [
+    "PDF",
+    "HWP",
+    "HWPX",
+    "ZIP",
+    "OTHER",
+    "UNKNOWN"
+  ],
+  "ordering_guarantee": "UNCONFIRMED",
+  "gate_decision": "pending"
+}

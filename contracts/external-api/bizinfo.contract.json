@@ -1,0 +1,306 @@
+{
+  "version": 1,
+  "scope": "user-confirmed request and sample-observed raw response; not a provider JSON Schema",
+  "evidence": {
+    "kind": "user_provided_sanitized_real_sample",
+    "received_on": "2026-09-27",
+    "fixture": "tests/fixtures/external-api/bizinfo-user-sample.json",
+    "fixture_sha256": "e544fe5e7463687472ce28ea01ea81efbd471fdba49b7dc5f6f977884148aa5a",
+    "wire_bytes_available": false
+  },
+  "request": {
+    "endpoint": "https://apis.data.go.kr/1421000/bizinfo/pblancBsnsService",
+    "method": "GET",
+    "parameters": {
+      "serviceKey": {
+        "required": true,
+        "description": "공공데이터포털 인증키",
+        "environment": "BIZINFO_SERVICE_KEY"
+      },
+      "dataType": {
+        "required": null,
+        "description": "응답 데이터 형식"
+      },
+      "pageNo": {
+        "required": null,
+        "description": "페이지 번호"
+      },
+      "numOfRows": {
+        "required": null,
+        "description": "한 페이지 결과 수"
+      },
+      "searchLclasId": {
+        "required": null,
+        "description": "분야 조회 설정값"
+      },
+      "hashtags": {
+        "required": null,
+        "description": "해시태그 조회"
+      },
+      "pblancId": {
+        "required": null,
+        "description": "공고 조회용 고유 식별값"
+      },
+      "registDe": {
+        "required": null,
+        "description": "공고 등록 일자"
+      },
+      "updtPnttm": {
+        "required": null,
+        "description": "공고 수정 일자"
+      }
+    }
+  },
+  "response": {
+    "success_code": "00",
+    "sample_success_message": "NORMAL_SERVICE",
+    "envelope": "response.header; response.body.items.item[]",
+    "pagination_fields": {
+      "numOfRows": "integer",
+      "pageNo": "integer",
+      "totalCount": "integer"
+    },
+    "item_fields": {
+      "pblancNm": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "pblancUrl": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "pblancId": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": true,
+        "official_required": null
+      },
+      "jrsdInsttNm": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "excInsttNm": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "bsnsSumryCn": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "pldirSportRealmLclasCodeNm": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "creatPnttm": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "reqstBeginEndDe": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "updtPnttm": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "trgetNm": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "inqireCo": {
+        "type": "integer",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "flpthNm": {
+        "type": "string",
+        "observed_nullable": true,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "fileNm": {
+        "type": "string",
+        "observed_nullable": true,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "printFlpthNm": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "printFileNm": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "hashtags": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "reqstMthPapersCn": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "refrncNm": {
+        "type": "string",
+        "observed_nullable": false,
+        "required_for_probe": false,
+        "official_required": null
+      },
+      "rceptEngnHmpgUrl": {
+        "type": "string",
+        "observed_nullable": true,
+        "required_for_probe": false,
+        "official_required": null
+      }
+    },
+    "unknown_fields": "preserve",
+    "error_envelope": "unconfirmed",
+    "empty_result_shape": "unconfirmed",
+    "ordering_guarantee": "unconfirmed",
+    "timestamp_timezone": "unconfirmed",
+    "observed_no_data_response": {
+      "status": "observed_not_guaranteed",
+      "http_status": 200,
+      "resultCode": "03",
+      "resultMsg": "NODATA_ERROR",
+      "body": {
+        "items": {},
+        "numOfRows": 0,
+        "pageNo": 1,
+        "totalCount": 0
+      },
+      "successful_empty_item_array_observed": false
+    }
+  },
+  "probe": {
+    "profiles": [
+      "dev",
+      "prod"
+    ],
+    "profile_cli_required": true,
+    "profile_file_pattern": ".env.{profile}",
+    "profile_fallback": false,
+    "dataType": "json",
+    "page_numbers": [
+      1,
+      2
+    ],
+    "numOfRows": 10,
+    "known_id": "PBLN_000000000126771",
+    "presumed_missing_id": "PBLN_999999999999999",
+    "request_limit": 4,
+    "timeout_seconds": 15,
+    "max_response_bytes": 5242880,
+    "outcomes": [
+      "SUCCESS",
+      "EXPECTED_NO_DATA",
+      "API_ERROR",
+      "TRANSPORT_ERROR",
+      "CONTRACT_ERROR"
+    ],
+    "negative_expectation": {
+      "plan": "presumed_missing_id",
+      "explicit_negative_required": true,
+      "http_status": 200,
+      "resultCode": "03",
+      "resultMsg": "NODATA_ERROR",
+      "items": {},
+      "numOfRows": 0,
+      "totalCount": 0,
+      "scope": "명시적인 Negative plan에만 적용; Positive 요청의 03은 API_ERROR"
+    }
+  },
+  "live_observation": {
+    "run_id": "bizinfo-dev-20260928-01",
+    "profile": "dev",
+    "http_request_count": 4,
+    "report": "harness/workspace/reports/2026-09-28-codex-bizinfo-profile-live-probe-report.md",
+    "raw_evidence": [
+      {
+        "name": "page1",
+        "metadata": "data/raw/bizinfo-dev-20260928-01-page1/metadata.json",
+        "sha256": "32109151c05e5ea3574e2ce7f50256e4b425f422e4a05bf583ce4c8274b24d57"
+      },
+      {
+        "name": "page2",
+        "metadata": "data/raw/bizinfo-dev-20260928-01-page2/metadata.json",
+        "sha256": "466653ca01921e122243d6ec1452d1db92cc48db19be829fd9cacec7b2f99da6"
+      },
+      {
+        "name": "known_id",
+        "metadata": "data/raw/bizinfo-dev-20260928-01-known_id/metadata.json",
+        "sha256": "5f2404331b44d5d1d0f2e0af054e79ba9b6ed4182704407a5755ef7348bb0df6"
+      },
+      {
+        "name": "presumed_missing_id",
+        "metadata": "data/raw/bizinfo-dev-20260928-01-presumed_missing_id/metadata.json",
+        "sha256": "26f7b5f14a715c16a2b3448d3f66c5620c1320bfdc554e08569bd0adfb9a8b85"
+      }
+    ],
+    "pagination": "observed_two_distinct_pages",
+    "known_id_filter": "observed_single_exact_match",
+    "creatPnttm_ordering": "observed_descending",
+    "recent_100_rule": "unconfirmed"
+  },
+  "api_quality_sample": {
+    "status": "CONFIRMED_USER_RULE",
+    "definition": "수집 시점 API 기본 정렬 기준 선두 100건",
+    "contract": "contracts/schemas/phase0-api-quality.contract.json",
+    "ordering_guarantee": "UNCONFIRMED"
+  },
+  "api_quality_observation": {
+    "status": "OBSERVED",
+    "run_id": "api-quality-dev-20260928-01",
+    "profile": "dev",
+    "actual_http_requests": 5,
+    "successful_pages": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "actual_items": 100,
+    "unique_pblanc_ids": 100,
+    "duplicate_extra_count": 0,
+    "observed_total_counts": [
+      1514,
+      1514,
+      1514,
+      1514,
+      1514
+    ],
+    "creatPnttm_ordering": "observed_descending",
+    "ordering_guarantee": "UNCONFIRMED",
+    "evidence_report": "harness/workspace/reports/2026-09-28-phase0-api-data-quality-report.md"
+  }
+}

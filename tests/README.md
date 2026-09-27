@@ -6,4 +6,14 @@ contract/test_harness_policy.py: 격리된 Git 저장소에서 링크·CI·브�
 check-all 실패 전파를 검증한다.
 AGY Lifecycle·독립 원문/검토 대상 변조·자기 승인·Review 범위·IDE 문서 숨김의 거부도 검사한다.
 실 API·네트워크·DB·Parser·제품 E2E는 실행하지 않는다.
-Fixture는 합성 metadata / report이며 실제 데이터 성공률의 근거가 아니다.
+로컬 기록 Fixture는 합성 metadata / report이며 실제 데이터 성공률의 근거가 아니다.
+fixtures/external-api/bizinfo-user-sample.json은 사용자 제공 실제 sanitized 10건 Sample이다.
+contract/test_bizinfo_probe.py는 이 Sample 계약·Raw 예외·mock HTTP·unknown field·secret 비노출·충돌을 검사한다.
+integration/test_bizinfo_probe_cli.py는 격리 CLI의 NOT_RUN / help / Profile 선택 오류 / 설정 실패 비노출을 검사한다.
+Probe Profile 테스트는 합성 .env.dev / .env.prod에서 선택 파일·fallback 금지·OS 우선·비실행·비노출을 검사한다.
+Harness 테스트는 실제 사용자 Secret을 복사하지 않고 격리 Git에서 Secret 추적 / ignore 정책 오류를 거부한다.
+Live Probe는 CI가 호출하지 않으며 별도 Local 명령과 ignored Evidence로 구분한다.
+
+contract/test_phase0_api_quality.py는 합성 5×20 응답으로 중복·5종 field 상태·기간·확장자·정렬·부분 실패·Raw/Secret 경계를 검사한다.
+integration/test_phase0_api_quality_cli.py는 credential 없는 CLI의 NOT_RUN·dev 제한·재현·출력 경계·overwrite 금지를 검사한다.
+Live Batch와 offline mock 결과는 분리하며 GitHub CI는 API를 호출하지 않는다.

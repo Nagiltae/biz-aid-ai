@@ -13,8 +13,8 @@
 | MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | 미구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | 미구현 |
 | Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 미구현 |
-| Phase 0 도구 | 확보한 로컬 원문 보존·무결성 확인·미측정 보고서 생성·계약 검증 | 구현 |
-| Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, Initial Review PASS WITH FIXES 보완 중 |
+| Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe와 승인된 5×20 API 품질 Batch; 문서 Gate 대기 |
+| Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
 
 React는 Spring Boot를 통해 AI를 호출한다. Frontend는 DB에 접근하지 않는다.
 FastAPI는 서비스 DB의 소유자가 아니다. 정확한 조건은 일반 코드와 MySQL이 결정한다.
@@ -36,7 +36,7 @@ PROJECT_DESIGN.md §28은 확장 가능한 Target 구조이며 모든 하위 문
 빈 디렉터리·내용 없는 문서를 만들어 Target 구조를 흉내 내지 않는다.
 
 AGY Initial Review는 완료됐고 판정은 PASS WITH FIXES다.
-현재 보완 작업의 독립 검토·Human Review·Data Gate는 별도 pending이다.
+과거 보완 Targeted Re-review는 PASS다. 현재 API Task의 독립 검토·Human Review·Data Gate는 pending이다.
 Review Lifecycle과 증거 범위는 [workflow.md](workflow.md)에서 관리한다.
 
 ## Phase 해석과 선결정 목록
@@ -44,10 +44,10 @@ Review Lifecycle과 증거 범위는 [workflow.md](workflow.md)에서 관리한�
 1. §48·57의 Harness 배치와 이번 요청의 순서가 다르다. 이번 요청에 따라 Gate 준비용 Harness를 먼저 만든다. Phase 1 전체 착수로 간주하지 않는다.
 2. §37·46·49의 전체 서비스 검증은 미구현 상태에 적용할 수 없다. 현재 적용 검증을 실행하고 제품 검증은 N/A로 공개한다. 제품 도입 때 해당 검증을 필수로 추가한다.
 3. §5 도식의 문서 Normalize와 §19 API Normalize는 대상이 다르다. 상세 Pipeline 설계 때 구분을 확정한다. 이번에 어느 쪽도 구현하지 않는다.
-4. 실제 API endpoint / 인증 / pagination / envelope / 주요 필드 mapping이 저장소에 없다. 추정 계약을 만들지 않는다.
-5. §53의 주요 필드 목록, 유효성 정의, 수집률·문서 성공률의 분모, 최신 100건 선정 기준이 미결정이다. 실제 Gate 평가 전에 사용자와 확정한다.
+4. 사용자 확인 Endpoint / 인증 정보와 실제 Sample의 pagination / envelope / field 타입은 [External API Contract](../../contracts/external-api/README.md)에 있다. Pagination·ID·no-data와 5×20 품질 Run은 OBSERVED다. 공식 정렬·일반 오류 보장은 미확정이다.
+5. §53의 이번 API 품질 Task는 12개 주요 필드·타입/nonblank 기준·실제 행 분모·기본 정렬 선두 100건을 사용한다. 의미 검증·문서 성공률·공식 최신순 보장은 미확정이다.
 6. HWP / HWPX / HTML의 근거 page 대체 규칙과 표 추출 품질 기준이 미결정이다. Parser 선택 전에 검증한다.
-7. §57은 API 응답을 확인했다고 서술하지만 저장소에 증거가 없다. 확인 사실을 이번 실행 결과로 재사용하지 않는다.
+7. §57의 과거 API 확인 서술과 이번 사용자 제공 Sample은 별개 Evidence다. Sample을 이번 Live 실행 결과로 재사용하지 않는다.
 
 최상위 문서 자체는 수정하지 않는다. 미결정 사항은 기술 도입으로 해결하지 않는다.
 100건 Gate 후의 50건 Vertical Slice는 별도 작업이며 현재 범위에 없다.
