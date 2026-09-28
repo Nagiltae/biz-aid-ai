@@ -25,3 +25,26 @@ Local Probe는 Git Branch와 별개인 --profile dev / prod를 명시한다. 선
 Supplementary는 token 수만 측정하고 원본은 다운로드하지 않는다. dev key는 반사 검출만 수행하며 문서 요청에 전달하지 않는다.
 data/downloaded 원본·manifest·metadata/checksum은 Git에서 제외하고 최종 해석 Report / Checkpoint는 non-gating Generated Output으로 보존하며 Git 추적을 요구하지 않는다.
 재개는 검증된 확정 결과를 건너뛰며 실패 자동 재시도·원본 overwrite·본문 Parsing을 포함하지 않는다.
+
+## Phase 1B FULL 안전 규칙
+
+FULL은 명시적 dev 실행이며 실행 첫 정상 Page의 totalCount를 기대 전체 건수로 고정한다. Dataset 숫자를 하드코딩하지 않는다.
+전체 pagination / 각 Raw byte·SHA-256·수집시각·인증 없는 request metadata / 실행 Evidence를 보존한다.
+API key 반사·응답 크기 초과는 저장을 거부한다. 실패 원문과 완료된 Page를 보존하고 자동 retry·기존 run overwrite를 하지 않는다.
+
+모든 Page 성공, 일관된 totalCount, 연속 Page·마지막 정확한 잔여 건수·빈 Page 이상 없음,
+유효 pblancId 전체 unique(duplicate=0), 실제 Raw Item/unique 수=기대 totalCount, Raw checksum 확인이 completeness 조건이다.
+하나라도 실패하면 FULL FAIL이며 DB 공고 mutation / reconciliation에 진입하지 않는다.
+완전성 통과 후 모든 Item의 정규화를 먼저 검증한다. 적재 오류·transaction 실패는 FAIL이며 전체 mutation을 rollback한다.
+SAMPLE/PARTIAL absence와 실패/불완전한 FULL은 삭제 근거가 아니다. 관측 record의 REACTIVATE는 기존 의미를 유지한다.
+
+첫 Live FULL은 soft-delete 후보 DRY_RUN만 계산하며 실제 soft-delete/physical DELETE는 금지한다.
+현재 dev Repository의 적용 reconciliation은 비활성이고 controlled test DB에서만 기존 APPLY 회귀를 수행한다.
+실제 적용은 별도 사용자 승인 Task, 새 성공 FULL, Raw/ID/count/정규화/DB 품질과 후보 목록의 Human Review가 필요하다.
+이전 DRY_RUN 목록을 나중에 그대로 삭제에 사용하지 않는다. totalCount 일치는 API universe의 atomic snapshot 보장을 뜻하지 않는다.
+updtPnttm은 저장만 하며 미확정 incremental query 기준으로 사용하지 않는다. 공식 newest-first는 UNCONFIRMED다.
+
+API 대기와 원문 검증은 DB transaction 밖에서 수행한다. dev 실행은 DB-only atomic transaction / 동일 advisory lock,
+cooperative 60초 budget와 기존 query timeout을 사용한다. Snapshot 검증/정규화 후 적재하며 실패 시 부분 commit하지 않는다.
+이 budget은 공급자 제한이 아니며 blocking SQL을 즉시 중단시키는 hard deadline도 아니다. 대규모 실행이 초과하면 rollback 후 별도 설계 Task로 검토한다.
+중단 Run의 Raw/실패 Page는 Evidence에 보존한다. 새로운 live acquisition은 새 run-id로 시작해 서로 다른 관측 기간의 Page를 이어 붙이지 않는다.

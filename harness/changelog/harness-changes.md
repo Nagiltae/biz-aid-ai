@@ -1,5 +1,15 @@
 # Harness 변경 이력
 
+## 2026-09-28 — Phase 1B dev FULL Structured Sync
+
+사용자 승인으로 첫 페이지의 실행 시점 totalCount 기반 전체 pagination과 페이지별 Raw snapshot / hash 재검증을 추가한다.
+ID / count / 완전성 / normalization 검증이 끝나기 전에 DB mutation을 시작하지 않는다.
+기존 모델·fingerprint·lifecycle·Flyway V1/V2를 재사용하고 DB-only atomic transaction / 협력적 시간 예산을 적용한다.
+첫 Live FULL과 현재 dev 실행은 soft-delete 후보 DRY-RUN만 허용하며 실제 삭제 경로는 차단한다.
+장기 FULL 안전 규칙을 Source / Pipeline / Skill / Contract에 기록하고 mock API + 실제 test DB 회귀로 연결한다.
+과거 AGY 승인은 보존하며 이번 Task 독립 Review는 pending이다. Generated 산출물은 non-gating이다.
+결과: [Phase 1B Report](../workspace/reports/codex/2026-09-28-phase1b-full-sync.md).
+
 ## 2026-09-27 — 최초 기반 구축
 
 - 원인: 설계만 있고 Context·Registry·검증·External Memory가 없었다.

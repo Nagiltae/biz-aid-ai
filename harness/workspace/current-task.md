@@ -2,26 +2,28 @@
 
 ## Goal / Context
 
-2026-09-28 사용자 승인: Generated Output의 Producer별 보관·참조·정리.
-Control/Input STRICT / Generated Output NON-GATING 정책은 유지한다. Validation Boundary를 다시 설계하지 않는다.
-이전 Workspace lifecycle Task의 current-task 원문은 inventory-before.json과 이번 Final Report에 보존한다.
+2026-09-28 사용자 승인: Phase 1B Full Structured Data Sync.
+Phase 1A 제품 구조를 재사용하며 dev API 전체 pagination·Raw 보존·완전성·정규화·MySQL 적재를 검증한다.
+이전 current-task 원문은 artifacts/codex/phase1b-full-sync/repository-before.json과 이번 Final Report에 보존한다.
 
 ## Read First
 
-[AGENTS](../../AGENTS.md) → [Workflow](../docs/workflow.md) → [Git 정책](../rules/git-policy.md) →
-[Registry](../registry.json) → [Testing](../docs/testing.md) → [feature-development](../skills/feature-development/SKILL.md).
+[AGENTS](../../AGENTS.md) → [Workflow](../docs/workflow.md) → [Source 규칙](../rules/data-source-rules.md) →
+[Pipeline](../docs/data-pipeline.md) → [Skill](../skills/data-pipeline-change/SKILL.md) →
+[FULL Contract](../../contracts/schemas/full-structured-sync.contract.json) → [Git 정책](../rules/git-policy.md).
 
 ## Scope / Acceptance
 
-reports/codex·reports/agy와 artifacts/codex/<task-id>·artifacts/agy/<review-id>로 생성물을 분리한다.
-Inventory / Reference Graph로 KEEP·MOVE·DELETE·UNCLASSIFIED를 판정하고 원문 byte·accepted checksum·판정을 보존한다.
-static/live 경로 참조와 도구의 출력 경로만 갱신한다. 제품 정규화·DB logic·Pilot·Secret·Migration은 변경하지 않는다.
-current-task·정적 README 두 개는 strict, checkpoint 파일·run/resume 구조는 그대로 유지한다.
-독립 Review / Human Review는 pending이다. 이전 AGY 승인 결과를 이번 작업 승인으로 재사용하지 않는다.
+실행 첫 totalCount를 고정하고 모든 Raw/checksum·Page·유효 ID unique·count 일치를 DB mutation 전에 검증한다.
+오류·중복·count 변화·불완전 FULL은 FAIL이며 reconciliation 금지다. SAMPLE/PARTIAL absence도 삭제 근거가 아니다.
+첫 Live FULL은 soft-delete 후보 DRY_RUN만 계산한다. 실제 soft-delete/physical DELETE·prod·증분 조회는 금지한다.
+제품 Source Model/Normalizer/payload/fingerprint/lifecycle·V1/V2·COMMENT·Secret을 재설계하지 않는다.
+API 수집/검증/정규화 뒤 DB-only atomic transaction, 제한된 시간 budget·DB lock·rollback·readback을 확인한다.
+Unit/Contract·Integration·Full Validation → Live FULL → Live 검증 → Final Validation → Codex Report 순서다.
+AGY 독립 Review / Human Review는 pending이다. 문서 제품화·Parser·AI·새 schema·Git history 변경은 범위 밖이다.
 
 ## Validation / Reports
 
-정적 입력 / index 확정 → 실제 전체 Validation → Generated Report 작성 → AGY / 사용자 검토.
-[Final Report](reports/codex/2026-09-28-workspace-output-cleanup.md).
-Manifest / Reference Graph / 최종 실행 Evidence는 artifacts/codex/workspace-output-cleanup/에 보관한다.
-Report 생성만으로 재검증하지 않는다. static/input 변경은 최종 Validation을 다시 수행한다.
+[Final Report](reports/codex/2026-09-28-phase1b-full-sync.md).
+Artifact는 artifacts/codex/phase1b-full-sync/에 기록한다. 기존 Control/Input STRICT / Generated Output NON-GATING을 유지한다.
+최종 검증 후 Report 때문에 재검증하지 않는다. 실제 soft-delete는 별도 승인 Task와 새 성공 FULL 검토가 필요하다.

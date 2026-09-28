@@ -1,7 +1,7 @@
 # 데이터 파이프라인
 
 최종 Pipeline 계획은 API → Raw → Normalize → MySQL Upsert → 변경 판단 →
-Download → Checksum → Parse → Chunk → Embedding → Qdrant다. 구현 범위는 아래 승인된 Phase 1A에 한정한다.
+Download → Checksum → Parse → Chunk → Embedding → Qdrant다. 현재 승인 범위는 Phase 1B 구조화 FULL이며 이후 문서·AI 제품화는 미구현이다.
 
 ## 현재 도구
 
@@ -97,3 +97,25 @@ SAMPLE/PARTIAL의 미관측은 삭제 근거가 아니다. FULL 완전성 검사
 복원은 관측 근거로 SAMPLE에서도 가능하며 source_active는 접수 상태를 뜻하지 않는다.
 FULL은 controlled test만 실행한다. 운영 접근·증분 parameter·본문 Parser·Document 제품화·AI는 미구현이다.
 [품질 계약](../../contracts/schemas/structured-data-quality.contract.json)은 적재 품질과 completeness를 기록하며 GO/DROP을 판단하지 않는다.
+
+## Phase 1B Full Structured Data Sync
+
+[FULL 계약](../../contracts/schemas/full-structured-sync.contract.json)과 [Source 안전 규칙](../rules/data-source-rules.md)을 따른다.
+페이지별 Checkpoint는 응답 계약 성공/실패 집계와 로컬 verify 명령을 보존한다. FULL 또는 DB 성공으로 취급하지 않는다.
+중단된 수집은 다른 시점의 API universe와 혼합해 이어 받지 않는다. 새 run-id로 독립 실행하며 자동 재시도하지 않는다.
+`scripts/run_full_sync.py collect --profile dev --run-id <unique-id>`는 기존 Source Model/Normalizer/Repository를 재사용한다.
+Rows=20의 검증된 요청을 첫 totalCount 기반으로 끝까지 수행하며 count 변화·Page 실패·중복·ID/Raw 오류는 적재 전에 FAIL이다.
+max_pages=1000은 로컬 safety cap이며 dataset 크기가 아니다. 공식 rate limit은 미확정이다. 순차 요청·자동 retry 없음이다.
+
+Raw는 data/raw/<run-id>/page-<순번>/response.json·metadata.json과 manifest.json에 exclusive write한다.
+Artifact는 artifacts/codex/phase1b-full-sync/<run-id>/acquisition.json·result.json이며 checksum·페이지 상태로 실패 위치를 확인한다.
+`scripts/run_full_sync.py verify --run-id <id>`는 인증 URL을 저장/출력하지 않고 모든 Raw·metadata hash·Envelope·completeness·정규화를 로컬 재검증한다.
+snapshot preflight PASS는 DB 적재 PASS가 아니다. acquisition/result/DB 이력과 post-commit readback을 함께 대조한다.
+실행 중 source universe의 atomic consistency는 미확정이다. 같은 count·unique 조건만으로 공급자 정렬이나 삭제 근거를 더 강하게 주장하지 않는다.
+
+원문 보존 → checksum/ID/completeness → 정규화 → DB-only transaction → readback → 품질 Gate 순서다.
+page commit 대신 DB만 atomic으로 묶어 중간 실패의 전체 rollback을 보장한다. 네트워크 대기는 transaction 밖이다.
+DB cooperative 60초 budget·기존 timeout·100개씩 readback·advisory lock을 사용한다. 시간 초과는 데이터 규모와 무관하게 실패/rollback한다.
+commit 뒤 추가 readback이 실패하면 이미 commit된 count를 rollback으로 기록하지 않고 최종 Gate FAIL로 보고한다. 적용 reconciliation은 여전히 금지다.
+source_payload·fingerprint·lifecycle·V1/V2·COMMENT는 재설계하지 않는다. 성공 관측의 INSERT/UPDATE/CONTENT_NOOP/REACTIVATE를 그대로 재사용한다.
+첫 Live FULL은 후보 pblancId 목록과 count만 산출하고 실제 soft-delete=0이다. 실제 적용은 별도 승인·새 완전한 FULL·후보 Review가 필요하다.

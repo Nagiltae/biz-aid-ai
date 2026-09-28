@@ -88,3 +88,10 @@ Generated Output만 변경됐으면 기존 Validation은 유효하며 Control/In
 Producer 경로 회귀는 reports/codex·reports/agy와 Agent/Task별 Artifact의 non-gating 경계를 검사한다.
 Registry/Agent 지침이 반대 Producer 경로로 설정되거나 현재 Codex Task Report가 AGY 경로를 가리키면 FAIL이다.
 산출물 디렉터리나 파일이 없어도 통과한다. static anchor·제품 공백/untracked 검사는 그대로 유지한다.
+
+## Phase 1B FULL 검증
+
+Unit/Contract는 mock API의 여러 Page·마지막 partial/exact Page·중복/invalid ID·오류/빈 Page·count 변화/불일치·Raw/metadata 변조·overwrite·Secret 경계를 검증한다.
+Integration은 동일 product orchestration을 mock HTTP와 실제 test MySQL에 연결해 FULL INSERT·동일 rerun NOOP·REACTIVATE·DRY_RUN 후보·SAMPLE/PARTIAL·transaction budget rollback을 검증한다.
+기존 성공 FULL APPLY는 controlled test DB에서만 유지한다. dev APPLY와 첫 Live 실제 soft-delete는 거부한다.
+CI는 Live API를 호출하지 않는다. 전체 Offline Validation 후 별도 dev collect, Live Raw/DB 대조 후 새 최종 Validation과 Codex Report를 기록한다.

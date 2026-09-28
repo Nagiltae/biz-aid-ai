@@ -89,7 +89,7 @@ class MysqlRepository:
             if any(row[name] != value for name, value in item.content.items()):
                 raise PipelineError("derived_content_roundtrip_mismatch")
 
-    def reconcile(self, connection, report, batch):
+    def authorize_reconciliation(self, connection, report, batch):
         # FULL 지정만으로 삭제할 수 없다. 완전성 검증과 영속 실행 상태가 모두 필요하다.
         row = connection.execute(select(self.runs).where(self.runs.c.run_id == report["run_id"])).mappings().one()
         seen = connection.execute(select(func.count()).select_from(self.programs).where(
@@ -98,6 +98,23 @@ class MysqlRepository:
                 or reconciliation_reasons(batch, report) or seen != report["unique_pblanc_id_count"]
                 or row["report_json"] != report):
             raise PipelineError("reconciliation_not_authorized")
+
+    def soft_delete_candidates(self, connection, report, batch):
+        self.authorize_reconciliation(connection, report, batch)
+        return connection.execute(select(self.programs.c.pblanc_id).where(
+            self.programs.c.source_active.is_(True), self.programs.c.last_seen_run_id != report["run_id"]
+        ).order_by(self.programs.c.pblanc_id)).scalars().all()
+
+    def row_count(self, connection):
+        return connection.execute(select(func.count()).select_from(self.programs)).scalar_one()
+
+    def reconcile(self, connection, report, batch):
+        if self.database != "biz_aid_test":
+            raise PipelineError("live_soft_delete_not_enabled")
+        self.authorize_reconciliation(connection, report, batch)
+        # DRY_RUN으로 기록된 실행은 직접 Repository를 호출해도 soft-delete를 적용하지 못한다.
+        if report.get("soft_delete_mode") == "DRY_RUN":
+            raise PipelineError("dry_run_cannot_apply_soft_delete")
         result = connection.execute(update(self.programs).where(
             self.programs.c.source_active.is_(True), self.programs.c.last_seen_run_id != report["run_id"]
         ).values(source_active=False, source_deleted=True, source_deleted_at=utc_datetime()))

@@ -14,7 +14,7 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 class BizinfoClient:
-    def __init__(self, config, root, transport=None):
+    def __init__(self, config, root, transport=None, response_sink=None):
         if config.profile != "dev":
             raise PipelineError("prod_api_access_forbidden")
         self.config = config
@@ -22,6 +22,7 @@ class BizinfoClient:
         if config.endpoint != self.spec["request"]["endpoint"]:
             raise PipelineError("unsupported_api_endpoint")
         self.transport = transport or self._get
+        self.response_sink = response_sink
 
     def _get(self, url):
         try:
@@ -52,6 +53,9 @@ class BizinfoClient:
             return failed("TRANSPORT_ERROR")
         if (credential_echo(raw, self.config.key) or len(raw) > self.spec["probe"]["max_response_bytes"]):
             return failed("CONTRACT_ERROR", status)
+        # 오류 Envelope도 재현 증거로 보존하되 인증값 반사·크기 초과 응답은 저장 경계에 전달하지 않는다.
+        if self.response_sink is not None:
+            self.response_sink(number, rows, status, raw)
         if status != 200:
             return failed("TRANSPORT_ERROR", status)
         try:
@@ -83,17 +87,25 @@ class BizinfoClient:
         except (ValueError, KeyError, TypeError, UnicodeError):
             return failed("CONTRACT_ERROR", status)
 
-    def scan_full(self, rows=20, max_pages=1000):
+    def scan_full(self, rows=20, max_pages=1000, on_page=None):
         if type(max_pages) is not int or not 1 <= max_pages <= 1000:
             raise PipelineError("invalid_full_scan_limit")
-        pages, observed, terminated = [], 0, False
+        pages, expected, terminated = [], None, False
         for number in range(1, max_pages + 1):
             page = self.fetch_page(number, rows)
             pages.append(page)
+            if on_page is not None:
+                on_page(page)
             if page.outcome != "SUCCESS":
                 break
-            observed += len(page.items)
-            if len(page.items) < rows or observed >= page.total_count:
+            if expected is None:
+                expected = page.total_count
+            # 수집 중 universe가 바뀌면 그 응답의 totalCount로 종료 기준을 바꾸지 않는다.
+            planned = max(1, (expected + rows - 1) // rows)
+            wanted = min(rows, max(0, expected - (number - 1) * rows))
+            if planned > max_pages or page.total_count != expected or len(page.items) != wanted or not page.items:
+                break
+            if number == planned:
                 terminated = True
                 break
         return SourceBatch(SyncScope.FULL, tuple(pages), "explicit full API pagination", terminated,

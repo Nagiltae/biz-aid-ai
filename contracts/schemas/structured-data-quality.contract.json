@@ -35,7 +35,8 @@
     "api_errors",
     "contract_errors",
     "normalization_fatal_errors",
-    "persistence_fatal_errors"
+    "persistence_fatal_errors",
+    "invalid_pblanc_id_count"
   ],
   "boolean_fields": [
     "pagination_terminated",

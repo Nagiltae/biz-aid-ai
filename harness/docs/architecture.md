@@ -10,9 +10,9 @@
 | React | UI, 서버 상태 캐시, 선택 기업·채팅 UI 상태 | 미구현 |
 | Spring Boot | 인증·기업·사업·대화·즐겨찾기 Source of Truth, 정확한 DB filtering, FastAPI 호출 | 미구현 |
 | FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 미구현 |
-| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | Phase 1A dev Pilot 구현 |
+| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | Phase 1A Pilot 및 Phase 1B dev FULL DRY-RUN 경계 구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | 미구현 |
-| Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 API 정규화·적재 Pilot 구현, 나머지는 후속 |
+| Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 Pilot / 전체 pagination·Raw 검증·FULL 적재, 실제 reconciliation·문서 제품화는 후속 |
 | Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe·5×20 API 품질 Batch·동일 표본의 제한된 문서 Download Gate |
 | Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
 
@@ -49,15 +49,19 @@ Review Lifecycle과 증거 범위는 [workflow.md](workflow.md)에서 관리한�
 6. HWP / HWPX / HTML의 근거 page 대체 규칙과 표 추출 품질 기준이 미결정이다. Parser 선택 전에 검증한다.
 7. §57의 과거 API 확인 서술과 이번 사용자 제공 Sample은 별개 Evidence다. Sample을 이번 Live 실행 결과로 재사용하지 않는다.
 
-최상위 문서 자체는 수정하지 않는다. 미결정 사항은 기술 도입으로 해결하지 않는다.
+최초 Phase 0 준비에서는 최상위 문서 자체를 수정하지 않았다. 후속 승인 범위는 해당 문서 첫머리에 기록한다.
+미결정 사항은 기술 도입으로 해결하지 않는다.
 100건 Gate 후의 50건 Vertical Slice는 별도 작업이며 현재 범위에 없다.
 
 ## 승인된 Phase 1A 구현
 
 제품용 Python `data-pipeline/`이 구조화된 API source를 정규화해 dev MySQL에 저장한다.
 공통 `migrations/` Flyway만 DDL owner다. Compose는 기존 phase0와 실제 MySQL / Flyway만 실행한다.
-backend / ai / frontend / Qdrant는 미구현이다. 실제 Pilot은 기존 동일 100건 SAMPLE이며 FULL은 controlled test다.
+backend / ai / frontend / Qdrant는 미구현이다. Phase 1A 실제 Pilot은 기존 동일 100건 SAMPLE이며 당시 FULL은 controlled test였다.
 제품 코드 경계와 lifecycle 안전조건은 [Pipeline](../../data-pipeline/README.md)에서 확인한다.
+
+Phase 1B 승인으로 dev API 전체 pagination / Raw 완전성 검증 / 구조화 적재를 추가한다.
+수집·검증·정규화와 DB mutation을 분리하며 첫 Live FULL은 후보 DRY-RUN만 수행한다. schema / 모델 / lifecycle 의미는 유지한다.
 
 ## 공식 환경 설정
 

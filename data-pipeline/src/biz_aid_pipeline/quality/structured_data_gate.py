@@ -1,7 +1,7 @@
 from collections import Counter
 from datetime import datetime, timezone
 
-from biz_aid_pipeline.bizinfo.models import SyncScope
+from biz_aid_pipeline.bizinfo.models import SourceAnnouncement, SyncScope
 from biz_aid_pipeline.config.settings import ROOT, PipelineError, read_json
 
 ERROR_OUTCOMES = ("TRANSPORT_ERROR", "API_ERROR", "CONTRACT_ERROR")
@@ -20,7 +20,12 @@ def page_valid(page):
 
 def quality_report(batch, run_id):
     identifiers = [item.get("pblancId") for item in batch.items]
-    valid = [i for i in identifiers if isinstance(i, str) and i.strip()]
+    def valid_identifier(value):
+        try:
+            return isinstance(value, str) and SourceAnnouncement.identifier(value) == value
+        except ValueError:
+            return False
+    valid = [i for i in identifiers if valid_identifier(i)]
     unique = len(set(valid))
     outcomes = Counter(p.outcome for p in batch.pages)
     total_counts = [p.total_count for p in batch.pages if p.outcome == "SUCCESS"]
@@ -28,7 +33,7 @@ def quality_report(batch, run_id):
             "source_evidence": batch.provenance, "input_count": len(identifiers), "unique_pblanc_id_count": unique,
             "expected_total_count": total_counts[0] if total_counts else None, "observed_count": len(identifiers),
             "inserted": 0, "updated": 0, "noop": 0, "reactivated": 0, "soft_deleted": 0, "failed": 0,
-            "duplicate_count": len(valid) - unique, "required_field_failures": 0,
+            "duplicate_count": len(valid) - unique, "invalid_pblanc_id_count": len(identifiers) - len(valid), "required_field_failures": 0,
             "date_parse_success": 0, "date_free_text": 0, "date_unavailable": 0, "date_invalid_range": 0,
             "invalid_url_count": 0, "source_timestamp_unparsed": 0,
             "transport_errors": outcomes["TRANSPORT_ERROR"], "api_errors": outcomes["API_ERROR"],
@@ -60,10 +65,19 @@ def reconciliation_reasons(batch, report):
         reasons.append("totalCount_not_consistent")
     if report["expected_total_count"] != report["unique_pblanc_id_count"]:
         reasons.append("unique_count_totalCount_mismatch")
+    if report["invalid_pblanc_id_count"]:
+        reasons.append("invalid_pblanc_id_count")
     if [p.number for p in batch.pages] != list(range(1, len(batch.pages) + 1)):
         reasons.append("page_sequence_incomplete")
     if any(p.outcome == "SUCCESS" and not page_valid(p) for p in batch.pages):
         reasons.append("page_contract_invalid")
+    if batch.pages and counts and type(counts[0]) is int and counts[0] >= 0:
+        rows = batch.pages[0].requested_rows
+        if type(rows) is int and rows > 0:
+            expected_pages = max(1, (counts[0] + rows - 1) // rows)
+            if len(batch.pages) != expected_pages or any(p.requested_rows != rows or
+                    len(p.items) != min(rows, max(0, counts[0] - (p.number - 1) * rows)) for p in batch.pages):
+                reasons.append("page_item_count_anomaly")
     # 빈 source universe의 공식 동작은 미확정이므로 빈 응답만으로 전체 행을 삭제하지 않는다.
     if report["unique_pblanc_id_count"] == 0:
         reasons.append("empty_universe_unconfirmed")
@@ -92,6 +106,7 @@ def validate_report(report, root=ROOT):
         raise PipelineError("structured_report_count_invalid")
     if report["status"] == "PASS" and (report["inserted"] + report["updated"] + report["noop"] != report["input_count"]
             or report["failed"] or report["duplicate_count"] or report["required_field_failures"]
+            or report["invalid_pblanc_id_count"]
             or any(report[name] for name in ("transport_errors", "api_errors", "contract_errors", "normalization_fatal_errors", "persistence_fatal_errors"))):
         raise PipelineError("structured_report_false_pass")
     if report["reactivated"] > report["updated"] + report["noop"]:

@@ -162,7 +162,7 @@ def compose():
         mount = mounts[target]
         if Path(mount["source"]).resolve() != source.resolve() or bool(mount.get("read_only")) != readonly:
             raise ValueError(f"Compose mount drift: {target}")
-    if registry()["phase"] == "phase1a-structured-pilot":
+    if registry()["phase"] in ("phase1a-structured-pilot", "phase1b-full-sync"):
         mysql = result["services"]["mysql"]
         flyway = result["services"]["flyway"]
         ports = mysql.get("ports", [])
@@ -189,7 +189,7 @@ def setup_check():
         raise ValueError("Docker Compose >=2 required")
     compose()
     print(f"PASS: Python {sys.version.split()[0]}, Bash, Git, Compose {version}; configuration only")
-    if registry()["phase"] == "phase1a-structured-pilot":
+    if registry()["phase"] in ("phase1a-structured-pilot", "phase1b-full-sync"):
         import pydantic
         import sqlalchemy
         import pymysql
@@ -242,11 +242,11 @@ def contract_check():
 
 
 def integration_check():
-    if registry()["phase"] == "phase1a-structured-pilot":
+    if registry()["phase"] in ("phase1a-structured-pilot", "phase1b-full-sync"):
         run(sys.executable, "-B", "infra/dev_mysql.py")
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/integration", "-p", "test_*.py", "-v")
     print("PASS: local CLI integration including credential-missing Probe/API-quality and bounded document failure exits; no live HTTP")
-    print("PASS: Phase 1A real dev MySQL integration (when phase1a); no live upstream HTTP")
+    print("PASS: structured dev MySQL integration (Phase 1A/1B); no live upstream HTTP")
     print("N/A: live API/document HTTP, text Parser, product APIs")
 
 
@@ -457,7 +457,7 @@ def harness_check():
     workspace_policy(spec)
     if actual != expected:
         raise ValueError(f"Registry drift: missing={sorted(expected - actual)}, unregistered={sorted(actual - expected)}")
-    if spec["phase"] not in ("phase0-preparation", "phase1a-structured-pilot"):
+    if spec["phase"] not in ("phase0-preparation", "phase1a-structured-pilot", "phase1b-full-sync"):
         raise ValueError("phase must reflect actual preparation")
     # 현재 Task가 과거 Report를 승인받은 것처럼 보이지 않도록 활성 Report 연결도 함께 검증한다.
     task = (ROOT / "harness/workspace/current-task.md").read_text(encoding="utf-8")

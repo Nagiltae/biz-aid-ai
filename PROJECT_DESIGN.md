@@ -2,12 +2,17 @@
 
 > 프로젝트명(가칭): **BizAid AI**
 >
-> 현재 단계: **Phase 1A Structured Data Pipeline Pilot** (2026-09-28 사용자 승인)
+> 현재 단계: **Phase 1B Full Structured Data Sync** (2026-09-28 사용자 승인)
 >
 > 이 문서는 확정 설계가 아니라 데이터 검증 및 프로젝트 방향 논의를 위한
 > 초안이다.
 
 ## 승인된 현재 실행 범위
+
+2026-09-28 후속 사용자 승인: Phase 1B dev FULL 전체 pagination / Raw 보존 / 완전성 검증 / 구조화 적재.
+첫 실제 FULL은 soft-delete 후보 DRY_RUN만 수행하며 실제 적용·prod·증분 조회는 금지한다.
+Phase 1A 모델·정규화·MySQL·Flyway V1/V2는 재사용하며 API 수집/검증은 DB transaction 밖에서 완료한다.
+아래 Phase 1A 기록은 과거 승인 범위로 보존한다. 현재 실행 상세는 current-task와 FULL Contract를 따른다.
 
 2026-09-28 사용자는 Phase 0 API Contract / Probe / 동일 100건 API 품질 / Document Download 검증 이후
 Phase 1A 구조화 데이터 Pilot을 승인했다. 이번 실행은 기존 `api-quality-dev-20260928-01` 표본을

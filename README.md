@@ -9,7 +9,7 @@
 ## 현재 실행 환경
 
 Bash, Git, Python 3.11 이상, Docker Compose v2 이상이 필요하다.
-Phase 0 도구는 표준 라이브러리를 사용하며 Phase 1A는 `.venv`의 제품 dependency가 필요하다. dev DB 설정은 [Infra](infra/README.md)를 따른다.
+Phase 0 도구는 표준 라이브러리를 사용하며 Phase 1A/1B는 `.venv`의 제품 dependency가 필요하다. dev DB 설정은 [Infra](infra/README.md)를 따른다.
 
 ```bash
 ./scripts/setup.sh
@@ -87,9 +87,10 @@ python3 -B scripts/phase0_document_download.py analyze --run-id <id> --output ha
 원본은 data/downloaded에서 checksum과 함께 보존하고 Git에서 제외한다.
 [Pipeline 경계](harness/docs/data-pipeline.md)에 크기·Redirect·형식 식별·재개 제한을 명시한다. 문서 본문 Parser는 없다.
 
-## 현재 Phase 1A Pilot
+## Phase 1A Pilot / 현재 Phase 1B FULL
 
 사용자 승인으로 기존 동일 100건의 제품용 Normalize / dev MySQL 적재를 구현한다.
 [제품 Pipeline 실행 / 정책](data-pipeline/README.md), [dev DB 준비](infra/README.md),
 [공통 migration](migrations/README.md)을 따른다. 기존 Phase 0 Gate / 증거는 보존한다.
-실제 FULL / prod / 문서 Parsing / AI는 이번 범위 밖이다.
+Phase 1B는 실행 시점 totalCount 기반 dev 전체 pagination / Raw 검증 / 적재와 soft-delete 후보 DRY-RUN을 제공한다.
+실제 soft-delete / prod / 문서 Parsing / AI는 이번 범위 밖이다. FULL 실행 명령과 실패 경계는 제품 Pipeline 문서를 따른다.
