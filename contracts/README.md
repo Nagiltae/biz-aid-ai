@@ -44,3 +44,6 @@ scripts/phase0_api_quality.py가 Run / Raw checksum에서 품질 요약을 재�
 [Phase 2 Document Acquisition 계약](schemas/document-acquisition.contract.json)은 dev Source 역할,
 공개 URL/redirect/size/timeout/retry 안전 경계, 실제 format 후보, 실패 분류와 품질 Report 필드를 고정한다.
 source role은 API field provenance이며 본공고/부속 의미 계약이 아니다. 본문 Parser 계약도 포함하지 않는다.
+
+[Phase 3 Document Parsing 계약](schemas/document-parsing.contract.json)은 DoclingDocument 표현, detected-format route,
+상태·경고 code, parse_key 버전 규칙, 정규화·문서 Gate, HWPX container 한도와 미결정 항목을 고정한다.

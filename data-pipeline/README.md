@@ -122,3 +122,9 @@ updtPnttm incremental semantics / scheduler는 후속 검증 대상이다.
 
 공식 참고: [SQLAlchemy transaction](https://docs.sqlalchemy.org/en/20/core/connections.html),
 [MySQL dialect](https://docs.sqlalchemy.org/en/20/dialects/mysql.html).
+
+## Phase 3 Document Parsing
+
+`parsing` package가 S3 원본 byte를 DoclingDocument로 변환한다. route는 `detected_format`만 따르며 자체 문서 tree를 만들지 않는다.
+현재 HWPX → `HwpxDoclingAdapter` route와 공통 정규화·Gate만 활성이다. PDF(Docling)·HWP(→PDF→Docling)는 비활성,
+XLSX/ZIP/OTHER/UNKNOWN은 정책 결정 대기다. 결과 영속화와 실행 CLI는 아직 없다. [Parsing 계약](../contracts/schemas/document-parsing.contract.json)을 따른다.

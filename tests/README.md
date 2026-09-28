@@ -21,3 +21,6 @@ Live Batch와 offline mock 결과는 분리하며 GitHub CI는 API를 호출하�
 
 contract/test_phase0_document_download.py는 합성 PDF/CFB/ZIP와 mock HTTP로 Download Gate의 제한·형식·실패·재개·checksum·Secret을 검증한다.
 integration/test_phase0_document_download_cli.py는 dev 제한·출력·분석/overwrite·실패 종료를 검사하며 Live 요청은 없다.
+
+contract/test_document_parsing.py는 합성 HWPX로 detected-format router, HwpxDoclingAdapter의 DoclingDocument 재적재·표·정규화,
+container/XML 안전 한도, 빈 text 비성공, parse_key 재처리 규칙을 검증한다. 실제 corpus·S3·Docling 변환은 사용하지 않는다.

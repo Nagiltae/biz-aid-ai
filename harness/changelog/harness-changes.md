@@ -141,3 +141,26 @@ URL/SHA dedupe 뒤에도 모든 pblancId/source field/token relation을 보존�
 V4는 검증된 S3 위치 metadata만 추가하고 legacy `storage_path`와 로컬 1.6GB corpus를 보존한다.
 로컬 SHA/S3 HEAD checksum 전수 검증 뒤 3,288 relation을 원자적으로 연결하고 실제 S3 byte로 Phase 2 run을 재검증한다.
 prod/upstream HTTP/Parser/S3 삭제는 수행하지 않으며 AGY 독립 Review와 로컬 삭제 사용자 승인은 pending이다.
+
+## 2026-09-29 — Claude Development Producer
+
+기존 Repository-native Harness를 유지하면서 Codex와 Claude를 같은 Task를 이어서 수행하는 개발 Producer로 등록한다.
+Task Evidence는 공동 development 경로에 두고 Agent handoff에 Registry·current-task 변경을 요구하지 않는다.
+AGY 독립 Reviewer identity와 전용 Evidence 경계는 별도로 고정한다.
+CLAUDE.md는 AGENTS/current-task/Registry로 연결하는 bootstrap만 유지하며 Rule/Skill/Docs를 복제하지 않는다.
+과거 Codex/AGY Report와 accepted review checksum은 변경하지 않으며 제품·S3·DB 동작도 변경하지 않는다.
+
+## 2026-09-29 — Phase 3 Document Parsing 시작
+
+사용자 승인으로 Phase를 phase3-document-parsing으로 전환하고 Parsing Contract와 Source 규칙 Phase 3 절을 추가한다.
+공통 구조화 표현은 DoclingDocument이며 PDF=Docling, HWP=HWP→PDF→Docling, HWPX=HwpxDoclingAdapter 방향을 기록한다.
+route는 detected_format만 따르고 parse_key 버전 규칙·container/XML 안전 한도·빈 text 비성공 Gate를 Contract와 Test로 고정한다.
+validator의 phase 목록을 DATABASE_PHASES 하나로 합쳐 Phase 2.5에서 integration dev MySQL 준비가 빠졌던 누락을 함께 바로잡는다.
+docling-core·defusedxml을 pin한다. Docling 변환기·HWP 변환기·결과 영속화·OCR은 아직 도입하지 않았으며 AGY Review는 pending이다.
+
+## 2026-09-29 — Phase 3 3-A 보정
+
+사용자 검토로 3-A 상태를 implementation complete / local validation PASS / AGY·human review pending으로 정정한다.
+Contract에 unique content SHA와 source relation count 기준을 분리하고, HWPX 품질 검증 pending 항목,
+HWP 변환기 UNDECIDED, S3 artifact + MySQL metadata 저장 정책, Generic ZIP member provenance 요건과 docling-core 사용 이유를 고정한다.
+PROJECT_DESIGN §20의 `data/parsed/` 보존 표현이 승인 정책과 충돌함을 기록한다. 새 route·S3 PUT·migration은 추가하지 않았다.

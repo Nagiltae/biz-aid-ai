@@ -22,6 +22,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import phase0
 
 
+# Phase를 추가할 때 목록 하나만 갱신해야 setup·integration·harness 사이의 DB 준비 누락이 생기지 않는다.
+DATABASE_PHASES = ("phase1a-structured-pilot", "phase1b-full-sync", "phase2-document-acquisition",
+                   "phase2-5-s3-storage", "phase3-document-parsing")
 DYNAMIC_WORKSPACE_PATHS = [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -35,19 +38,26 @@ STATIC_WORKSPACE_FILES = {
         "harness/workspace/checkpoints/README.md",
     ],
 }
-PRODUCER_OUTPUT_PATHS = {
-    "codex": {
-        "reports": "harness/workspace/reports/codex/",
-        "artifacts": "harness/workspace/artifacts/codex/<task-id>/",
+TASK_OUTPUT_PATHS = {
+    "development": {
+        "reports": "harness/workspace/reports/development/",
+        "artifacts": "harness/workspace/artifacts/development/<task-id>/",
     },
     "agy": {
         "reports": "harness/workspace/reports/agy/",
         "artifacts": "harness/workspace/artifacts/agy/<review-id>/",
     },
 }
+DEVELOPMENT_PRODUCERS = ("codex", "claude")
+INDEPENDENT_REVIEWER = "agy"
+PRODUCER_INSTRUCTION_FILES = {
+    "codex": "harness/agents/codex-developer.md",
+    "claude": "CLAUDE.md",
+    "agy": "harness/agents/agy-reviewer.md",
+}
 
 
-# 사용자가 독립 AGY 결과로 확인한 원문만 신뢰 기준에 고정해 Codex 보고서로 자기 승인하지 못하게 한다.
+# 사용자가 독립 AGY 결과로 확인한 원문만 신뢰 기준에 고정해 개발 보고서로 자기 승인하지 못하게 한다.
 # 새 증거 추가는 별도 사용자 승인 Task이며 Registry의 경로나 checksum만 바꿔서는 승인되지 않는다.
 ACCEPTED_AGY_REVIEWS = {
     "harness/workspace/reports/agy/agy-initial-harness-review.md": {
@@ -117,14 +127,22 @@ def workspace_policy(spec):
     # 출력 예외가 제품·규칙·current-task까지 확장되면 검증 입력을 숨기므로 승인된 분류만 허용한다.
     if spec["dynamic_paths"] != DYNAMIC_WORKSPACE_PATHS or spec["workspace_static_files"] != STATIC_WORKSPACE_FILES:
         raise ValueError("dynamic Workspace path policy drift")
-    # 저자 경로는 정적 제어 정책으로 검증한다. 산출물 파일의 존재나 형식으로 build를 승인하지 않는다.
-    if spec.get("producer_output_paths") != PRODUCER_OUTPUT_PATHS:
-        raise ValueError("producer output path policy drift")
-    for producer, paths in PRODUCER_OUTPUT_PATHS.items():
-        agent = "codex-developer" if producer == "codex" else "agy-reviewer"
-        instructions = (ROOT / f"harness/agents/{agent}.md").read_text(encoding="utf-8")
-        if any(f"`{path}`" not in instructions for path in paths.values()):
-            raise ValueError(f"producer output instructions drift: {producer}")
+    # Task 역할 경로는 정적 제어 정책으로 검증한다. 산출물 파일의 존재나 형식으로 build를 승인하지 않는다.
+    if spec.get("task_output_paths") != TASK_OUTPUT_PATHS:
+        raise ValueError("task output path policy drift")
+    if spec.get("development_producers") != list(DEVELOPMENT_PRODUCERS):
+        raise ValueError("development producer identity drift")
+    if spec.get("independent_reviewer") != INDEPENDENT_REVIEWER:
+        raise ValueError("independent reviewer identity drift")
+    if "active_producer" in spec:
+        raise ValueError("active producer must not gate same-task handoff")
+    for producer in DEVELOPMENT_PRODUCERS:
+        instructions = (ROOT / PRODUCER_INSTRUCTION_FILES[producer]).read_text(encoding="utf-8")
+        if any(f"`{path}`" not in instructions for path in TASK_OUTPUT_PATHS["development"].values()):
+            raise ValueError(f"development output instructions drift: {producer}")
+    reviewer_instructions = (ROOT / PRODUCER_INSTRUCTION_FILES[INDEPENDENT_REVIEWER]).read_text(encoding="utf-8")
+    if any(f"`{path}`" not in reviewer_instructions for path in TASK_OUTPUT_PATHS["agy"].values()):
+        raise ValueError("reviewer output instructions drift")
     if not set(sum(STATIC_WORKSPACE_FILES.values(), [])).issubset(spec["required_files"]):
         raise ValueError("static Workspace anchors must remain registered")
     for name in spec["required_files"]:
@@ -162,7 +180,7 @@ def compose():
         mount = mounts[target]
         if Path(mount["source"]).resolve() != source.resolve() or bool(mount.get("read_only")) != readonly:
             raise ValueError(f"Compose mount drift: {target}")
-    if registry()["phase"] in ("phase1a-structured-pilot", "phase1b-full-sync", "phase2-document-acquisition", "phase2-5-s3-storage"):
+    if registry()["phase"] in DATABASE_PHASES:
         mysql = result["services"]["mysql"]
         flyway = result["services"]["flyway"]
         ports = mysql.get("ports", [])
@@ -189,13 +207,16 @@ def setup_check():
         raise ValueError("Docker Compose >=2 required")
     compose()
     print(f"PASS: Python {sys.version.split()[0]}, Bash, Git, Compose {version}; configuration only")
-    if registry()["phase"] in ("phase1a-structured-pilot", "phase1b-full-sync", "phase2-document-acquisition", "phase2-5-s3-storage"):
+    if registry()["phase"] in DATABASE_PHASES:
         import pydantic
         import sqlalchemy
         import pymysql
         if not pydantic.__version__.startswith("2.") or not sqlalchemy.__version__.startswith("2."):
             raise ValueError("Phase 1A requires Pydantic v2 and SQLAlchemy v2")
         print("PASS: Pydantic v2, SQLAlchemy v2, PyMySQL available; DB tested in integration")
+    if registry()["phase"] == "phase3-document-parsing":
+        import docling_core
+        print("PASS: docling-core available for DoclingDocument; Docling converter/OCR not required in this slice")
     print("N/A: Java/Node/Qdrant/product APIs/AI; live upstream calls are separate")
 
 
@@ -238,16 +259,17 @@ def lint_check():
 def contract_check():
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/contract", "-p", "test_*.py", "-v")
     print("PASS: snapshot/report, upstream Probe, API-quality and bounded document mock-transport Unit and Contract tests")
-    print("N/A in offline validation: live HTTP, full provider specification, product API and Qdrant contracts")
+    print("PASS: Phase 3 parsing contract, detected-format router and HWPX DoclingDocument adapter with synthetic containers")
+    print("N/A in offline validation: live HTTP, full provider specification, product API and Qdrant contracts; Docling PDF/HWP conversion")
 
 
 def integration_check():
-    if registry()["phase"] in ("phase1a-structured-pilot", "phase1b-full-sync", "phase2-document-acquisition"):
+    if registry()["phase"] in DATABASE_PHASES:
         run(sys.executable, "-B", "infra/dev_mysql.py")
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/integration", "-p", "test_*.py", "-v")
     print("PASS: local CLI integration including credential-missing Probe/API-quality and bounded document failure exits; no live HTTP")
     print("PASS: structured dev MySQL integration (Phase 1A/1B); no live upstream HTTP")
-    print("N/A: live API/document HTTP, text Parser, product APIs")
+    print("N/A: live API/document HTTP, Docling PDF/HWP conversion, parse persistence, product APIs")
 
 
 def database_comment_problem(name, comment):
@@ -457,9 +479,9 @@ def harness_check():
     workspace_policy(spec)
     if actual != expected:
         raise ValueError(f"Registry drift: missing={sorted(expected - actual)}, unregistered={sorted(actual - expected)}")
-    if spec["phase"] not in ("phase0-preparation", "phase1a-structured-pilot", "phase1b-full-sync", "phase2-document-acquisition", "phase2-5-s3-storage"):
+    if spec["phase"] not in ("phase0-preparation", *DATABASE_PHASES):
         raise ValueError("phase must reflect actual preparation")
-    # 현재 Task가 과거 Report를 승인받은 것처럼 보이지 않도록 활성 Report 연결도 함께 검증한다.
+    # 현재 Task의 공동 개발 Evidence가 과거 Report나 Reviewer 경로로 바뀌지 않도록 연결을 함께 검증한다.
     task = (ROOT / "harness/workspace/current-task.md").read_text(encoding="utf-8")
     final_reports = re.findall(r"\[Final Report\]\(([^)]+)\)", task)
     if len(final_reports) != 1 or Path(os.path.abspath(
@@ -468,8 +490,8 @@ def harness_check():
         raise ValueError("current-task Final Report differs from Registry report")
     if not isinstance(spec["report"], str) or workspace_category(spec["report"]) != "GENERATED_REPORT":
         raise ValueError("current-task report reference must name a generated Report")
-    if not spec["report"].startswith(PRODUCER_OUTPUT_PATHS["codex"]["reports"]):
-        raise ValueError("current-task report must use Codex producer path")
+    if not spec["report"].startswith(TASK_OUTPUT_PATHS["development"]["reports"]):
+        raise ValueError("current-task report must use shared development path")
     status = review_status(spec)
     if spec["branches"] != {"development": "dev", "verified": "main", "deployment": "op"}:
         raise ValueError("branch policy drift")

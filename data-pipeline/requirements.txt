@@ -2,3 +2,5 @@ pydantic==2.13.5
 SQLAlchemy==2.0.52
 PyMySQL[rsa]==1.2.3
 boto3[crt]==1.43.103
+docling-core==2.99.0
+defusedxml==0.7.1

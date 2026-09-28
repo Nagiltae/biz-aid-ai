@@ -43,6 +43,28 @@ metadata 연결은 기존 object의 HEAD 크기와 `ChecksumSHA256`을 전수 �
 모든 object 검증 전 DB를 변경하지 않으며 3,288 relation metadata는 단일 transaction으로 연결한다.
 실제 byte GET으로 SHA와 format을 재검증한다. 기존 로컬 corpus와 S3 object 삭제는 AGY와 사용자 승인 전 금지한다.
 
+## Phase 3 Document Parsing 규칙
+
+입력은 ACQUIRED이고 `s3_*`가 검증된 relation의 unique `content_sha256`이다. 원본은 S3에서 읽고 크기·SHA를 다시 확인한다.
+route는 `detected_format`만 따른다. 파일명 확장자·declared_extension·Content-Type은 route 근거가 아니다.
+결과는 content SHA 단위로 만들고 relation provenance는 `document_sources.content_sha256` join으로 모두 유지한다.
+모든 parsing 수치는 unique content SHA 기준인지 source relation 기준인지 명시하며 두 값을 합치거나 바꿔 쓰지 않는다.
+표본 관찰값은 분자/분모로 기록하고 표본 추출 방법의 대표성이 검증되기 전에는 corpus prevalence를 UNMEASURED로 둔다.
+PDF/HWP/HWPX의 구조화 표현은 DoclingDocument 하나다. 자체 canonical document tree를 만들지 않으며 BizAid 추적 정보는 결과 봉투에 둔다.
+정규화는 Contract의 NFC·줄바꿈·제어문자·줄 끝 공백만 수행하고 추출 원문은 TextItem.orig에 남긴다.
+
+parse_key는 source SHA·route·adapter/normalizer/docling-core/docling/converter 버전으로 계산한다.
+같은 parse_key와 무결성이 재확인된 artifact만 재사용하고, 버전 변경은 해당 route 문서만 새 key로 재처리한다. 과거 결과는 덮어쓰지 않는다.
+parser 호출이 예외 없이 끝났다는 사실만으로 PARSED가 아니다. DoclingDocument 재적재와 text 양 Gate를 통과해야 한다.
+native text가 부족한 PDF는 OCR_REQUIRED로 분리한다. OCR 도입은 실제 분포 근거로 별도 Task에서 결정한다.
+
+Container는 풀어서 디스크에 쓰지 않고 메모리에서 제한적으로 읽는다. 절대·상위 경로, 중복 entry, 암호화 entry,
+entry 수·전체 해제 크기·압축비·XML 크기 한도 초과는 REJECTED_UNSAFE 또는 ENCRYPTED다. XML은 DTD·entity를 거부한다.
+detected ZIP은 DOCX·PPTX·ODT·Generic ZIP을 구분해 다룬다. Generic ZIP은 archive source SHA·member path·member SHA·
+member detected format·archive depth·parent/member provenance를 표현하는 Contract 전까지 전개하지 않고 POLICY_PENDING으로 보존한다.
+Parsed artifact의 영구 저장소는 S3이며 로컬 filesystem은 fixture·scratch·임시 처리만 허용한다.
+Phase 3는 원본 재다운로드·재업로드·S3/로컬 원본 삭제를 하지 않는다. Pilot·Full Parse의 대량 S3 GET/PUT은 실행 전 보고한다.
+
 승인된 Phase 0 API 품질 Batch는 dev만 선택하며 5 Page × 20건으로 제한한다. 재시도·prod 요청·다운로드는 없다.
 수집 시점 API 기본 정렬 기준 선두 100건을 표본으로 사용한다. 공식 최신순 보장은 추정하지 않는다.
 품질 분모는 성공 Envelope의 실제 Item 수이며 중복 행·null·blank·누락을 제거하지 않는다.

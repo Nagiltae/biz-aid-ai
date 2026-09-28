@@ -2,12 +2,21 @@
 
 > 프로젝트명(가칭): **BizAid AI**
 >
-> 현재 단계: **Phase 2.5 S3 Document Storage + Local Pipeline Execution** (2026-09-29 사용자 승인)
+> 현재 단계: **Phase 3 Document Parsing** (2026-09-29 사용자 승인)
 >
 > 이 문서는 확정 설계가 아니라 데이터 검증 및 프로젝트 방향 논의를 위한
 > 초안이다.
 
 ## 승인된 현재 실행 범위
+
+2026-09-29 사용자 승인: Phase 3 Document Parsing. S3의 검증된 원본을 입력으로 PDF는 Docling, HWP는 HWP → PDF → Docling,
+HWPX는 native XML → HwpxDoclingAdapter로 변환해 DoclingDocument를 공통 구조화 표현으로 사용한다.
+별도 CanonicalDocument나 자체 범용 document tree는 만들지 않는다. 이후 Chunking은 Docling HybridChunker·BGE-M3 tokenizer·
+BizAidChunkEnricher를 전제로 하므로 Phase 3 산출물은 DoclingDocument 직접 소비를 깨지 않아야 한다.
+route는 filename/Content-Type이 아닌 detected format을 따른다. OCR·Parent/Child·Semantic Chunking은 기본 경로가 아니며
+Chunking/Embedding/Qdrant/RAG는 구현하지 않는다. 아래 §48의 "Phase 3 Basic Service"는 이전 Target 로드맵 번호다.
+저장 정책: S3 = 원본 binary + 영구 parsed artifact, MySQL = parsing 상태·provenance·artifact pointer·parser metadata,
+로컬 filesystem = fixture·scratch·임시 처리만. 아래 §20의 `data/parsed/` 개발환경 보존 표현은 이 승인 방향과 충돌하며 parsed artifact에는 적용하지 않는다.
 
 2026-09-29 사용자 승인: Phase 2에서 확보한 3,231개 고유 binary를 기존 S3 object와
 `ChecksumSHA256`으로 대조한 뒤 3,288개 provenance relation에 S3 metadata를 연결한다.

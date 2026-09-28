@@ -85,8 +85,9 @@ current-task/정적 README/Rule/제품의 공백·링크 오류, static ignore·
 Generated Output만 변경됐으면 기존 Validation은 유효하며 Control/Input 변경은 재검증한다.
 출력 파일 형식과 무관하게 실제 검증 command exit 1은 check-all exit 1로 전파한다.
 
-Producer 경로 회귀는 reports/codex·reports/agy와 Agent/Task별 Artifact의 non-gating 경계를 검사한다.
-Registry/Agent 지침이 반대 Producer 경로로 설정되거나 현재 Codex Task Report가 AGY 경로를 가리키면 FAIL이다.
+Producer 경로 회귀는 reports/development·reports/agy와 Task별 Artifact의 non-gating 경계를 검사한다.
+Codex·Claude 지침의 공동 경로 불일치, current-task의 Agent 전용 Report 지정, 개발 Report의 Review Evidence 사용은 FAIL이다.
+Agent handoff checkpoint를 추가하거나 공동 Report를 이어서 갱신해도 Registry 변경 없이 Harness가 통과해야 한다.
 산출물 디렉터리나 파일이 없어도 통과한다. static anchor·제품 공백/untracked 검사는 그대로 유지한다.
 
 ## Phase 1B FULL 검증
@@ -110,3 +111,11 @@ Contract는 SHA key, 조건부 PUT, 412 race, HEAD checksum, 실제 GET SHA, ove
 metadata-link 테스트는 누락 object에서 PUT 없이 실패하고 전체 검증 후에만 DB update 경계로 진입함을 확인한다.
 Integration은 실제 test MySQL V4와 S3 readback을 모사하며 live AWS나 upstream HTTP를 호출하지 않는다.
 dev 별도 검증에서 로컬 3,231 SHA와 S3 HEAD checksum을 대조하고 DB 3,288 relation readback 후 기존 Phase 2 run을 S3 byte로 재검증한다.
+
+## Phase 3 Parsing 검증
+
+Contract 테스트는 합성 HWPX container로 detected-format route, 비활성 route 상태, 입력 SHA/크기 불일치 거부,
+DoclingDocument JSON 재적재·표 병합·section 순서·글상자/중첩 표·정규화와 orig 보존, 빈 text의 비성공 상태,
+경로 탈출·중복·압축비·해제 크기·DTD/entity·암호화·손상 XML/ZIP 거부와 parse_key 버전 규칙을 검증한다.
+Contract의 unique content SHA / source relation 기준 분리와 합계, 미결정 route의 비활성 상태도 검사한다.
+실제 corpus·S3·Docling PDF 변환·HWP 변환·결과 영속화·HWPX 구조 품질은 아직 검증 대상이 아니며 PASS로 계산하지 않는다.

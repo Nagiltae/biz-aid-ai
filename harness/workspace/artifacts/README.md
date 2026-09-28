@@ -8,5 +8,5 @@
 
 Codex는 codex/<task-id>/, AGY는 agy/<review-id>/ 아래에 machine-readable evidence를 보관한다.
 로그는 해당 작업의 logs/를 사용한다. Task마다 final validation·preservation을 구분하고 기존 원문을 overwrite하지 않는다.
-보고서는 reports/codex/ 또는 reports/agy/에 저장한다. checkpoints의 run/resume 구조는 유지한다.
+공동 개발 보고서는 reports/development/, 독립 Review는 reports/agy/에 저장한다. checkpoints의 run/resume 구조는 유지한다.
 이 README는 Agent 하위 경로로 옮기지 않는다. 과거 생성물의 이동은 cleanup manifest의 relocation mapping으로 추적한다.

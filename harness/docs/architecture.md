@@ -12,7 +12,7 @@
 | FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 미구현 |
 | MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | Phase 1A Pilot 및 Phase 1B dev FULL DRY-RUN 경계 구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | 미구현 |
-| Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 영구 저장 경계 구현, Parser는 후속 |
+| Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 영구 저장 구현, Phase 3 Parser는 DoclingDocument 경계와 HWPX slice 구현 |
 | Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe·5×20 API 품질 Batch·동일 표본의 제한된 문서 Download Gate |
 | Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
 
@@ -70,3 +70,9 @@ Phase 1B 승인으로 dev API 전체 pagination / Raw 완전성 검증 / 구조�
 dev → `.env.dev`, prod → `.env.prod`만 선택한다. Process Environment가 우선하고 generic `.env` / Profile fallback은 없다.
 Dev MySQL은 Host 127.0.0.1:3306 → container 3306이며 사용자 계정·비밀번호와 volume을 보존한다.
 설정 파일 선택과 실행 권한은 별개다. 현재 제품 API / DB 실행은 dev만 허용한다. [Infra](../../infra/README.md)를 따른다.
+
+## Phase 3 Parsing 표현
+
+문서 구조의 공통 표현은 docling-core의 DoclingDocument다. BizAid는 source SHA·route·parse_key·상태·경고만 결과 봉투에 둔다.
+PDF와 HWP(→PDF)는 Docling 변환기, HWPX는 native XML Adapter가 같은 표현을 만든다. 자체 canonical document tree는 없다.
+후속 Chunking(HybridChunker·BGE-M3 tokenizer·BizAidChunkEnricher)은 이 DoclingDocument를 직접 소비하는 전제이며 이번 범위가 아니다.

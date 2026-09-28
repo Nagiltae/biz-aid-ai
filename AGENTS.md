@@ -1,7 +1,7 @@
 # Harness Entry Point
 
 기업 프로필과 공고문 근거로 중소기업 지원사업을 탐색·검토하는 프로젝트다.
-최상위 기준은 [PROJECT_DESIGN.md](PROJECT_DESIGN.md). 현재 **Phase 2 Full Document Acquisition**이다.
+최상위 기준은 [PROJECT_DESIGN.md](PROJECT_DESIGN.md). 현재 **Phase 3 Document Parsing**이다.
 
 ## 먼저 읽기
 
@@ -21,7 +21,7 @@ Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는
 - 개발은 dev에서만 한다. 임의 Push / Merge / force push / branch 삭제는 금지한다.
 - 원문을 보존한다. Secret·Live payload는 Git에 넣지 않는다. 사용자 제공 sanitized Fixture 예외는 [Source 규칙](harness/rules/data-source-rules.md)을 따른다. Control/Input은 추적하고 Generated Workspace Output은 [Workflow](harness/docs/workflow.md)에 따라 non-gating으로 관리한다.
 - 설명성 코드 주석은 한글 WHY / BOUNDARY / EXCEPTION / RISK로 작성한다.
-- Codex는 Developer / Generator, AGY는 독립 Reviewer다. Codex가 AGY 승인 기록을 작성하지 않는다.
+- Codex와 Claude는 같은 Task를 이어서 수행하는 Developer / Generator, AGY는 독립 Reviewer다. Agent handoff로 Harness 제어 파일을 바꾸지 않으며 개발 Producer가 AGY 승인 기록을 작성하지 않는다.
 - Harness 규칙 완화·삭제 또는 큰 Architecture 변경은 먼저 보고하고 사용자 판단을 받는다.
 - 현재 Task가 허용하지 않은 서비스·DB·RAG·LangGraph·Indexing을 구현하지 않는다.
 
@@ -36,8 +36,8 @@ Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는
 | DB 변경 요청 | [DB 규칙](harness/rules/database-rules.md) | [database-migration](harness/skills/database-migration/SKILL.md) |
 | RAG 변경 요청 | [RAG](harness/docs/rag.md), [AI 경계](harness/rules/ai-boundary-rules.md), [Observability](harness/docs/observability.md) | [rag-change](harness/skills/rag-change/SKILL.md) |
 
-Skill은 현재 Task의 허용 범위를 늘리지 않는다. dev 구조화 FULL / 첫 soft-delete DRY_RUN이 승인됐으며 RAG는 미구현이다.
-역할: [Codex](harness/agents/codex-developer.md), [AGY](harness/agents/agy-reviewer.md).
+Skill은 현재 Task의 허용 범위를 늘리지 않는다. dev 구조화 FULL / 문서 수집 / S3 저장이 완료됐고 Parser는 DoclingDocument 경계만 승인됐으며 OCR·Chunking·RAG는 미구현이다.
+역할: [Codex](harness/agents/codex-developer.md), Claude는 [bootstrap](CLAUDE.md), [AGY](harness/agents/agy-reviewer.md).
 
 ## Validation / DoD
 

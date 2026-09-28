@@ -143,4 +143,14 @@ S3 object key는 `biz-aid/documents/sha256/<2>/<2>/<sha256>`이며 확장자를 
 누락 object를 자동 upload하지 않으며 모든 3,288 relation의 `s3_*`를 단일 transaction으로 기록한다.
 `storage_path`는 legacy 로컬 migration source이고 `s3_region`/`s3_bucket_name`/`s3_object_key`가 영구 위치다.
 신규 acquisition은 bounded body를 임시 파일로 옮겨 SHA/format을 확인한 뒤 S3에 조건부 생성하고 임시 파일을 정리한다.
-캐시 재사용과 강한 Gate는 실제 S3 body의 size/SHA/format을 확인한다. Parser는 S3 read 경계를 사용하며 아직 미구현이다.
+캐시 재사용과 강한 Gate는 실제 S3 body의 size/SHA/format을 확인한다. Parser는 S3 read 경계를 사용한다.
+
+## Phase 3 Document Parsing
+
+[Parsing 계약](../../contracts/schemas/document-parsing.contract.json)과 [Source 규칙](../rules/data-source-rules.md)의 Phase 3 절을 따른다.
+`parsing/router.py`가 `detected_format`으로 route를 고르고 입력 byte의 크기·SHA를 재확인한다.
+PDF: S3 byte → Docling DocumentConverter(do_ocr=false) → DoclingDocument. HWP: S3 byte → HWP→PDF 변환 경계 → 같은 Docling 경로.
+HWPX: S3 byte → 제한된 container read → section XML → `HwpxDoclingAdapter` → DoclingDocument. 세 경로의 결과는 모두 DoclingDocument다.
+공통 후처리 `quality.normalize_document`가 text를 정규화하고 원문을 orig에 두며 `apply_gate`가 JSON 재적재·text 양으로 상태를 정한다.
+현재 구현은 HWPX route와 공통 router/Gate다. PDF/HWP는 ROUTE_NOT_ENABLED, XLSX/ZIP/OTHER/UNKNOWN은 POLICY_PENDING이다.
+저장 정책은 S3 artifact + MySQL metadata로 정해졌고 구현·Pilot·Full Parse는 후속 sub-step이다. HWP 변환기는 UNDECIDED다. Chunking은 이 산출물을 HybridChunker로 직접 소비하는 후속 Task다.

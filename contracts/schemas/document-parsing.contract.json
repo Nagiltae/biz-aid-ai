@@ -1,0 +1,240 @@
+{
+  "version": 1,
+  "phase": "phase3-document-parsing",
+  "profile": "dev",
+  "representation": {
+    "document_model": "DoclingDocument",
+    "document_model_package": "docling-core",
+    "artifact_format": "DoclingDocument JSON from export_to_dict, reloadable with DoclingDocument.model_validate_json",
+    "own_canonical_document_tree": false,
+    "downstream_consumer": "Docling HybridChunker in a later Chunking Task; Phase 3 must not break direct DoclingDocument consumption",
+    "text_normalization_target": "TextItem.text and TableCell.text; TextItem.orig keeps the extracted text before normalization",
+    "bizaid_metadata_location": "parse result envelope outside DoclingDocument; DocumentOrigin.mimetype is not the BizAid format source because docling-core rejects HWP/HWPX MIME values"
+  },
+  "dependencies": {
+    "docling_core": {
+      "pin": "2.99.0",
+      "status": "installed",
+      "reason": "DoclingDocument model, TableData and JSON reload for HwpxDoclingAdapter without Docling converter or model weights"
+    },
+    "docling": {
+      "status": "not_installed",
+      "introduction_rule": "3-B locks a mutually compatible docling / docling-core set; no ad hoc upgrade or downgrade",
+      "metadata_rule": "parse_key and parser metadata record the versions actually installed at parse time"
+    }
+  },
+  "input": {
+    "unit": "unique document_sources.content_sha256 with download_status=ACQUIRED and verified s3_* metadata",
+    "binary_source": "S3 object read through S3DocumentStore.read with byte size and SHA-256 re-verification",
+    "format_source": "document_sources.detected_format",
+    "trusted_format_hints": [],
+    "untrusted_format_hints": [
+      "original_filename extension",
+      "declared_extension",
+      "HTTP Content-Type"
+    ],
+    "max_source_bytes": 104857600,
+    "local_disk": "fixture, scratch and bounded temporary processing only; never a persistent parsed artifact store",
+    "provenance": "results are keyed by content SHA; every relation is recovered by joining document_sources.content_sha256 and is never deduplicated away"
+  },
+  "count_basis": {
+    "parse_unit": "unique_content_sha",
+    "unique_content_sha": "distinct document_sources.content_sha256; one binary is parsed once",
+    "source_relation": "document_sources rows; provenance of pblanc_id, source field and token, never counted as documents",
+    "reporting_rule": "every parsing count names its basis as unique_content_sha or source_relation; the two are never summed or substituted",
+    "phase2_5_baseline": {
+      "totals": {
+        "unique_content_sha": 3231,
+        "source_relation": 3288
+      },
+      "by_detected_format": {
+        "HWP": {
+          "unique_content_sha": 1362,
+          "source_relation": 1383
+        },
+        "PDF": {
+          "unique_content_sha": 1133,
+          "source_relation": 1160
+        },
+        "HWPX": {
+          "unique_content_sha": 431,
+          "source_relation": 435
+        },
+        "ZIP": {
+          "unique_content_sha": 144,
+          "source_relation": 146
+        },
+        "OTHER": {
+          "unique_content_sha": 107,
+          "source_relation": 109
+        },
+        "XLSX": {
+          "unique_content_sha": 50,
+          "source_relation": 51
+        },
+        "UNKNOWN": {
+          "unique_content_sha": 4,
+          "source_relation": 4
+        }
+      }
+    }
+  },
+  "artifact_storage": {
+    "original_binary": "S3 existing content-addressed objects; no re-upload",
+    "persistent_parsed_artifact": "S3",
+    "parse_metadata": "MySQL: parsing status, provenance, artifact pointer, parser metadata",
+    "local_filesystem": "fixture, scratch and temporary processing only",
+    "implementation_status": "deferred to a later sub-step; no S3 PUT or migration in 3-A",
+    "migration_version_rule": "next number after the latest migration in migrations/ at implementation time; not pre-assigned"
+  },
+  "routes": {
+    "PDF": {
+      "route": "DOCLING_PDF",
+      "enabled": false,
+      "flow": "S3 PDF bytes -> Docling DocumentConverter (do_ocr=false) -> DoclingDocument"
+    },
+    "HWP": {
+      "route": "HWP_PDF_DOCLING",
+      "enabled": false,
+      "flow": "S3 HWP bytes -> HWP to PDF conversion boundary -> Docling DocumentConverter (do_ocr=false) -> DoclingDocument",
+      "converter": {
+        "candidate": "LibreOffice + H2Orestart",
+        "decision": "UNDECIDED",
+        "decision_gate": "real HWP 15-document conversion Pilot",
+        "installed": false
+      }
+    },
+    "HWPX": {
+      "route": "HWPX_DOCLING_ADAPTER",
+      "enabled": true,
+      "flow": "S3 HWPX bytes -> bounded ZIP container read -> Contents section XML -> HwpxDoclingAdapter -> DoclingDocument",
+      "quality_status": {
+        "execution_evidence": "local sample runs prove execution only, not parsing quality PASS",
+        "pending_validation": [
+          "Heading",
+          "Paragraph",
+          "List",
+          "Table",
+          "Reading Order",
+          "Source Location"
+        ]
+      }
+    },
+    "XLSX": {
+      "route": "POLICY_PENDING",
+      "enabled": false,
+      "approved_direction": "Docling Excel route candidate; not implemented"
+    },
+    "ZIP": {
+      "route": "POLICY_PENDING",
+      "enabled": false,
+      "extraction_enabled": false,
+      "container_subtypes": [
+        "DOCX",
+        "PPTX",
+        "ODT",
+        "GENERIC_ZIP"
+      ],
+      "subtype_policy": "DOCX / PPTX / ODT support routes are decided in a later Parser scope",
+      "generic_zip_member_provenance_required": [
+        "archive_source_sha256",
+        "member_path",
+        "member_sha256",
+        "member_detected_format",
+        "archive_depth",
+        "parent_member_provenance"
+      ],
+      "activation_rule": "Generic ZIP extraction stays POLICY_PENDING until a contract represents every member provenance field"
+    },
+    "OTHER": {
+      "route": "POLICY_PENDING",
+      "enabled": false,
+      "approved_direction": "image binaries become OCR_REQUIRED; not implemented"
+    },
+    "UNKNOWN": {
+      "route": "POLICY_PENDING",
+      "enabled": false,
+      "approved_direction": "UNSUPPORTED_FORMAT; not implemented"
+    }
+  },
+  "parse_statuses": [
+    "PARSED",
+    "EMPTY_TEXT",
+    "OCR_REQUIRED",
+    "ENCRYPTED",
+    "REJECTED_UNSAFE",
+    "CONVERSION_FAILED",
+    "PARSE_FAILED",
+    "UNSUPPORTED_FORMAT",
+    "ROUTE_NOT_ENABLED"
+  ],
+  "warning_codes": [
+    "CONTROL_CHARACTERS_REMOVED",
+    "REPLACEMENT_CHARACTERS_PRESENT",
+    "NESTED_TABLE_FLATTENED",
+    "TABLE_CELL_OUT_OF_RANGE",
+    "EMBEDDED_OBJECT_SKIPPED",
+    "SECTION_ORDER_FROM_FILENAME"
+  ],
+  "versioning": {
+    "parse_key_inputs": [
+      "source_sha256",
+      "route",
+      "adapter_version",
+      "normalizer_version",
+      "docling_core_version",
+      "docling_version",
+      "converter_version"
+    ],
+    "parse_key": "SHA-256 of sorted compact UTF-8 JSON of parse_key_inputs; absent components are null",
+    "adapter_version": 1,
+    "normalizer_version": 1,
+    "skip_rule": "an existing result is reused only when parse_key is identical and the stored artifact size and SHA-256 re-verify",
+    "reprocess_rule": "a changed component version yields a new parse_key only for documents on that route; previous results and artifacts are kept and never overwritten"
+  },
+  "normalization": {
+    "unicode_form": "NFC",
+    "line_endings": "CRLF and CR become LF",
+    "removed": "C0 control characters except TAB and LF, and DEL",
+    "trailing_whitespace": "stripped per line",
+    "not_changed": "wording, spacing inside a line, numbers, dates, table cell boundaries"
+  },
+  "document_gate": {
+    "text_metric": "non-whitespace characters over normalized TextItem.text and TableCell.text",
+    "empty_text_max_chars": 0,
+    "pdf_ocr_required_max_chars_per_page": 50,
+    "replacement_character_warning_ratio": 0.01,
+    "status_rule": "PARSED requires a DoclingDocument that reloads from its JSON artifact and has more than empty_text_max_chars; a completed parser call without text is never PARSED"
+  },
+  "hwpx_container_limits": {
+    "max_entries": 4096,
+    "max_total_uncompressed_bytes": 104857600,
+    "max_xml_entry_bytes": 33554432,
+    "max_compression_ratio": 200,
+    "compression_ratio_min_entry_bytes": 1048576,
+    "max_sections": 512,
+    "reject": [
+      "absolute or parent-relative entry path",
+      "duplicate entry name",
+      "encrypted entry",
+      "missing Contents section XML",
+      "limit exceeded"
+    ],
+    "xml_parser": "defusedxml; DTD, entity and external reference are rejected"
+  },
+  "run_gate_pass": "every input SHA has exactly one result for the current parse_key; every PARSED artifact reloads as DoclingDocument and its SHA-256 re-verifies; every result joins back to at least one document_sources relation; status and warning counts per detected_format are reported; failure-rate acceptance is a Human Review decision, not automatic",
+  "out_of_scope": [
+    "OCR",
+    "Chunking",
+    "Embedding",
+    "Qdrant",
+    "Retrieval",
+    "LLM"
+  ],
+  "pending_decisions": [
+    "HWP to PDF converter engine (UNDECIDED until HWP 15-document Pilot)",
+    "parsed artifact storage implementation (S3 + MySQL policy fixed, implementation deferred)",
+    "DOCX / PPTX / ODT routes and Generic ZIP member provenance contract",
+    "HwpxDoclingAdapter quality validation"
+  ]
+}

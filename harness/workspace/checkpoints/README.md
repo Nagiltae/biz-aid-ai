@@ -1,6 +1,6 @@
 # Checkpoint / Resume / Recovery
 
-장시간 Phase 0 Task는 Agent 대화 기억에 상태를 맡기지 않는다.
+장시간 Task는 Agent 대화 기억에 상태를 맡기지 않는다.
 API 품질 Batch는 Run metadata를 사용하고, 제한된 Document Download Gate는 아래 규칙의 실제 checkpoint를 생성한다.
 
 ## 최소 Format
@@ -77,6 +77,9 @@ status: blocked
 4. 불완전한 마지막 item·실패 item은 재확인한다. 같은 run-id의 원문을 덮어쓰지 않는다.
 5. resume_command의 존재·권한·재실행 안전성을 확인하고 next_action 범위 안에서만 재개한다.
 6. 재개 결과를 새 checkpoint에 기록한다. 증거가 불일치하면 멈추고 이유를 Report에 남긴다.
+
+Codex와 Claude 사이 handoff도 이 절차를 사용한다. notes에는 contributor, 수정 파일, 통과한 테스트,
+남은 작업과 다음 Agent가 먼저 읽을 Evidence를 기록할 수 있다. handoff는 Registry·current-task·Harness 설정을 변경하지 않는다.
 
 완료 checkpoint도 보존하며 payload·credential은 기록하지 않는다.
 이 README는 STATIC_DOCUMENTATION으로 strict 검증한다. run-specific Markdown은 GENERATED_CHECKPOINT다.

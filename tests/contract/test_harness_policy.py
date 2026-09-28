@@ -45,7 +45,16 @@ class HarnessPolicyTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_agent_task_outputs_are_non_gating_untracked_and_ignored(self):
-        directories = ("reports/codex", "reports/agy", "artifacts/codex/synthetic-task/logs", "artifacts/agy/synthetic-review")
+        directories = (
+            "reports/development",
+            "reports/codex",
+            "reports/claude",
+            "reports/agy",
+            "artifacts/development/synthetic-task/logs",
+            "artifacts/codex/synthetic-task/logs",
+            "artifacts/claude/synthetic-task/logs",
+            "artifacts/agy/synthetic-review",
+        )
         for ignored in (True, False):
             with self.subTest(ignored=ignored):
                 if not ignored:
@@ -61,41 +70,77 @@ class HarnessPolicyTests(unittest.TestCase):
                     result = self.check(mode)
                     self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_wrong_producer_report_and_artifact_policy_is_detected(self):
-        original = json.loads(json.dumps(self.registry["producer_output_paths"]))
-        for producer, other in (("codex", "agy"), ("agy", "codex")):
+    def test_wrong_task_output_policy_is_detected(self):
+        original = json.loads(json.dumps(self.registry["task_output_paths"]))
+        for role, other in (("development", "agy"), ("agy", "development")):
             for kind in ("reports", "artifacts"):
-                with self.subTest(producer=producer, kind=kind):
+                with self.subTest(role=role, kind=kind):
                     paths = json.loads(json.dumps(original))
-                    paths[producer][kind] = paths[other][kind]
-                    self.update_registry(producer_output_paths=paths)
+                    paths[role][kind] = paths[other][kind]
+                    self.update_registry(task_output_paths=paths)
                     result = self.check("harness")
                     self.assertEqual(result.returncode, 1)
-                    self.assertIn("producer output path policy drift", result.stderr)
-        self.update_registry(producer_output_paths=original)
+                    self.assertIn("task output path policy drift", result.stderr)
+        self.update_registry(task_output_paths=original)
 
     def test_wrong_agent_output_instructions_are_detected(self):
-        for producer, agent, other in (("codex", "codex-developer", "agy"), ("agy", "agy-reviewer", "codex")):
-            path = self.directory / f"harness/agents/{agent}.md"
+        instructions = (
+            ("codex", "harness/agents/codex-developer.md", "development", "codex"),
+            ("claude", "CLAUDE.md", "development", "claude"),
+            ("agy", "harness/agents/agy-reviewer.md", "agy", "development"),
+        )
+        for producer, instruction, expected, other in instructions:
+            path = self.directory / instruction
             original = path.read_text()
-            path.write_text(original.replace(f"reports/{producer}/", f"reports/{other}/"))
+            path.write_text(original.replace(f"reports/{expected}/", f"reports/{other}/"))
             result = self.check("harness")
             self.assertEqual(result.returncode, 1)
-            self.assertIn("producer output instructions drift", result.stderr)
+            self.assertIn("output instructions drift", result.stderr)
             path.write_text(original)
 
-    def test_codex_current_task_cannot_select_agy_output(self):
+    def test_same_task_handoff_updates_shared_evidence_without_registry_change(self):
+        registry_before = (self.directory / "harness/registry.json").read_bytes()
+        report = self.directory / self.registry["report"]
+        report.parent.mkdir(parents=True, exist_ok=True)
+        for contributor, next_contributor in (("codex", "claude"), ("claude", "codex")):
+            with self.subTest(contributor=contributor, next_contributor=next_contributor):
+                report.write_text(
+                    f"contributors:\n- codex\n- claude\nfinalized_by: {contributor}\n", encoding="utf-8",
+                )
+                checkpoint = self.directory / "harness/workspace/checkpoints/synthetic-handoff.md"
+                checkpoint.write_text(
+                    f"current_contributor: {contributor}\nnext_contributor: {next_contributor}\n", encoding="utf-8",
+                )
+                result = self.check("harness")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual((self.directory / "harness/registry.json").read_bytes(), registry_before)
+
+    def test_current_task_report_cannot_use_agent_or_reviewer_path(self):
         previous = self.registry["report"]
-        wrong = "harness/workspace/reports/agy/synthetic-task.md"
         task = self.directory / "harness/workspace/current-task.md"
-        task.write_text(task.read_text().replace(previous.removeprefix("harness/workspace/"), wrong.removeprefix("harness/workspace/")))
-        self.update_registry(report=wrong)
+        original = task.read_text()
+        for identity in ("codex", "claude", "agy"):
+            with self.subTest(identity=identity):
+                wrong = f"harness/workspace/reports/{identity}/synthetic-task.md"
+                task.write_text(original.replace(
+                    previous.removeprefix("harness/workspace/"), wrong.removeprefix("harness/workspace/"),
+                ))
+                self.update_registry(report=wrong)
+                result = self.check("harness")
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("current-task report must use shared development path", result.stderr)
+
+    def test_active_producer_control_is_rejected(self):
+        self.update_registry(active_producer="codex")
         result = self.check("harness")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("current-task report must use Codex producer path", result.stderr)
+        self.assertIn("active producer must not gate same-task handoff", result.stderr)
 
     def test_agent_output_directories_need_not_exist(self):
-        for directory in ("reports/codex", "reports/agy", "artifacts/codex", "artifacts/agy"):
+        for directory in (
+            "reports/development", "reports/agy",
+            "artifacts/development", "artifacts/agy",
+        ):
             shutil.rmtree(self.directory / "harness/workspace" / directory, ignore_errors=True)
         for mode in ("format", "harness", "git-tracked"):
             result = self.check(mode)
@@ -376,11 +421,15 @@ class HarnessPolicyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("independent evidence must be user-acknowledged", result.stderr)
 
-    def test_codex_report_cannot_be_independent_review_evidence(self):
-        self.update_registry(agy_review="review_complete", agy_review_evidence=self.registry["report"])
-        result = self.check("harness")
-        self.assertEqual(result.returncode, 1)
-        self.assertIn("independent evidence must be user-acknowledged", result.stderr)
+    def test_development_producer_report_cannot_be_independent_review_evidence(self):
+        claude_report = self.add_workspace_file("reports/claude", "synthetic-task.md")
+        codex_report = self.add_workspace_file("reports/codex", "synthetic-task.md")
+        for report in (self.registry["report"], codex_report, claude_report):
+            with self.subTest(report=report):
+                self.update_registry(agy_review="review_complete", agy_review_evidence=report)
+                result = self.check("harness")
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("independent evidence must be user-acknowledged", result.stderr)
 
     def test_missing_independent_review_is_unverified_but_build_passes(self):
         evidence = "harness/workspace/reports/agy/agy-harness-fix-review.md"

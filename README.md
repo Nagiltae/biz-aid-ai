@@ -3,8 +3,8 @@
 기업 정보와 지원사업 공고문 근거를 결합하는 AI 서비스 프로젝트다.
 최상위 설계는 [PROJECT_DESIGN.md](PROJECT_DESIGN.md), 작업 진입점은 [AGENTS.md](AGENTS.md)다.
 
-현재는 **Phase 2.5 S3 Document Storage**다. 구조화 FULL과 문서 수집 결과를 dev S3 영구 저장소에 연결한다.
-제품 데이터 Pipeline과 dev MySQL은 구현됐다. 제품 서비스 API, 문서 Parser, RAG는 미구현이다.
+현재는 **Phase 3 Document Parsing**이다. S3 원본 문서를 후속 Chunking이 소비할 DoclingDocument로 변환한다.
+제품 데이터 Pipeline·dev MySQL·S3 원본 저장은 구현됐다. Parser는 HWPX vertical slice만 구현됐고 서비스 API·OCR·RAG는 미구현이다.
 
 ## 현재 실행 환경
 

@@ -1,7 +1,12 @@
 {
   "version": 1,
-  "phase": "phase2-5-s3-storage",
+  "phase": "phase3-document-parsing",
   "agy_review": "pending",
+  "development_producers": [
+    "codex",
+    "claude"
+  ],
+  "independent_reviewer": "agy",
   "branches": {
     "development": "dev",
     "verified": "main",
@@ -71,6 +76,11 @@
     "data-pipeline/src/biz_aid_pipeline/ingestion/normalizer.py",
     "data-pipeline/src/biz_aid_pipeline/ingestion/sample.py",
     "data-pipeline/src/biz_aid_pipeline/ingestion/service.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/hwpx.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/models.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/quality.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/router.py",
     "data-pipeline/src/biz_aid_pipeline/persistence/__init__.py",
     "data-pipeline/src/biz_aid_pipeline/persistence/mysql_repository.py",
     "data-pipeline/src/biz_aid_pipeline/quality/__init__.py",
@@ -96,11 +106,12 @@
     "scripts/run_document_acquisition.py",
     "scripts/run_full_sync.py",
     "scripts/run_structured_ingestion.py",
-    "scripts/setup.sh",
     "scripts/s3_document_store_smoke.py",
+    "scripts/setup.sh",
     "scripts/verify_s3_document_storage.py",
     "tests/contract/test_bizinfo_probe.py",
     "tests/contract/test_document_acquisition.py",
+    "tests/contract/test_document_parsing.py",
     "tests/contract/test_full_sync.py",
     "tests/contract/test_harness_policy.py",
     "tests/contract/test_phase0.py",
@@ -117,7 +128,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/codex/2026-09-29-phase2-5-s3-storage.md",
+  "report": "harness/workspace/reports/development/2026-09-29-phase3-document-parsing.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -129,6 +140,7 @@
     ".github/workflows/ci.yml",
     ".gitignore",
     "AGENTS.md",
+    "CLAUDE.md",
     "PROJECT_DESIGN.md",
     "README.md",
     "contracts/README.md",
@@ -137,6 +149,7 @@
     "contracts/external-api/bizinfo.contract.json",
     "contracts/frontend-backend/README.md",
     "contracts/schemas/document-acquisition.contract.json",
+    "contracts/schemas/document-parsing.contract.json",
     "contracts/schemas/full-structured-sync.contract.json",
     "contracts/schemas/phase0-api-quality.contract.json",
     "contracts/schemas/phase0-document-download.contract.json",
@@ -166,6 +179,11 @@
     "data-pipeline/src/biz_aid_pipeline/ingestion/normalizer.py",
     "data-pipeline/src/biz_aid_pipeline/ingestion/sample.py",
     "data-pipeline/src/biz_aid_pipeline/ingestion/service.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/hwpx.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/models.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/quality.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/router.py",
     "data-pipeline/src/biz_aid_pipeline/persistence/__init__.py",
     "data-pipeline/src/biz_aid_pipeline/persistence/mysql_repository.py",
     "data-pipeline/src/biz_aid_pipeline/quality/__init__.py",
@@ -236,12 +254,13 @@
     "scripts/run_document_acquisition.py",
     "scripts/run_full_sync.py",
     "scripts/run_structured_ingestion.py",
-    "scripts/setup.sh",
     "scripts/s3_document_store_smoke.py",
+    "scripts/setup.sh",
     "scripts/verify_s3_document_storage.py",
     "tests/README.md",
     "tests/contract/test_bizinfo_probe.py",
     "tests/contract/test_document_acquisition.py",
+    "tests/contract/test_document_parsing.py",
     "tests/contract/test_full_sync.py",
     "tests/contract/test_harness_policy.py",
     "tests/contract/test_phase0.py",
@@ -269,10 +288,10 @@
       "harness/workspace/checkpoints/README.md"
     ]
   },
-  "producer_output_paths": {
-    "codex": {
-      "reports": "harness/workspace/reports/codex/",
-      "artifacts": "harness/workspace/artifacts/codex/<task-id>/"
+  "task_output_paths": {
+    "development": {
+      "reports": "harness/workspace/reports/development/",
+      "artifacts": "harness/workspace/artifacts/development/<task-id>/"
     },
     "agy": {
       "reports": "harness/workspace/reports/agy/",
