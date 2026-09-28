@@ -40,3 +40,7 @@ scripts/phase0_api_quality.py가 Run / Raw checksum에서 품질 요약을 재�
 [Document Download 계약](schemas/phase0-document-download.contract.json)은 기존 표본 100개·dev·로컬 안전 경계·outcome을 정의한다.
 형식 식별의 공식 참고 자료는 계약의 format_sources에 있으며 공급자 다운로드 제한을 뜻하지 않는다.
 문서 checksum / metadata와 Gate Report는 scripts/phase0_document_download.py가 HTTP 없이 재현 검증한다.
+
+[Phase 2 Document Acquisition 계약](schemas/document-acquisition.contract.json)은 dev Source 역할,
+공개 URL/redirect/size/timeout/retry 안전 경계, 실제 format 후보, 실패 분류와 품질 Report 필드를 고정한다.
+source role은 API field provenance이며 본공고/부속 의미 계약이 아니다. 본문 Parser 계약도 포함하지 않는다.

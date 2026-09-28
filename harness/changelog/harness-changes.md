@@ -126,3 +126,10 @@ accepted review는 경로만 갱신하며 hash·verdict·상태를 바꾸지 않
 Registry / Agent 지침에 Producer 출력 경로를 고정하고 current-task·static anchor strict / generated non-gating 경계는 유지한다.
 기존 도구와 제품 CLI의 입출력 참조만 이동 위치로 갱신한다. 제품 데이터 처리·DB·Migration·checkpoint·Secret 변경은 없다.
 결과: [Output cleanup Report](../workspace/reports/codex/2026-09-28-workspace-output-cleanup.md).
+
+## 2026-09-28 — Phase 2 Full Document Acquisition
+
+사용자 승인으로 검증된 Phase 1B dev DB를 Source로 전체 문서 후보의 원본 byte와 provenance metadata를 수집한다.
+V1/V2를 보존한 신규 V3, 제품 documents package, 얇은 CLI, 품질 계약과 offline/MySQL 회귀를 정적 Registry에 추가한다.
+공개 요청에는 인증정보를 전달하지 않으며 순차 요청·자동 retry 0·redirect/size/timeout·HTML 거부·exclusive 저장을 적용한다.
+URL/SHA dedupe 뒤에도 모든 pblancId/source field/token relation을 보존한다. Parser/OCR/AI와 prod는 범위 밖이며 현재 Review는 pending이다.

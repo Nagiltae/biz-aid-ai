@@ -17,3 +17,8 @@ Phase 1A 이전에 backend와 migration 구현이 없었으므로 사용자 승�
 모든 신규 Table / Column은 [DB COMMENT 규칙](../harness/rules/database-rules.md)을 적용한다.
 적용된 migration에서 설명 누락을 발견해도 수정하지 않고 다음 버전으로 보완한다.
 check-integration / check-all의 실제 information_schema 검사와 V1→V2 fixture schema 비교로 검증한다.
+
+`V3__document_source_layer.sql`은 Phase 2 실행 이력과 문서 후보 relation metadata를 추가한다.
+Binary는 DB가 아닌 ignored content-addressed local storage에 두며 FK로 support_program과 run을 연결한다.
+source role/field/token, URL/filename, format/HTTP/size/SHA/path, 성공·실패와 마지막 실행 action을 보존한다.
+V1/V2는 수정하지 않으며 V3의 모든 Table / Column도 동일 COMMENT 정책을 적용한다.

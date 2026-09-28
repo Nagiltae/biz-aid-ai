@@ -17,6 +17,24 @@ Local Probe는 Git Branch와 별개인 --profile dev / prod를 명시한다. 선
 .env.dev / .env.prod는 사용자 관리 파일로 수정·삭제·stage·값 출력하지 않는다. .env.example만 추적한다.
 현재 Task는 dev Live만 허용하며 prod 설정은 합성 데이터의 오프라인 Test로만 검증한다.
 
+## Phase 2 Document Acquisition 안전 규칙
+
+Source는 성공한 Phase 1B dev DB의 active `support_programs`다. Phase 2를 위해 API FULL을 다시 실행하지 않는다.
+`printFlpthNm`/`printFileNm`은 PRINT_CANDIDATE, `flpthNm`/`fileNm`은 ATTACHMENT_CANDIDATE provenance로 기록한다.
+이 이름은 원본 field를 가리키며 실제 본공고/부속 의미를 확정하지 않는다. @ token 위치와 pairing 상태도 보존한다.
+
+문서 URL은 HTTPS `www.bizinfo.go.kr` 공개 파일 경계만 허용한다. API key·Cookie·Authorization·Referer는 전달하지 않는다.
+dev key는 응답/redirect에 Secret이 반사됐는지 검사할 때만 사용한다. 순차 요청, redirect 3, 100 MiB, timeout 15초,
+candidate 간 0.25초, 자동 retry 0은 공급자 공식 제한이 아닌 로컬 안전 경계다.
+
+확장자와 Content-Type은 관찰값이며 signature/container가 실제 format 판별 기준이다. HTML/error response는 문서 성공이 아니다.
+UNKNOWN/OTHER byte도 Evidence로 보존하되 품질 Report에 드러낸다. 원본은 SHA-256 content-addressed 경로에 exclusive write하고
+기존 path의 byte가 다르면 중단한다. URL/SHA dedupe 뒤에도 pblancId/source field/token relation은 모두 DB에 남긴다.
+
+중단 run은 source snapshot hash와 이미 저장된 checksum/readback을 확인한 뒤 미처리 relation만 계속한다.
+같은 run의 확정 실패는 자동 재시도하지 않는다. 새 run은 검증된 성공을 재사용하고 과거 실패 URL만 다시 요청할 수 있다.
+모든 relation metadata/readback과 source snapshot이 일치하고 실패가 0일 때만 품질 PASS다. Parser 의미 검증은 Phase 3 대상이다.
+
 승인된 Phase 0 API 품질 Batch는 dev만 선택하며 5 Page × 20건으로 제한한다. 재시도·prod 요청·다운로드는 없다.
 수집 시점 API 기본 정렬 기준 선두 100건을 표본으로 사용한다. 공식 최신순 보장은 추정하지 않는다.
 품질 분모는 성공 Envelope의 실제 Item 수이며 중복 행·null·blank·누락을 제거하지 않는다.

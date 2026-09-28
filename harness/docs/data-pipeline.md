@@ -119,3 +119,19 @@ DB cooperative 60초 budget·기존 timeout·100개씩 readback·advisory lock�
 commit 뒤 추가 readback이 실패하면 이미 commit된 count를 rollback으로 기록하지 않고 최종 Gate FAIL로 보고한다. 적용 reconciliation은 여전히 금지다.
 source_payload·fingerprint·lifecycle·V1/V2·COMMENT는 재설계하지 않는다. 성공 관측의 INSERT/UPDATE/CONTENT_NOOP/REACTIVATE를 그대로 재사용한다.
 첫 Live FULL은 후보 pblancId 목록과 count만 산출하고 실제 soft-delete=0이다. 실제 적용은 별도 승인·새 완전한 FULL·후보 Review가 필요하다.
+
+## Phase 2 Full Document Acquisition
+
+`scripts/run_document_acquisition.py collect --profile dev --run-id <unique-id>`는 Phase 1B를 다시 호출하지 않고
+dev DB의 active support_programs에서 문서 후보를 만든다. PRINT_CANDIDATE / ATTACHMENT_CANDIDATE는 source field provenance다.
+V3의 run/relation metadata와 `data/downloaded/blobs/<sha-prefix>/<sha>.bin` 원본을 함께 사용하며 binary는 DB에 넣지 않는다.
+
+후보 snapshot hash를 고정한 뒤 URL별 순차 요청 → signature/container 확인 → SHA-256 → exclusive 저장 → relation transaction →
+DB/filesystem readback 순으로 처리한다. 동일 URL은 run에서 한 번, 동일 SHA byte는 전역 한 번 저장하지만 relation은 제거하지 않는다.
+중단된 run은 `--resume`으로 source snapshot과 기존 relation을 확인한 뒤 이어간다. 확정 실패는 같은 run에서 재요청하지 않는다.
+새 run은 검증된 성공 URL을 재사용하며 실패 URL만 다시 시도한다. 자동 retry는 0이다.
+
+공개 다운로드에는 API 인증정보를 전달하지 않는다. HTTPS/host/query, redirect 3, 100 MiB, timeout 15초,
+0.25초 간격은 로컬 안전 경계다. HTML/error 응답은 INVALID_RESPONSE이고 UNKNOWN/OTHER 원본은 삭제하지 않는다.
+모든 후보 relation이 ACQUIRED이고 checksum/format/readback/source snapshot이 일치해야 품질 PASS다.
+`verify --run-id`는 HTTP 없이 manifest/result/DB/binary integrity를 재검증한다. 본문 Parsing은 수행하지 않는다.

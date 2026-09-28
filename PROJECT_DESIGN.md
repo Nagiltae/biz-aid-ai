@@ -2,12 +2,17 @@
 
 > 프로젝트명(가칭): **BizAid AI**
 >
-> 현재 단계: **Phase 1B Full Structured Data Sync** (2026-09-28 사용자 승인)
+> 현재 단계: **Phase 2 Full Document Acquisition** (2026-09-28 사용자 승인)
 >
 > 이 문서는 확정 설계가 아니라 데이터 검증 및 프로젝트 방향 논의를 위한
 > 초안이다.
 
 ## 승인된 현재 실행 범위
+
+2026-09-28 후속 사용자 승인: dev MySQL의 검증된 1,554개 `support_programs`에서
+`printFlpthNm` / `flpthNm` 후보 전체를 수집해 Parser가 사용할 원본 byte·provenance·checksum·실패 상태를 만든다.
+Phase 1B API FULL은 재실행하지 않는다. PDF/HWP/HWPX signature 판별까지만 수행하며 본문 Parsing·OCR·AI는 금지한다.
+공개 문서 요청에는 API 인증정보를 전달하지 않고, V1/V2는 보존하며 신규 V3 metadata schema만 사용한다.
 
 2026-09-28 후속 사용자 승인: Phase 1B dev FULL 전체 pagination / Raw 보존 / 완전성 검증 / 구조화 적재.
 첫 실제 FULL은 soft-delete 후보 DRY_RUN만 수행하며 실제 적용·prod·증분 조회는 금지한다.

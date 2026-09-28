@@ -5,7 +5,8 @@ Spring Boot가 회원·기업·사업·대화·즐겨찾기를 소유한다.
 FastAPI는 서비스 DB를 임의 변경하지 않는다.
 Data Pipeline은 사용자 인증·채팅 Domain을 수정하지 않는다.
 
-현재 허용 실행 코드: Phase 0 로컬 도구·명시적인 최소 Local API Probe·dev 전용 5×20 API 품질 Batch·동일 표본의 제한된 Document Download Gate·Harness validator·관련 테스트·Compose Batch.
-Probe는 사용자 승인 Endpoint에 한정하며 CI Live 호출과 전체 Collector를 포함하지 않는다.
-frontend/ backend/ ai/ data-pipeline/ migrations/ module 생성은 현재 범위 밖이다.
-현재 Phase 0 도구를 전체 Pipeline 또는 FastAPI 모듈로 문서화하지 않는다.
+현재 허용 실행 코드는 Phase 0 증거 도구, 승인된 구조화 `data-pipeline/`, 공통 Flyway, Phase 2 Document Acquisition, Harness validator와 관련 테스트다.
+Phase 2 제품 코드는 DB Source를 읽고 공개 문서 원본과 metadata만 보존한다. 실행 entrypoint는 `scripts/`의 얇은 CLI다.
+Binary는 ignored `data/downloaded/`, 실패 응답은 ignored `data/failed/`, 실행 Report/Artifact는 non-gating workspace에 둔다.
+frontend/ backend/ ai/ Parser/OCR/Chunking/Embedding/Qdrant/RAG module 생성은 현재 범위 밖이다.
+Phase 0 도구를 제품 Pipeline 또는 FastAPI 모듈로 문서화하지 않는다.

@@ -1,4 +1,4 @@
-# Structured Data Pipeline — Phase 1A / 1B
+# Data Pipeline — Phase 1A / 1B / 2
 
 제품 코드는 src/biz_aid_pipeline이다. scripts는 CLI 진입점이고 tests는 이 package를 import한다.
 실행 환경: Python 3.11 / Pydantic v2 / SQLAlchemy 2 Core / PyMySQL / dev MySQL / 공통 Flyway.
@@ -88,6 +88,20 @@ Checkpoint는 page 단위 진행과 로컬 verify 명령만 보존하며 중단�
 verify는 checksum/계약/ID/완전성/normalization을 오프라인 재검사하며 DB commit 성공을 대체하지 않는다.
 DB commit 뒤 읽기 검증이 실패하면 최종 Gate FAIL이고 commit을 rollback했다고 주장하지 않는다.
 별도 승인과 새로운 완전한 FULL 없이는 DRY-RUN 이력을 실제 삭제에 재사용할 수 없다.
+
+## Phase 2 dev Document Acquisition
+
+```sh
+.venv/bin/python -B scripts/run_document_acquisition.py collect --profile dev --run-id <new-unique-id>
+.venv/bin/python -B scripts/run_document_acquisition.py verify --run-id <existing-id>
+```
+
+제품 `documents` package가 후보 추출, URL/redirect/size 안전 경계, format 판별, content-addressed 저장,
+V3 metadata persistence, resume와 품질 Gate를 소유한다. CLI는 orchestration 호출과 비밀 없는 진행 상태만 출력한다.
+공개 문서 요청에는 API 인증정보를 넣지 않는다. `.env.dev`의 key는 응답 반사 거부에만 사용한다.
+Binary는 ignored data/downloaded에, 실패 body는 ignored data/failed에 저장한다.
+PRINT_CANDIDATE / ATTACHMENT_CANDIDATE는 source field provenance이며 문서의 업무 의미를 확정하지 않는다.
+PDF/HWP/HWPX signature/container 식별까지만 수행하고 본문 Parsing/OCR/Chunking/AI는 후속 Phase다.
 
 updtPnttm incremental semantics / scheduler는 후속 검증 대상이다.
 본문 Parsing / OCR / AI는 UNMEASURED다. 최신순 공식 보장도 UNCONFIRMED다. GO/DROP을 자동 판단하지 않는다.

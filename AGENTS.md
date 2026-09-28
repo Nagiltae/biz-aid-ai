@@ -1,7 +1,7 @@
 # Harness Entry Point
 
 기업 프로필과 공고문 근거로 중소기업 지원사업을 탐색·검토하는 프로젝트다.
-최상위 기준은 [PROJECT_DESIGN.md](PROJECT_DESIGN.md). 현재 **Phase 1B Full Structured Data Sync**다.
+최상위 기준은 [PROJECT_DESIGN.md](PROJECT_DESIGN.md). 현재 **Phase 2 Full Document Acquisition**이다.
 
 ## 먼저 읽기
 

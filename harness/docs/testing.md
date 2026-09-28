@@ -95,3 +95,11 @@ Unit/Contract는 mock API의 여러 Page·마지막 partial/exact Page·중복/i
 Integration은 동일 product orchestration을 mock HTTP와 실제 test MySQL에 연결해 FULL INSERT·동일 rerun NOOP·REACTIVATE·DRY_RUN 후보·SAMPLE/PARTIAL·transaction budget rollback을 검증한다.
 기존 성공 FULL APPLY는 controlled test DB에서만 유지한다. dev APPLY와 첫 Live 실제 soft-delete는 거부한다.
 CI는 Live API를 호출하지 않는다. 전체 Offline Validation 후 별도 dev collect, Live Raw/DB 대조 후 새 최종 Validation과 Codex Report를 기록한다.
+
+## Phase 2 Document Acquisition 검증
+
+Unit/Contract는 provenance 추출, URL/SHA dedupe, PDF/HWP/HWPX/UNKNOWN, HTML/HTTP/network/redirect/size,
+retry 0, overwrite 거부와 false PASS를 mock/temp file로 검증한다. Integration은 실제 test MySQL의 V3에
+relation 보존, checksum readback, partial/resume, rerun 성공 재사용, 실패 새 run 재요청과 품질 Gate를 검증한다.
+CI는 문서 Live HTTP를 호출하지 않는다. Preliminary Validation 이후에만 dev 전체 acquisition을 실행하고
+DB relation과 binary checksum을 다시 읽어 확인한 뒤 Final Validation을 실행한다.

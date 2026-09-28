@@ -108,18 +108,21 @@ class HarnessPolicyTests(unittest.TestCase):
         )
 
     def test_historical_initial_review_is_complete_but_current_task_is_pending(self):
-        self.update_registry(agy_review_evidence="harness/workspace/reports/agy/agy-initial-harness-review.md")
+        self.update_registry(agy_review="review_complete",
+            agy_review_evidence="harness/workspace/reports/agy/agy-initial-harness-review.md")
         result = self.check("harness")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("recorded_result=pass_with_fixes", result.stdout)
         self.assertIn("CURRENT REPORT REVIEW: pending; human review PENDING", result.stdout)
 
     def test_targeted_review_is_complete_but_current_task_is_pending(self):
+        self.update_registry(agy_review="review_complete",
+            agy_review_evidence="harness/workspace/reports/agy/agy-harness-fix-review.md")
         result = self.check("harness")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("recorded_result=pass; reviewed_report=harness/workspace/reports/codex/2026-09-27-codex-harness-fix-report.md", result.stdout)
         self.assertIn("CURRENT REPORT REVIEW: pending; human review PENDING", result.stdout)
-        self.assertNotIn(self.registry["agy_review_evidence"], self.registry["required_files"])
+        self.assertNotIn("harness/workspace/reports/agy/agy-harness-fix-review.md", self.registry["required_files"])
 
     def add_workspace_file(self, directory, filename, tracked=True):
         name = f"harness/workspace/{directory}/{filename}"
@@ -269,7 +272,7 @@ class HarnessPolicyTests(unittest.TestCase):
         for mode in ("format", "lint", "comments", "harness", "git-tracked"):
             result = self.check(mode)
             self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("EVIDENCE INTEGRITY: UNAVAILABLE", result.stdout if mode == "harness" else self.check("harness").stdout)
+        self.assertIn("PENDING: independent AGY review", result.stdout if mode == "harness" else self.check("harness").stdout)
 
     def test_report_creation_after_validation_does_not_invalidate_result(self):
         first = self.check("harness")
@@ -291,7 +294,7 @@ class HarnessPolicyTests(unittest.TestCase):
 
     def test_new_report_is_not_trusted_review_evidence(self):
         name = self.add_workspace_file("reports", "new-agy-review.md")
-        self.update_registry(agy_review_evidence=name)
+        self.update_registry(agy_review="review_complete", agy_review_evidence=name)
         result = self.check("harness")
         self.assertEqual(result.returncode, 1)
         self.assertIn("independent evidence must be user-acknowledged", result.stderr)
@@ -355,7 +358,8 @@ class HarnessPolicyTests(unittest.TestCase):
         self.assertIn("PENDING: independent AGY review of current report", result.stdout)
 
     def test_pending_cannot_claim_completed_evidence(self):
-        self.update_registry(agy_review="pending")
+        self.update_registry(agy_review="pending",
+            agy_review_evidence="harness/workspace/reports/agy/agy-harness-fix-review.md")
         result = self.check("harness")
         self.assertEqual(result.returncode, 1)
         self.assertIn("pending requires null evidence", result.stderr)
@@ -367,25 +371,29 @@ class HarnessPolicyTests(unittest.TestCase):
         self.assertIn("unsupported lifecycle state", result.stderr)
 
     def test_complete_without_evidence_is_rejected(self):
-        self.update_registry(agy_review_evidence=None)
+        self.update_registry(agy_review="review_complete", agy_review_evidence=None)
         result = self.check("harness")
         self.assertEqual(result.returncode, 1)
         self.assertIn("independent evidence must be user-acknowledged", result.stderr)
 
     def test_codex_report_cannot_be_independent_review_evidence(self):
-        self.update_registry(agy_review_evidence=self.registry["report"])
+        self.update_registry(agy_review="review_complete", agy_review_evidence=self.registry["report"])
         result = self.check("harness")
         self.assertEqual(result.returncode, 1)
         self.assertIn("independent evidence must be user-acknowledged", result.stderr)
 
     def test_missing_independent_review_is_unverified_but_build_passes(self):
-        (self.directory / self.registry["agy_review_evidence"]).unlink()
+        evidence = "harness/workspace/reports/agy/agy-harness-fix-review.md"
+        self.update_registry(agy_review="review_complete", agy_review_evidence=evidence)
+        (self.directory / evidence).unlink()
         result = self.check("harness")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("EVIDENCE INTEGRITY: UNAVAILABLE", result.stdout)
 
     def test_forged_complete_heading_does_not_verify_independent_review(self):
-        path = self.directory / self.registry["agy_review_evidence"]
+        evidence = "harness/workspace/reports/agy/agy-harness-fix-review.md"
+        self.update_registry(agy_review="review_complete", agy_review_evidence=evidence)
+        path = self.directory / evidence
         path.write_text("# AGY Initial Harness Review\n\n**Reviewer**: AGY\n\n## PASS\n\nReview Status: COMPLETE\n", encoding="utf-8")
         result = self.check("harness")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -393,6 +401,8 @@ class HarnessPolicyTests(unittest.TestCase):
         self.assertIn("CURRENT REPORT REVIEW: pending", result.stdout)
 
     def test_review_basis_report_change_invalidates_the_evidence(self):
+        self.update_registry(agy_review="review_complete",
+            agy_review_evidence="harness/workspace/reports/agy/agy-harness-fix-review.md")
         path = self.directory / "harness/workspace/reports/codex/2026-09-27-codex-harness-fix-report.md"
         path.write_text(path.read_text(encoding="utf-8") + "\n변경된 검토 대상\n", encoding="utf-8")
         result = self.check("harness")
@@ -400,9 +410,11 @@ class HarnessPolicyTests(unittest.TestCase):
         self.assertIn("EVIDENCE INTEGRITY: MISMATCH", result.stdout)
 
     def test_external_symlink_cannot_replace_independent_review(self):
-        path = self.directory / self.registry["agy_review_evidence"]
+        evidence = "harness/workspace/reports/agy/agy-harness-fix-review.md"
+        self.update_registry(agy_review="review_complete", agy_review_evidence=evidence)
+        path = self.directory / evidence
         path.unlink()
-        path.symlink_to(ROOT / self.registry["agy_review_evidence"])
+        path.symlink_to(ROOT / evidence)
         result = self.check("harness")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("EVIDENCE INTEGRITY: UNSAFE", result.stdout)

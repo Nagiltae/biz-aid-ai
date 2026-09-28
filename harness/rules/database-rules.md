@@ -9,6 +9,10 @@ Phase 1A 사용자 승인으로 Compose dev MySQL과 공통 `migrations/` Flyway
 Python Repository는 DDL을 만들지 않는다. dev Pilot과 controlled test DB를 분리한다.
 실행하지 않은 Migration을 검증 완료로 기록하지 않는다. prod 접근은 이번 범위 밖이다.
 
+Phase 2 문서 원본 byte는 MySQL에 넣지 않는다. DB는 공고와 source field/token 관계, 공개 URL, 원본 파일명,
+content-addressed 로컬 경로, format/HTTP/size/SHA-256, 성공·실패 상태와 실행 이력만 보존한다.
+동일 binary dedupe가 provenance relation을 제거해서는 안 되며 V3는 기존 V1/V2를 수정하지 않고 추가한다.
+
 ## Application schema COMMENT
 
 프로젝트 소유 application DB의 모든 신규 Table / Column은 non-empty 한국어 COMMENT가 필수다.

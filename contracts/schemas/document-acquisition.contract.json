@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "phase": "phase2-document-acquisition",
+  "profile": "dev",
+  "source_roles": {
+    "PRINT_CANDIDATE": {
+      "url_field": "printFlpthNm",
+      "filename_field": "printFileNm"
+    },
+    "ATTACHMENT_CANDIDATE": {
+      "url_field": "flpthNm",
+      "filename_field": "fileNm"
+    }
+  },
+  "allowed_hosts": [
+    "www.bizinfo.go.kr"
+  ],
+  "allowed_scheme": "https",
+  "max_redirects": 3,
+  "max_file_bytes": 104857600,
+  "timeout_seconds": 15,
+  "pause_seconds": 0.25,
+  "automatic_retries": 0,
+  "formats": [
+    "PDF",
+    "HWP",
+    "HWPX",
+    "ZIP",
+    "XLSX",
+    "OTHER",
+    "UNKNOWN"
+  ],
+  "failure_categories": [
+    "URL_POLICY_ERROR",
+    "HTTP_ERROR",
+    "TRANSPORT_ERROR",
+    "REDIRECT_ERROR",
+    "EMPTY_FILE",
+    "SIZE_LIMIT_EXCEEDED",
+    "INVALID_RESPONSE",
+    "SECURITY_REJECTED"
+  ],
+  "payload_root": "data/downloaded/blobs",
+  "failed_payload_root": "data/failed/document-acquisition",
+  "required_report_fields": [
+    "run_id",
+    "phase",
+    "profile",
+    "status",
+    "source_snapshot_sha256",
+    "source_snapshot_unchanged",
+    "support_program_count",
+    "programs_with_document_candidate",
+    "programs_without_document_candidate",
+    "total_candidate_relations",
+    "unique_source_url_count",
+    "attempted_downloads",
+    "success_count",
+    "failed_count",
+    "pdf_count",
+    "hwp_count",
+    "hwpx_count",
+    "other_unknown_count",
+    "duplicate_url_count",
+    "duplicate_content_sha_count",
+    "invalid_response_count",
+    "total_downloaded_bytes",
+    "persisted_metadata_count",
+    "failure_candidates"
+  ],
+  "gate_pass": "source snapshot unchanged; every candidate relation persisted and read back; every candidate ACQUIRED; every stored byte checksum and detected format reverified; no invalid response or unprocessed relation",
+  "meaning_boundary": "source roles preserve API provenance only; they do not assert primary or supplementary document semantics",
+  "parser_scope": false
+}
