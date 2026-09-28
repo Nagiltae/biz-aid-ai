@@ -275,7 +275,7 @@ class BizinfoLocalProbeTests(unittest.TestCase):
             with redirect_stdout(output), redirect_stderr(error):
                 code = probe.main(["--profile", "dev", "--run-id", "safe-output"], self.root, self.environment)
         self.assertEqual(code, 0)
-        report = (self.root / "harness/workspace/artifacts/bizinfo-probe-safe-output.json").read_text(encoding="utf-8")
+        report = (self.root / "harness/workspace/artifacts/codex/bizinfo-probe/bizinfo-probe-safe-output.json").read_text(encoding="utf-8")
         for text in (report, output.getvalue(), error.getvalue()):
             self.assertNotIn(SYNTHETIC_KEY, text)
             self.assertNotIn(quote(SYNTHETIC_KEY, safe=""), text)
@@ -292,7 +292,7 @@ class BizinfoLocalProbeTests(unittest.TestCase):
                     with redirect_stdout(output), redirect_stderr(error):
                         code = probe.main(["--profile", profile, "--run-id", f"file-{profile}"], self.root, {})
                 self.assertEqual(code, 0)
-                report = self.root / f"harness/workspace/artifacts/bizinfo-probe-file-{profile}.json"
+                report = self.root / f"harness/workspace/artifacts/codex/bizinfo-probe/bizinfo-probe-file-{profile}.json"
                 log = self.root / f"mock-{profile}.log"
                 log.write_text(output.getvalue() + error.getvalue(), encoding="utf-8")
                 for text in (report.read_text(encoding="utf-8"), log.read_text(encoding="utf-8")):
@@ -417,7 +417,7 @@ class BizinfoLocalProbeTests(unittest.TestCase):
 
     def test_repeat_run_fails_before_network_and_preserves_existing_evidence(self):
         probe.run_probe(self.root, "dev", "unique-run", "pages", self.environment, self.fake_success)
-        path = self.root / "harness/workspace/artifacts/bizinfo-probe-unique-run.json"
+        path = self.root / "harness/workspace/artifacts/codex/bizinfo-probe/bizinfo-probe-unique-run.json"
         before = path.read_bytes()
         with self.assertRaisesRegex(probe.ProbeError, "output_exists"):
             probe.run_probe(self.root, "dev", "unique-run", "pages", self.environment,

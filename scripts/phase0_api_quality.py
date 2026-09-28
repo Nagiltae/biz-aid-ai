@@ -174,7 +174,7 @@ def collect(root, profile, identifier, environ, fetch=None):
         raise probe.ProbeError("quality_profile_must_be_dev")
     phase0.run_id(identifier)
     spec = contract()
-    output = root / f"harness/workspace/artifacts/bizinfo-quality-{identifier}.json"
+    output = root / f"harness/workspace/artifacts/codex/phase0-api-quality/bizinfo-quality-{identifier}.json"
     if output.exists() or output.is_symlink() or output.parent.resolve() != output.parent:
         raise probe.ProbeError("quality_output_exists_or_unsafe")
     for number in spec["pages"]:
@@ -272,18 +272,19 @@ def main(argv=None, root=ROOT, environ=None):
     try:
         if args.command == "collect":
             result = collect(root, args.profile, args.run_id, os.environ if environ is None else environ)
-            print(json.dumps({"run": result["run"], "quality_artifact": f"harness/workspace/artifacts/bizinfo-quality-{args.run_id}.json"}, ensure_ascii=False, indent=2))
+            print(json.dumps({"run": result["run"], "quality_artifact": f"harness/workspace/artifacts/codex/phase0-api-quality/bizinfo-quality-{args.run_id}.json"}, ensure_ascii=False, indent=2))
             return 3 if result["run"]["collection_status"] == "NOT_RUN" else 0 if result["run"]["collection_status"] == "COMPLETED" else 1
         phase0.run_id(args.run_id)
-        result = phase0.read_json(root / f"harness/workspace/artifacts/bizinfo-quality-{args.run_id}.json")
+        result = phase0.read_json(root / f"harness/workspace/artifacts/codex/phase0-api-quality/bizinfo-quality-{args.run_id}.json")
         if result["run"]["run_id"] != args.run_id:
             raise probe.ProbeError("run_id_mismatch")
         result["metrics"] = analyze(result["run"], root)
         output = root / args.output
-        expected_parent = root / ("harness/workspace/reports" if args.markdown else "harness/workspace/artifacts")
+        expected_parent = root / ("harness/workspace/reports/codex" if args.markdown else "harness/workspace/artifacts/codex/phase0-api-quality")
         if output.parent.resolve() != expected_parent or output.suffix != (".md" if args.markdown else ".json"):
             raise probe.ProbeError("quality_output_boundary")
         if args.markdown:
+            output.parent.mkdir(parents=True, exist_ok=True)
             with output.open("x", encoding="utf-8", newline="\n") as stream:
                 stream.write(render(result))
         else:

@@ -143,7 +143,7 @@ python3 -B scripts/bizinfo_probe.py --profile dev --run-id bizinfo-id-001 --mode
 ```
 
 선택 Profile·HTTP status·resultCode/resultMsg·건수·Pagination·ID·순서·실패 이유는 secret 없는 JSON으로 출력하고
-`harness/workspace/artifacts/bizinfo-probe-<run-id>.json`에도 보존한다.
+`harness/workspace/artifacts/codex/bizinfo-probe/bizinfo-probe-<run-id>.json`에도 보존한다.
 비밀 없는 응답 byte는 `data/raw/<run-id>-<request-name>/`에 기존 snapshot 계약·SHA-256으로 보존한다.
 동일 run-id·기존 출력·부분 Raw가 있으면 요청 전에 중단하며 덮어쓰지 않는다. 결과는 ignored Artifact다.
 timeout 15초 / 응답 최대 5 MiB / 최대 4요청은 Local 비용·실행 범위 제한이다.
@@ -157,9 +157,9 @@ timeout 15초 / 응답 최대 5 MiB / 최대 4요청은 Local 비용·실행 범
 
 run-id: `bizinfo-dev-20260928-01`, 실제 HTTP 요청 4회, prod / 100건 요청 없음.
 수집 시각은 UTC 2026-09-27 15:17:34–35이며 KST 2026-09-28 00:17:34–35다.
-Local JSON: `harness/workspace/artifacts/bizinfo-probe-bizinfo-dev-20260928-01.json` (ignored).
+Local JSON: `harness/workspace/artifacts/codex/bizinfo-profile-live-probe/bizinfo-probe-bizinfo-dev-20260928-01.json` (ignored).
 Raw 네 개는 `data/raw/<run-id>-<request-name>/`에 byte·수집 시각·checksum으로 보존하고 모두 verify-snapshot을 통과했다.
-[작업 Report](../../harness/workspace/reports/2026-09-28-codex-bizinfo-profile-live-probe-report.md)에 Raw hash와 관찰을 기록한다.
+[작업 Report](../../harness/workspace/reports/codex/2026-09-28-codex-bizinfo-profile-live-probe-report.md)에 Raw hash와 관찰을 기록한다.
 공식 Request 근거·제공 Sample·Mock Tests·Live는 별개 Evidence다.
 
 | 요청 | 실제 결과 |
@@ -220,6 +220,6 @@ Negative가 00 성공을 반환하면 실제 outcome=SUCCESS지만 expected outc
 별도 승인 Run `api-quality-dev-20260928-01`은 5×20 / 실제 HTTP 5회 / 100개 Item을 수집했다.
 5 Page 모두 200 / 00 NORMAL_SERVICE / echo 일치 / totalCount=1514이며 ID unique=100 / 중복=0이다.
 페이지 내부·경계·전체 creatPnttm은 Observed descending order이며 공식 보장은 UNCONFIRMED다.
-[재현 가능한 Data Quality Report](../../harness/workspace/reports/2026-09-28-phase0-api-data-quality-report.md)에
+[재현 가능한 Data Quality Report](../../harness/workspace/reports/codex/2026-09-28-phase0-api-data-quality-report.md)에
 12개 주요 field·첨부 metadata·기간·확장자·예외·Raw checksum과 측정 한계를 기록한다.
 이 결과는 한 시점의 OBSERVED 표본이며 API 전체 품질·최신순 보장·문서 다운로드 성공·Primary 역할을 확정하지 않는다.

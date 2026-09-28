@@ -10,9 +10,9 @@
 | React | UI, 서버 상태 캐시, 선택 기업·채팅 UI 상태 | 미구현 |
 | Spring Boot | 인증·기업·사업·대화·즐겨찾기 Source of Truth, 정확한 DB filtering, FastAPI 호출 | 미구현 |
 | FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 미구현 |
-| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | 미구현 |
+| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | Phase 1A dev Pilot 구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | 미구현 |
-| Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 미구현 |
+| Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 API 정규화·적재 Pilot 구현, 나머지는 후속 |
 | Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe·5×20 API 품질 Batch·동일 표본의 제한된 문서 Download Gate |
 | Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
 
@@ -22,8 +22,8 @@ MySQL 후보 pblanc_id로 Qdrant 검색 범위를 제한하는 구조는 향후 
 
 ## 현재 실행 구성
 
-`docker-compose.yml`의 `phase0`만 실제 Batch 도구다.
-frontend / backend / ai / mysql / qdrant 컨테이너와 제품 모듈은 없다.
+`docker-compose.yml`은 `phase0`와 승인된 dev-db Profile의 MySQL / Flyway를 제공한다.
+frontend / backend / ai / qdrant 컨테이너는 없다. 제품 Pipeline은 `data-pipeline/`이다.
 Docker Compose는 개발환경 기준이며 운영 인프라는 미결정이다.
 MongoDB·Langfuse는 도입하지 않는다. LangSmith 계획은 [observability.md](observability.md)에 있다.
 
@@ -51,3 +51,16 @@ Review Lifecycle과 증거 범위는 [workflow.md](workflow.md)에서 관리한�
 
 최상위 문서 자체는 수정하지 않는다. 미결정 사항은 기술 도입으로 해결하지 않는다.
 100건 Gate 후의 50건 Vertical Slice는 별도 작업이며 현재 범위에 없다.
+
+## 승인된 Phase 1A 구현
+
+제품용 Python `data-pipeline/`이 구조화된 API source를 정규화해 dev MySQL에 저장한다.
+공통 `migrations/` Flyway만 DDL owner다. Compose는 기존 phase0와 실제 MySQL / Flyway만 실행한다.
+backend / ai / frontend / Qdrant는 미구현이다. 실제 Pilot은 기존 동일 100건 SAMPLE이며 FULL은 controlled test다.
+제품 코드 경계와 lifecycle 안전조건은 [Pipeline](../../data-pipeline/README.md)에서 확인한다.
+
+## 공식 환경 설정
+
+dev → `.env.dev`, prod → `.env.prod`만 선택한다. Process Environment가 우선하고 generic `.env` / Profile fallback은 없다.
+Dev MySQL은 Host 127.0.0.1:3306 → container 3306이며 사용자 계정·비밀번호와 volume을 보존한다.
+설정 파일 선택과 실행 권한은 별개다. 현재 제품 API / DB 실행은 dev만 허용한다. [Infra](../../infra/README.md)를 따른다.

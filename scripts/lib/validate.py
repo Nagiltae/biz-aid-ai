@@ -12,28 +12,53 @@ from pathlib import Path
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
+# 제품 검증은 고정 requirements 환경에서 실행한다. 셸을 activate하지 않아도 기존 검증 진입점을 유지한다.
+venv_python = ROOT / ".venv/bin/python"
+if venv_python.exists() and Path(sys.prefix) != ROOT / ".venv":
+    os.execv(str(venv_python), [str(venv_python), "-B", *sys.argv])
+if venv_python.exists():
+    os.environ["PATH"] = str(venv_python.parent) + os.pathsep + os.environ.get("PATH", "")
 sys.path.insert(0, str(ROOT / "scripts"))
 import phase0
 
 
 DYNAMIC_WORKSPACE_PATHS = [
-    "harness/workspace/reports/*.md",
-    "harness/workspace/checkpoints/*.md",
+    "harness/workspace/reports/**/*.md",
+    "harness/workspace/checkpoints/**/*.md",
+    "harness/workspace/artifacts/**/*.json",
+    "harness/workspace/artifacts/**/*.log",
 ]
+STATIC_WORKSPACE_FILES = {
+    "STATIC_CONTROL": ["harness/workspace/current-task.md"],
+    "STATIC_DOCUMENTATION": [
+        "harness/workspace/artifacts/README.md",
+        "harness/workspace/checkpoints/README.md",
+    ],
+}
+PRODUCER_OUTPUT_PATHS = {
+    "codex": {
+        "reports": "harness/workspace/reports/codex/",
+        "artifacts": "harness/workspace/artifacts/codex/<task-id>/",
+    },
+    "agy": {
+        "reports": "harness/workspace/reports/agy/",
+        "artifacts": "harness/workspace/artifacts/agy/<review-id>/",
+    },
+}
 
 
 # 사용자가 독립 AGY 결과로 확인한 원문만 신뢰 기준에 고정해 Codex 보고서로 자기 승인하지 못하게 한다.
 # 새 증거 추가는 별도 사용자 승인 Task이며 Registry의 경로나 checksum만 바꿔서는 승인되지 않는다.
 ACCEPTED_AGY_REVIEWS = {
-    "harness/workspace/reports/agy-initial-harness-review.md": {
+    "harness/workspace/reports/agy/agy-initial-harness-review.md": {
         "sha256": "4567ebcec86fd820696f19928d251bd1b4b8b7c19118f7a033106f539f85b5dd",
-        "reviewed_report": "harness/workspace/reports/2026-09-27-codex-harness-report.md",
+        "reviewed_report": "harness/workspace/reports/codex/2026-09-27-codex-harness-report.md",
         "reviewed_report_sha256": "c7c8b1c1da01746305cabe5b5f4790a870605b3f258d65792555443d78059d8c",
         "result": "pass_with_fixes",
     },
-    "harness/workspace/reports/agy-harness-fix-review.md": {
+    "harness/workspace/reports/agy/agy-harness-fix-review.md": {
         "sha256": "7516021d9945f67d662a5e4fe6e68fe51f1e1ebdb4510ec84f73bcb70985c1d4",
-        "reviewed_report": "harness/workspace/reports/2026-09-27-codex-harness-fix-report.md",
+        "reviewed_report": "harness/workspace/reports/codex/2026-09-27-codex-harness-fix-report.md",
         "reviewed_report_sha256": "1d5e68a85b599d59156d0e9038c73c4cbcf18d453ee282ebf46de96e2f852ada",
         "result": "pass",
     },
@@ -52,54 +77,73 @@ def run(*command, capture=False):
     return result.stdout if capture else ""
 
 
+def workspace_category(name):
+    for category, names in STATIC_WORKSPACE_FILES.items():
+        if name in names:
+            return category
+    path = Path(name)
+    parts = path.parts
+    if path.is_absolute() or ".." in parts:
+        return None
+    if len(parts) < 3 or parts[:2] != ("harness", "workspace"):
+        return None
+    if path.name == ".DS_Store":
+        return "GENERATED_ARTIFACT"
+    if len(parts) >= 4:
+        if parts[2] == "reports" and path.suffix == ".md":
+            return "GENERATED_REPORT"
+        if parts[2] == "checkpoints" and path.suffix == ".md":
+            return "GENERATED_CHECKPOINT"
+        if parts[2] == "artifacts" and path.suffix in {".json", ".log"}:
+            return "GENERATED_ARTIFACT"
+    return None
+
+
+def generated_output(name):
+    # 경로 이름만으로 코드를 숨기지 않도록 실제 산출물 종류와 고정 제어 문서를 분리한다.
+    return (workspace_category(name) or "").startswith("GENERATED_")
+
+
 def project_files():
     output = run("git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", capture=True)
-    return sorted(set(item for item in output.split("\0") if item))
+    return sorted(set(item for item in output.split("\0") if item and not generated_output(item)))
 
 
 def registry():
     return phase0.read_json(ROOT / "harness/registry.json")
 
 
-def dynamic_workspace(spec):
-    # 경로 예외를 넓혀 정적 규칙이나 실행 코드를 우회 등록하지 못하도록 승인된 두 경계만 인정한다.
-    if spec["dynamic_paths"] != DYNAMIC_WORKSPACE_PATHS:
+def workspace_policy(spec):
+    # 출력 예외가 제품·규칙·current-task까지 확장되면 검증 입력을 숨기므로 승인된 분류만 허용한다.
+    if spec["dynamic_paths"] != DYNAMIC_WORKSPACE_PATHS or spec["workspace_static_files"] != STATIC_WORKSPACE_FILES:
         raise ValueError("dynamic Workspace path policy drift")
-    tracked = set(run("git", "ls-files", "-z", capture=True).split("\0")) - {""}
-    listed = set(project_files())
-    workspace = set()
-    for pattern in spec["dynamic_paths"]:
-        directory = ROOT / Path(pattern).parent
-        if directory.is_symlink() or directory.resolve() != directory or not directory.is_dir():
-            raise ValueError(f"unsafe dynamic Workspace directory: {directory.relative_to(ROOT)}")
-        # Git이 제외한 파일도 직접 검사해야 ignore나 symlink로 외부 기억을 숨길 수 없다.
-        names = {str(path.relative_to(ROOT)) for path in directory.iterdir()}
-        names.update(name for name in listed if (ROOT / name).is_relative_to(directory))
-        for name in sorted(names):
-            path = ROOT / name
-            if (path.parent != directory or path.suffix != ".md" or path.is_symlink()
-                    or path.resolve() != path or not path.is_file() or os.access(path, os.X_OK)):
-                raise ValueError(f"unsafe dynamic Workspace file: direct non-executable Markdown regular file required: {name}")
-            if name in spec["required_files"] and path.name != "README.md":
-                raise ValueError(f"dynamic Workspace files must not be individually registered: {name}")
-        if names:
-            ignored = subprocess.run(
-                ["git", "check-ignore", "--no-index", *sorted(names)],
-                cwd=ROOT, text=True, capture_output=True,
-            )
-            if ignored.returncode not in (0, 1):
-                raise ValueError("git check-ignore failed")
-            if ignored.stdout:
-                raise ValueError("dynamic Workspace files are ignored:\n" + ignored.stdout)
-        for name in sorted(names):
-            if name not in tracked:
-                raise ValueError(f"untracked dynamic Workspace file: {name}")
-        workspace.update(names)
-    return workspace
+    # 저자 경로는 정적 제어 정책으로 검증한다. 산출물 파일의 존재나 형식으로 build를 승인하지 않는다.
+    if spec.get("producer_output_paths") != PRODUCER_OUTPUT_PATHS:
+        raise ValueError("producer output path policy drift")
+    for producer, paths in PRODUCER_OUTPUT_PATHS.items():
+        agent = "codex-developer" if producer == "codex" else "agy-reviewer"
+        instructions = (ROOT / f"harness/agents/{agent}.md").read_text(encoding="utf-8")
+        if any(f"`{path}`" not in instructions for path in paths.values()):
+            raise ValueError(f"producer output instructions drift: {producer}")
+    if not set(sum(STATIC_WORKSPACE_FILES.values(), [])).issubset(spec["required_files"]):
+        raise ValueError("static Workspace anchors must remain registered")
+    for name in spec["required_files"]:
+        if generated_output(name):
+            raise ValueError(f"dynamic Workspace files must not be individually registered: {name}")
 
 
 def compose():
-    result = json.loads(run("docker", "compose", "-f", "docker-compose.yml", "config", "--format", "json", capture=True))
+    sys.path.insert(0, str(ROOT / "data-pipeline/src"))
+    from biz_aid_pipeline.config.settings import profile_values
+    config = profile_values(ROOT, "dev", {"MYSQL_PORT", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_ROOT_PASSWORD"})
+    # 설정 검증도 generic .env를 읽지 않는다. CI는 Profile 파일 없이 Process Environment로 검증할 수 있다.
+    env_file = str(ROOT / ".env.dev") if (ROOT / ".env.dev").is_file() else os.devnull
+    configured = subprocess.run(["docker", "compose", "--env-file", env_file, "--profile", "*", "-f", "docker-compose.yml", "config", "--format", "json"],
+        cwd=ROOT, text=True, capture_output=True, env=dict(os.environ, **config, COMPOSE_DISABLE_ENV_FILE="1"))
+    # Compose 설정 오류가 사용자 env의 값을 반사할 수 있으므로 stderr와 설정 JSON을 출력하지 않는다.
+    if configured.returncode:
+        raise ValueError("Compose configuration failed; output withheld to protect credentials")
+    result = json.loads(configured.stdout)
     if set(result["services"]) != set(registry()["compose_services"]):
         raise ValueError("Compose services differ from implementation registry")
     service = result["services"]["phase0"]
@@ -118,6 +162,20 @@ def compose():
         mount = mounts[target]
         if Path(mount["source"]).resolve() != source.resolve() or bool(mount.get("read_only")) != readonly:
             raise ValueError(f"Compose mount drift: {target}")
+    if registry()["phase"] == "phase1a-structured-pilot":
+        mysql = result["services"]["mysql"]
+        flyway = result["services"]["flyway"]
+        ports = mysql.get("ports", [])
+        if (mysql["profiles"] != ["dev-db"] or len(ports) != 1
+                or ports[0].get("host_ip") != "127.0.0.1" or str(ports[0]["published"]) != "3306"
+                or ports[0]["target"] != 3306 or mysql["environment"]["MYSQL_DATABASE"] != "biz_aid_dev"):
+            raise ValueError("dev MySQL local boundary drift")
+        migration = flyway["volumes"]
+        if (flyway["profiles"] != ["dev-db"] or len(migration) != 1 or not migration[0].get("read_only")
+                or Path(migration[0]["source"]).resolve() != ROOT / "migrations"
+                or flyway["environment"].get("FLYWAY_CLEAN_DISABLED") != "true"
+                or flyway["environment"].get("FLYWAY_URL") != "jdbc:mysql://mysql:3306/biz_aid_dev?allowPublicKeyRetrieval=true&useSSL=false"):
+            raise ValueError("common Flyway ownership boundary drift")
 
 
 def setup_check():
@@ -131,11 +189,19 @@ def setup_check():
         raise ValueError("Docker Compose >=2 required")
     compose()
     print(f"PASS: Python {sys.version.split()[0]}, Bash, Git, Compose {version}; configuration only")
-    print("N/A: no Java/Node/MySQL/Qdrant/services/credentials; daemon checked only when running Batch")
+    if registry()["phase"] == "phase1a-structured-pilot":
+        import pydantic
+        import sqlalchemy
+        import pymysql
+        if not pydantic.__version__.startswith("2.") or not sqlalchemy.__version__.startswith("2."):
+            raise ValueError("Phase 1A requires Pydantic v2 and SQLAlchemy v2")
+        print("PASS: Pydantic v2, SQLAlchemy v2, PyMySQL available; DB tested in integration")
+    print("N/A: Java/Node/Qdrant/product APIs/AI; live upstream calls are separate")
 
 
 def format_check():
-    for name in project_files():
+    files = project_files()
+    for name in files:
         path = ROOT / name
         if not path.is_file():
             raise ValueError(f"missing project file: {name}")
@@ -149,9 +215,10 @@ def format_check():
             expected = json.dumps(phase0.read_json(path), ensure_ascii=False, indent=2, allow_nan=False) + "\n"
             if text != expected:
                 raise ValueError(f"JSON requires 2-space canonical indentation: {name}")
-    run("git", "diff", "--check")
-    run("git", "diff", "--cached", "--check")
-    print("PASS: repository text/JSON format and Git whitespace")
+    # 이미 추적된 생성물도 Git diff에 남으므로 입력 자산의 경로만 명시해 공백을 검사한다.
+    run("git", "diff", "--check", "--", *files)
+    run("git", "diff", "--cached", "--check", "--", *files)
+    print("PASS: static/project text/JSON format and Git whitespace; generated outputs excluded")
 
 
 def lint_check():
@@ -175,14 +242,65 @@ def contract_check():
 
 
 def integration_check():
+    if registry()["phase"] == "phase1a-structured-pilot":
+        run(sys.executable, "-B", "infra/dev_mysql.py")
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/integration", "-p", "test_*.py", "-v")
     print("PASS: local CLI integration including credential-missing Probe/API-quality and bounded document failure exits; no live HTTP")
-    print("N/A: live API/document HTTP, document text Parser, service/DB integration")
+    print("PASS: Phase 1A real dev MySQL integration (when phase1a); no live upstream HTTP")
+    print("N/A: live API/document HTTP, text Parser, product APIs")
+
+
+def database_comment_problem(name, comment):
+    value = (comment or "").strip()
+    if not value:
+        return "missing"
+    normalized = re.sub(r"[^\w가-힣]", "", value.casefold()).replace("_", "")
+    object_name = re.sub(r"[^\w가-힣]", "", name.casefold()).replace("_", "")
+    if re.search(r"todo|tbd", value, re.IGNORECASE) or normalized in {"데이터", "값", object_name}:
+        return "placeholder_or_name_only"
+    if not has_korean(value):
+        return "korean_description_required"
+    return None
+
+
+def database_comments(connection):
+    from sqlalchemy import text
+    schema = connection.execute(text("SELECT DATABASE()")).scalar_one()
+    if schema not in ("biz_aid_dev", "biz_aid_test"):
+        raise ValueError("database comment validation requires the application dev/test schema")
+    # 새 업무 테이블을 이름 목록에서 빠뜨리지 않도록 DB 경계를 조회하고 Flyway 내부 테이블만 제외한다.
+    tables = connection.execute(text("""
+        SELECT TABLE_NAME, TABLE_COMMENT FROM information_schema.tables
+        WHERE TABLE_SCHEMA = :schema AND TABLE_TYPE = 'BASE TABLE'
+          AND TABLE_NAME <> 'flyway_schema_history' ORDER BY TABLE_NAME
+    """), {"schema": schema}).mappings().all()
+    columns = connection.execute(text("""
+        SELECT c.TABLE_NAME, c.COLUMN_NAME, c.COLUMN_COMMENT
+        FROM information_schema.columns c JOIN information_schema.tables t
+          ON t.TABLE_SCHEMA = c.TABLE_SCHEMA AND t.TABLE_NAME = c.TABLE_NAME
+        WHERE c.TABLE_SCHEMA = :schema AND t.TABLE_TYPE = 'BASE TABLE'
+          AND c.TABLE_NAME <> 'flyway_schema_history' ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION
+    """), {"schema": schema}).mappings().all()
+    if not tables or not columns:
+        raise ValueError("application schema has no tables/columns to validate")
+    failures = []
+    for row in tables:
+        reason = database_comment_problem(row["TABLE_NAME"], row["TABLE_COMMENT"])
+        if reason:
+            failures.append({"object": row["TABLE_NAME"], "reason": reason})
+    for row in columns:
+        reason = database_comment_problem(row["COLUMN_NAME"], row["COLUMN_COMMENT"])
+        if reason:
+            failures.append({"object": row["TABLE_NAME"] + "." + row["COLUMN_NAME"], "reason": reason})
+    # 오류에는 소스 원문이나 COMMENT 내용을 담지 않는다. 의미의 정확성과 단위 설명은 독립 Review로 확인한다.
+    return {"schema": schema, "table_count": len(tables), "column_count": len(columns), "failures": failures}
 
 
 def allowed_ignored(name):
     path = Path(name)
     parts = path.parts
+    if generated_output(name):
+        return True
     if path.name == ".DS_Store" or path.name.endswith(".pyc"):
         return True
     if any(part in {".venv", "__pycache__", ".pytest_cache"} for part in parts):
@@ -196,8 +314,7 @@ def allowed_ignored(name):
     if len(parts) >= 3 and parts[0] == "data" and parts[1] in {"raw", "downloaded", "parsed", "failed"}:
         # 원문 payload와 작업 산출물을 구분해 데이터 디렉터리에서도 규칙·코드·보고서는 숨기지 않는다.
         return path.suffix.lower() not in {".md", ".py", ".sh", ".yml", ".yaml"} and path.name != "README.md"
-    # 재생성 가능한 실행 로그만 제외하며 사람이 판단할 해석과 결론은 추적된 Markdown Report에 남긴다.
-    return len(parts) == 4 and parts[:3] == ("harness", "workspace", "artifacts") and path.suffix in {".json", ".log"}
+    return False
 
 
 def git_check():
@@ -212,17 +329,18 @@ def git_check():
     ignored_profiles = run("git", "check-ignore", "--no-index", ".env.dev", ".env.prod", capture=True).splitlines()
     if set(ignored_profiles) != {".env.dev", ".env.prod"}:
         raise ValueError("profile secret files must be ignored: .env.dev / .env.prod")
-    untracked = run("git", "ls-files", "--others", "--exclude-standard", "-z", capture=True)
+    untracked = [name for name in run("git", "ls-files", "--others", "--exclude-standard", "-z", capture=True).split("\0")
+                 if name and not generated_output(name)]
     if untracked:
-        raise ValueError("untracked project files:\n" + untracked.replace("\0", "\n"))
-    if run("git", "diff", "--name-only", "--diff-filter=U", capture=True).strip():
+        raise ValueError("untracked project files:\n" + "\n".join(untracked))
+    if any(not generated_output(name) for name in run("git", "diff", "--name-only", "--diff-filter=U", capture=True).splitlines()):
         raise ValueError("unresolved Git conflicts")
     indexed_new = set(run("git", "diff", "--cached", "--name-only", "--diff-filter=A", "-z", capture=True).split("\0"))
     unstaged = set(run("git", "diff", "--name-only", "-z", capture=True).split("\0"))
-    if (indexed_new & unstaged) - {""}:
+    if any(name and not generated_output(name) for name in indexed_new & unstaged):
         raise ValueError("new indexed files differ from working files; update their explicit Git entries")
     required = registry()["required_files"]
-    # global ignore까지 검사해 설계·검증·보고서가 Git 밖에 숨겨지는 것을 막는다.
+    # global ignore도 검사해 제어·설계·검증 입력이 Git 밖에 숨겨지는 것을 막는다.
     ignored_required = subprocess.run(
         ["git", "check-ignore", "--no-index", *required],
         cwd=ROOT, text=True, capture_output=True,
@@ -237,9 +355,9 @@ def git_check():
             raise ValueError(f"ignored project result: {name}")
     tracked = run("git", "ls-files", "-z", capture=True)
     for name in tracked.split("\0"):
-        if name and allowed_ignored(name):
+        if name and not generated_output(name) and allowed_ignored(name):
             raise ValueError(f"raw/secret/cache must not be tracked: {name}")
-    dynamic_workspace(registry())
+    workspace_policy(registry())
     print("PASS: dev policy, tracked changes, ignore boundary, index visibility")
     run("git", "status", "--short", "--branch")
 
@@ -282,12 +400,16 @@ def markdown_links(path):
         target = unquote(target.strip("<>").split("#", 1)[0])
         if not target or re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", target):
             continue
-        destination = (path.parent / target).resolve()
+        lexical = Path(os.path.abspath(path.parent / target))
+        if lexical.is_relative_to(ROOT) and generated_output(lexical.relative_to(ROOT).as_posix()):
+            # 생성 전의 출력 참조는 깨진 입력 링크가 아니다. 생성물의 symlink나 내용도 따라가지 않는다.
+            continue
+        destination = lexical.resolve()
         if not destination.is_relative_to(ROOT) or not destination.exists():
             raise ValueError(f"broken/outside documentation link: {path.relative_to(ROOT)} -> {target}")
 
 
-def review_status(spec, workspace):
+def review_status(spec):
     state = spec["agy_review"]
     evidence = spec["agy_review_evidence"]
     if state not in ("pending", "review_complete"):
@@ -299,19 +421,32 @@ def review_status(spec, workspace):
     if not isinstance(evidence, str) or evidence not in ACCEPTED_AGY_REVIEWS:
         raise ValueError("AGY review: independent evidence must be user-acknowledged")
     accepted = ACCEPTED_AGY_REVIEWS[evidence]
+    integrity = "VERIFIED"
     for name, expected_hash in (
         (evidence, accepted["sha256"]),
         (accepted["reviewed_report"], accepted["reviewed_report_sha256"]),
     ):
         path = ROOT / name
-        # Reviewer 이름이나 COMPLETE 문구만으로는 저자를 증명할 수 없어 독립 원문과 검토 대상의 byte를 대조한다.
-        if name not in workspace or path.is_symlink() or path.resolve() != path or not path.is_file():
-            raise ValueError(f"AGY review: missing or unsafe evidence/basis: {name}")
-        if hashlib.sha256(path.read_bytes()).hexdigest() != expected_hash:
-            raise ValueError(f"AGY review: evidence/basis checksum mismatch: {name}")
-    summary = f"AGY: review_complete; result={accepted['result']}; reviewed_report={accepted['reviewed_report']}"
+        # 신뢰 판정은 생성물의 존재·Git 상태와 분리한다. 미검증이면 사람의 승인을 보류하며 build는 실패시키지 않는다.
+        try:
+            if path.is_symlink() or path.resolve() != path:
+                integrity = "UNSAFE"
+                break
+            if not path.is_file():
+                integrity = "UNAVAILABLE"
+                break
+            with path.open("rb") as stream:
+                digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        except (OSError, RuntimeError):
+            integrity = "UNAVAILABLE"
+            break
+        if digest != expected_hash:
+            integrity = "MISMATCH"
+            break
+    summary = f"AGY: recorded review_complete; recorded_result={accepted['result']}; reviewed_report={accepted['reviewed_report']}"
+    summary += f"\nREVIEW EVIDENCE INTEGRITY: {integrity}; non-gating; human verification required"
     # 이전 Review를 이후 수정의 승인으로 오해하지 않도록 현재 보고서와 검토 대상의 범위를 구분한다.
-    current = "complete" if spec["report"] == accepted["reviewed_report"] else "pending"
+    current = "complete" if integrity == "VERIFIED" and spec["report"] == accepted["reviewed_report"] else "pending"
     return summary + f"\nCURRENT REPORT REVIEW: {current}; human review PENDING"
 
 
@@ -319,27 +454,31 @@ def harness_check():
     spec = registry()
     actual = set(project_files())
     expected = set(spec["required_files"])
-    workspace = dynamic_workspace(spec)
-    # 기록은 경로·안전 규칙으로 검증하고 고정 README를 포함한 정적 구조는 개별 Registry와 대조한다.
-    static_actual = actual - (workspace - expected)
-    if static_actual != expected:
-        raise ValueError(f"Registry drift: missing={sorted(expected - static_actual)}, unregistered={sorted(static_actual - expected)}")
-    if spec["phase"] != "phase0-preparation":
+    workspace_policy(spec)
+    if actual != expected:
+        raise ValueError(f"Registry drift: missing={sorted(expected - actual)}, unregistered={sorted(actual - expected)}")
+    if spec["phase"] not in ("phase0-preparation", "phase1a-structured-pilot"):
         raise ValueError("phase must reflect actual preparation")
     # 현재 Task가 과거 Report를 승인받은 것처럼 보이지 않도록 활성 Report 연결도 함께 검증한다.
     task = (ROOT / "harness/workspace/current-task.md").read_text(encoding="utf-8")
     final_reports = re.findall(r"\[Final Report\]\(([^)]+)\)", task)
-    if len(final_reports) != 1 or (
+    if len(final_reports) != 1 or Path(os.path.abspath(
         ROOT / "harness/workspace" / final_reports[0]
-    ).resolve() != (ROOT / spec["report"]).resolve():
+    )) != Path(os.path.abspath(ROOT / spec["report"])):
         raise ValueError("current-task Final Report differs from Registry report")
-    status = review_status(spec, workspace)
+    if not isinstance(spec["report"], str) or workspace_category(spec["report"]) != "GENERATED_REPORT":
+        raise ValueError("current-task report reference must name a generated Report")
+    if not spec["report"].startswith(PRODUCER_OUTPUT_PATHS["codex"]["reports"]):
+        raise ValueError("current-task report must use Codex producer path")
+    status = review_status(spec)
     if spec["branches"] != {"development": "dev", "verified": "main", "deployment": "op"}:
         raise ValueError("branch policy drift")
     for name in actual:
         path = ROOT / name
         if not path.is_file():
             raise ValueError(f"missing registered file: {name}")
+        if workspace_category(name) in STATIC_WORKSPACE_FILES and (path.is_symlink() or path.resolve() != path):
+            raise ValueError(f"unsafe static Workspace anchor: {name}")
         if name.endswith(".md"):
             markdown_links(path)
     skill_paths = {str(path.relative_to(ROOT)) for path in (ROOT / "harness/skills").glob("*/SKILL.md")}
@@ -380,10 +519,7 @@ def harness_check():
         if f"run: {command}" not in ci:
             raise ValueError(f"CI missing required command: {command}")
     compose()
-    report = ROOT / spec["report"]
-    if spec["report"] not in workspace or not report.is_file() or not report.read_text(encoding="utf-8").strip():
-        raise ValueError("task Report missing")
-    print("PASS: docs/links, Skills/Rules Registry, commands, phase, Compose/CI and external memory")
+    print("PASS: static docs/links, Skills/Rules Registry, commands, phase, Compose/CI and workspace control; outputs non-gating")
     print(status)
 
 

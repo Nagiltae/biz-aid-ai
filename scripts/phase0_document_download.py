@@ -185,7 +185,7 @@ def actual_format(raw):
 
 def plan(root):
     source_id = contract()["source_run_id"]
-    source_path = safe_path(root, f"harness/workspace/artifacts/bizinfo-quality-{source_id}.json")
+    source_path = safe_path(root, f"harness/workspace/artifacts/codex/phase0-api-quality/bizinfo-quality-{source_id}.json")
     source = phase0.read_json(source_path)["run"]
     if (source["run_id"] != source_id or source["profile"] != "dev" or source["collection_status"] != "COMPLETED"
             or source["requested_pages"] != [1, 2, 3, 4, 5] or source["requested_rows_per_page"] != 20
@@ -561,8 +561,9 @@ def main(argv=None, root=ROOT, environ=None):
             return 0 if result["run"]["status"] == "COMPLETED" and result["metrics"]["successful_downloads"] == 100 else 1
         result, rows = analyze(root, args.run_id)
         output = root / args.output
-        if output.parent != root / "harness/workspace/reports" or output.suffix != ".md" or output.parent.resolve() != output.parent:
+        if output.parent != root / "harness/workspace/reports/codex" or output.suffix != ".md" or output.parent.resolve() != output.parent:
             raise ValueError("report_output_boundary")
+        output.parent.mkdir(parents=True, exist_ok=True)
         with output.open("x", encoding="utf-8", newline="\n") as stream:
             stream.write(render(result, rows))
         print("PASS: offline download evidence analysis; no HTTP")

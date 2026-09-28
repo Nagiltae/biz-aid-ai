@@ -50,21 +50,22 @@ class DocumentCliTests(unittest.TestCase):
         fixtures.prepare_source(self.root)
         with redirect_stdout(self.output):
             documents.download(self.root, "dev", "cli-test", {}, fetch=lambda *a: fixtures.Response(), stop_after=2, pause=lambda _: None)
-        (self.root / "harness/workspace/reports").mkdir(parents=True)
-        args = ["analyze", "--run-id", "cli-test", "--output", "harness/workspace/reports/result.md"]
+        (self.root / "harness/workspace/reports/codex").mkdir(parents=True)
+        args = ["analyze", "--run-id", "cli-test", "--output", "harness/workspace/reports/codex/result.md"]
         with patch.object(documents, "open_document", side_effect=AssertionError("no HTTP")):
             self.assertEqual(self.call(args), 0)
             before = (self.root / args[-1]).read_bytes()
             self.assertEqual(self.call(args), 1)
             self.assertEqual((self.root / args[-1]).read_bytes(), before)
         self.assertNotIn(fixtures.KEY.encode(), before)
+        self.assertEqual(self.call(["analyze", "--run-id", "cli-test", "--output", "harness/workspace/reports/agy/result.md"]), 1)
 
     def test_analysis_checksum_failure_and_output_boundary(self):
         fixtures.prepare_source(self.root)
         documents.download(self.root, "dev", "cli-test", {}, fetch=lambda *a: fixtures.Response(), stop_after=1, pause=lambda _: None)
         self.assertEqual(self.call(["analyze", "--run-id", "cli-test", "--output", "data/downloaded/wrong.md"]), 1)
         (self.root / "data/downloaded/cli-test/SYNTHETIC_000/document.bin").write_bytes(b"tampered")
-        self.assertEqual(self.call(["analyze", "--run-id", "cli-test", "--output", "harness/workspace/reports/result.md"]), 1)
+        self.assertEqual(self.call(["analyze", "--run-id", "cli-test", "--output", "harness/workspace/reports/codex/result.md"]), 1)
 
 
 if __name__ == "__main__":

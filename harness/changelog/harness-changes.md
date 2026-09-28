@@ -8,12 +8,12 @@
 - 미구현 제품 검증은 N/A로 공개한다. Gate 통과와 AGY 승인은 독립 상태로 둔다.
 - Raw byte 보존과 hash 검증, 미측정 보고서 계약으로 다음 데이터 실험의 증거를 준비한다.
 - 규칙 완화·삭제 없음. 최상위 설계 수정 없음.
-- 실행 결과: [Codex Report](../workspace/reports/2026-09-27-codex-harness-report.md).
+- 실행 결과: [Codex Report](../workspace/reports/codex/2026-09-27-codex-harness-report.md).
 - AGY 검토: pending.
 
 ## 2026-09-27 — AGY Initial Review 보완
 
-- 근거: [독립 AGY Initial Review](../workspace/reports/agy-initial-harness-review.md), PASS WITH FIXES.
+- 근거: [독립 AGY Initial Review](../workspace/reports/agy/agy-initial-harness-review.md), PASS WITH FIXES.
 - M-1: 불필요한 workflow/reference는 생성하지 않고 Target와 현재 Skill 구조를 명시.
 - M-2: Compose·ignore·Registry·Context 크기·Review 증거·Raw 무결성·출력 충돌의 WHY 주석 보강.
 - M-3 / I-4: Checkpoint Format·복원과 current-task 교체·이전 상태 보존 절차 정의.
@@ -24,7 +24,7 @@
 - Initial Review는 과거 Foundation 대상이다. 이번 보완의 후속 Review·Human Review·Data Gate는 pending.
 - IDE가 생성한 로컬 .idea metadata만 제외하고 같은 경로의 코드·문서 숨김은 거부.
 - 제품 기능·추정 upstream·기술 도입·Git 승격 없음.
-- 결과: [보완 Report](../workspace/reports/2026-09-27-codex-harness-fix-report.md).
+- 결과: [보완 Report](../workspace/reports/codex/2026-09-27-codex-harness-fix-report.md).
 
 ## 2026-09-27 — Dynamic Workspace Registry Drift 수정
 
@@ -36,7 +36,7 @@
   현재 수정 Task의 Review·Human Review·Data Gate는 pending이다. AGY 원문·과거 Report는 수정하지 않는다.
 - 실제 파일을 복사하는 fixture와 동적 기록·정적 drift·숨김·자기 승인 방지 회귀를 추가한다.
 - Final Report → 최종 Git 상태 구성 → check-all → 동결 순서를 명시한다. 이후 변경 시 기존 Final 결과는 무효다.
-- 결과: [수정 Report](../workspace/reports/2026-09-27-codex-dynamic-workspace-fix-report.md).
+- 결과: [수정 Report](../workspace/reports/codex/2026-09-27-codex-dynamic-workspace-fix-report.md).
 
 ## 2026-09-27 — 기업마당 Request / Sample Contract와 최소 Probe
 
@@ -48,7 +48,7 @@
   Compose의 네트워크·read-only 경계, Raw hash / overwrite, pending-only Gate는 유지한다.
 - 현재 key가 없어 Live NOT_RUN이며 최근 100건 Rule·정렬 / ID 보장은 미확정이다.
 - 현재 Report로 Task를 전환하며 과거 독립 Evidence는 보존하고 현재 Review는 pending으로 구분한다.
-- 결과: [API Contract / Probe Report](../workspace/reports/2026-09-27-codex-bizinfo-contract-probe-report.md).
+- 결과: [API Contract / Probe Report](../workspace/reports/codex/2026-09-27-codex-bizinfo-contract-probe-report.md).
 
 ## 2026-09-28 — Profile 격리와 dev Live Probe
 
@@ -59,7 +59,7 @@
 - Synthetic ID는 03 NODATA_ERROR / items={}를 관찰해 기존 Probe exit 1을 보존했다. 오류를 가짜 PASS로 바꾸지 않는다.
 - Raw 네 개의 byte / checksum을 검증했다. prod 실제 읽기·Live 호출, 100건 본 수집·제품 기능·Gate 판단 없음.
 - 최근 100건 Rule과 공식 정렬 보장은 미확정이며 현재 독립 Review / Human Review는 pending이다.
-- 결과: [Profile / dev Live Report](../workspace/reports/2026-09-28-codex-bizinfo-profile-live-probe-report.md).
+- 결과: [Profile / dev Live Report](../workspace/reports/codex/2026-09-28-codex-bizinfo-profile-live-probe-report.md).
 
 ## 2026-09-28 — Phase 0 API 품질 Task
 
@@ -74,3 +74,45 @@
 Static Registry에는 코드 / 계약 / Test만 등록하며 Report / Checkpoint는 기존 Dynamic 정책으로 추적한다.
 API / prod Secret / Supplementary / Parser / GO-DROP·독립 Review Guardrail은 유지한다.
 체크포인트는 결과별 원문 checksum에서 재개하며 과거 AGY PASS를 이번 Task 승인으로 재사용하지 않는다.
+
+## 2026-09-28 Phase 1A 사용자 승인
+
+구조화 데이터 제품 Pilot / dev MySQL / 공통 Flyway를 사용자 승인으로 추가했다.
+Static Registry에 제품·migration·tests를 등록하고 Dynamic Report 규칙과 AGY 독립 Evidence 검증은 보존한다.
+setup / CI는 Python 제품 dependency, integration은 실제 dev MySQL을 검증한다. 기존 phase0 네트워크·mount 경계는 그대로다.
+기존 DB 없음 문구만 실제 구현 범위로 동기화한다. 이번 Task Review는 pending이며 이전 AGY PASS를 재사용하지 않는다.
+
+## 2026-09-28 — Profile / Dev MySQL 포트 정책 정리
+
+사용자 최종 정책에 따라 dev / prod 설정을 각 Profile 파일로 통일하고 Dev Host MySQL을 3306으로 전환했다.
+Secret 생성과 별도 DB 설정 fallback을 제거했으며 기존 계정·volume·Pilot·Flyway 계보를 보존한다.
+정적 Registry / Dynamic Report / AGY 독립 검토 규칙은 유지한다. 새 회귀와 최종 검증을 별도로 기록한다.
+결과: [환경 정책 Report](../workspace/reports/codex/2026-09-28-codex-env-port-policy-report.md).
+
+## 2026-09-28 — 사용자 credential 재검증과 Database COMMENT 정책
+
+사용자 변경 credential을 유지하고 root 준비 연결을 실제 인증에 성공한 로컬 TCP로 명시했다. 계정·비밀번호는 변경하지 않는다.
+적용된 V1을 보존하는 신규 V2로 application Table / Column COMMENT만 추가한다.
+DB 규칙·Migration Skill·Testing 문서를 연결하고 실제 dev/test schema 전체의 COMMENT 누락·placeholder를 Integration / check-all에서 실패시킨다.
+새 업무 테이블도 자동 탐색하며 Flyway 내부 테이블만 제외한다. COMMENT 외 정의와 기존 Pilot 100건 보존을 검증한다.
+사용자 승인으로 example credential placeholder만 비웠으며 Secret 파일과 과거 Report는 보존한다.
+현재 독립 Review는 pending이다. 결과: [Database COMMENT Report](../workspace/reports/codex/2026-09-28-codex-database-comments-report.md).
+
+## 2026-09-28 — Workspace output lifecycle / Validation boundary
+
+사용자 승인으로 workspace 전체를 Inventory하고 current-task 1개·정적 README 2개와 실행 산출물을 분리한다.
+Report/Checkpoint Markdown과 Artifact JSON/log는 non-gating이며 미추적·ignore·공백·존재·index 상태로 build를 실패시키지 않는다.
+format/lint/comments·Git diff·Registry/links의 공유 파일 목록을 바꾸고 Control/Input strict 검증과 command 실패 전파를 유지한다.
+AGY 참조와 자기 승인 방지는 strict metadata로 보존하며 원문 checksum / 누락은 별도 non-gating 신뢰 상태로 표시한다.
+committed 원문은 보존하고 HEAD에 없는 staged 생성 Report 7개는 로컬 파일을 유지한 채 index만 제거한다.
+최종 검증 뒤 새 Generated Report를 작성하며 생성물만 추가됐을 때 재검증하지 않는다. Phase 1A 제품·Migration·Secret은 변경하지 않는다.
+결과: [Workspace lifecycle Report](../workspace/reports/codex/2026-09-28-codex-workspace-lifecycle-report.md).
+
+## 2026-09-28 — Generated Output Producer / Task별 보관
+
+사용자 승인으로 Report / Artifact 전체 Inventory와 정적·실행·accepted·과거 Evidence 참조 그래프를 만든다.
+원문을 보존해 Codex/AGY 전용 디렉터리와 Task별 Artifact로 옮기며 참조 없는 superseded 중간 로그만 명시적으로 정리한다.
+accepted review는 경로만 갱신하며 hash·verdict·상태를 바꾸지 않는다. historical Report 내부는 relocation mapping으로 보완한다.
+Registry / Agent 지침에 Producer 출력 경로를 고정하고 current-task·static anchor strict / generated non-gating 경계는 유지한다.
+기존 도구와 제품 CLI의 입출력 참조만 이동 위치로 갱신한다. 제품 데이터 처리·DB·Migration·checkpoint·Secret 변경은 없다.
+결과: [Output cleanup Report](../workspace/reports/codex/2026-09-28-workspace-output-cleanup.md).

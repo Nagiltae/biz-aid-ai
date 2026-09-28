@@ -25,7 +25,7 @@
 
 ## 5. HTTP & Security Boundary Audit
 - **Result**: Boundaries strictly observed.
-- **Evidence**: 
+- **Evidence**:
   - `public_url` filters strictly for `https`, specific host (`www.bizinfo.go.kr`), and allowed query parameters (`atchfileid`, `filesn`), blocking userinfo auth.
   - `open_document` uses an empty `ProxyHandler` and a custom redirect handler. Secret configs are loaded only to check for credential reflections in URLs, headers, and bodies (which are cleanly rejected). No API keys were transmitted to the document server.
   - File byte reads loop safely up to a strict `max_file_bytes`, ignoring potentially false `Content-Length`.
@@ -40,7 +40,7 @@
 
 ## 8. Supplementary Downloads & Token Pairing
 - **Result**: Did not download; token counts accurately paired.
-- **Evidence**: The implementation generated 86 items with valid `flpthNm` URL/filename combinations. It calculated matching `@` separated tokens (`PAIR_COUNT_MATCH: 86`). Supplementary URLs were strictly not requested over HTTP, preserving the bounding limits. 
+- **Evidence**: The implementation generated 86 items with valid `flpthNm` URL/filename combinations. It calculated matching `@` separated tokens (`PAIR_COUNT_MATCH: 86`). Supplementary URLs were strictly not requested over HTTP, preserving the bounding limits.
 
 ## 9. Primary Notice Hypothesis & Semantic Boundary
 - **Result**: Scope respected.

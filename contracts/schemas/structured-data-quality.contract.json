@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "purpose": "Phase 1A structured ingestion report; no GO/DROP decision",
+  "profiles": [
+    "dev"
+  ],
+  "sync_scopes": [
+    "SAMPLE",
+    "PARTIAL",
+    "FULL"
+  ],
+  "statuses": [
+    "PASS",
+    "FAIL"
+  ],
+  "integer_fields": [
+    "input_count",
+    "unique_pblanc_id_count",
+    "observed_count",
+    "inserted",
+    "updated",
+    "noop",
+    "reactivated",
+    "soft_deleted",
+    "failed",
+    "duplicate_count",
+    "required_field_failures",
+    "date_parse_success",
+    "date_free_text",
+    "date_unavailable",
+    "date_invalid_range",
+    "invalid_url_count",
+    "source_timestamp_unparsed",
+    "transport_errors",
+    "api_errors",
+    "contract_errors",
+    "normalization_fatal_errors",
+    "persistence_fatal_errors"
+  ],
+  "boolean_fields": [
+    "pagination_terminated",
+    "reconciliation_attempted",
+    "reconciliation_executed"
+  ],
+  "list_fields": [
+    "observed_total_counts",
+    "successful_pages",
+    "failed_pages",
+    "reconciliation_skipped_reason",
+    "error_codes"
+  ],
+  "string_fields": [
+    "run_id",
+    "source_sample",
+    "started_at",
+    "finished_at"
+  ],
+  "fingerprint": {
+    "version": 1,
+    "algorithm": "SHA-256",
+    "input": "source_payload only, including unknown source keys and missing/null/blank distinctions",
+    "serialization": "UTF-8 Unicode JSON, recursively sorted keys, compact separators, no NaN",
+    "db_lifecycle_included": false
+  },
+  "pilot": {
+    "source_run_id": "api-quality-dev-20260928-01",
+    "sample_definition": "API default-order head 100",
+    "pages": 5,
+    "rows_per_page": 20,
+    "target": 100,
+    "scope": "SAMPLE",
+    "live_full_execution": false
+  }
+}

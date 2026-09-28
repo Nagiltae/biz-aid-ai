@@ -15,3 +15,39 @@ services:
       - ./harness/workspace/artifacts:/artifacts
     tmpfs:
       - /tmp
+  mysql:
+    image: mysql:8.4
+    profiles: [dev-db]
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-biz_aid_dev}
+      MYSQL_USER: ${MYSQL_USER:-biz_aid}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+    volumes:
+      - mysql_dev:/var/lib/mysql
+      - ./infra/mysql/init-dev.sql:/docker-entrypoint-initdb.d/01-dev.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  flyway:
+    image: redgate/flyway:11
+    platform: linux/amd64
+    profiles: [dev-db]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: ${FLYWAY_URL:-jdbc:mysql://mysql:3306/biz_aid_dev?allowPublicKeyRetrieval=true&useSSL=false}
+      FLYWAY_USER: ${MYSQL_USER:-biz_aid}
+      FLYWAY_PASSWORD: ${MYSQL_PASSWORD:-}
+      FLYWAY_CLEAN_DISABLED: "true"
+      FLYWAY_VALIDATE_MIGRATION_NAMING: "true"
+    volumes:
+      - ./migrations:/flyway/sql:ro
+    command: ["validate"]
+volumes:
+  mysql_dev:

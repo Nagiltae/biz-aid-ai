@@ -2,10 +2,23 @@
 
 > 프로젝트명(가칭): **BizAid AI**
 >
-> 현재 단계: **Data Feasibility Gate**
+> 현재 단계: **Phase 1A Structured Data Pipeline Pilot** (2026-09-28 사용자 승인)
 >
 > 이 문서는 확정 설계가 아니라 데이터 검증 및 프로젝트 방향 논의를 위한
 > 초안이다.
+
+## 승인된 현재 실행 범위
+
+2026-09-28 사용자는 Phase 0 API Contract / Probe / 동일 100건 API 품질 / Document Download 검증 이후
+Phase 1A 구조화 데이터 Pilot을 승인했다. 이번 실행은 기존 `api-quality-dev-20260928-01` 표본을
+제품용 Python `data-pipeline/`에서 정규화해 dev MySQL에 적재하는 범위다.
+DB 환경이 없었으므로 사용자 승인으로 Compose dev MySQL + 공통 `migrations/` Flyway를 도입한다.
+Full sync의 완전성 / soft-delete 경계는 controlled test만 수행하며 live FULL은 실행하지 않는다.
+
+사용자가 지정한 후속 순서: Phase 1B Full Structured Data Sync → Document Acquisition → Parsing →
+Chunking → Vector Indexing → Retrieval → Answer Generation.
+아래 기존 전체 로드맵은 Target 계획으로 보존한다. 이번 Task의 구체 범위는 이 승인과 current-task를 따른다.
+본문 Parsing / OCR / RAG 가치 측정은 UNMEASURED이며, Phase 0 진행 종료를 GO/DROP 판정으로 간주하지 않는다.
 
 ------------------------------------------------------------------------
 
@@ -1447,6 +1460,10 @@ GitHub Actions
 
 개발 중 생성되거나 수정되는 프로젝트 파일은 원칙적으로 모두 Git 변경
 내역에서 확인할 수 있어야 한다.
+
+2026-09-28 사용자 승인 Workspace lifecycle 정책: 위 추적 의무는 Control/Input 자산에 적용한다.
+Generated Report / Checkpoint / Artifact는 non-gating 실행 산출물로 ignore 가능하며 Git 추적을 요구하지 않는다.
+current-task와 정적 README는 strict 유지하고 committed 과거 기록은 보존한다. 구체적 경계는 harness/docs/workflow.md를 따른다.
 
 금지:
 

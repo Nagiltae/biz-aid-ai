@@ -1,7 +1,7 @@
-# Phase 0 데이터 준비
+# 데이터 파이프라인
 
 최종 Pipeline 계획은 API → Raw → Normalize → MySQL Upsert → 변경 판단 →
-Download → Checksum → Parse → Chunk → Embedding → Qdrant다. 이번에는 구현하지 않는다.
+Download → Checksum → Parse → Chunk → Embedding → Qdrant다. 구현 범위는 아래 승인된 Phase 1A에 한정한다.
 
 ## 현재 도구
 
@@ -39,7 +39,7 @@ Probe는 필수 --profile dev / prod와 선택된 .env.{profile}만 사용한다
 
 [보고서 양식](../../evals/phase0-report-template.md)에 분자·분모·증거·예외를 기록한다.
 [Report 계약](../../contracts/schemas/phase0-report.contract.json)은 upstream API 계약이 아니다.
-MySQL Raw snapshot JSON column은 향후 계획이며 현재 Migration은 없다.
+Raw snapshot metadata 전용 MySQL 모델은 향후 계획이다. Phase 1A는 source_payload JSON을 저장한다.
 
 ## 승인된 API 품질 Batch
 
@@ -52,7 +52,7 @@ URL 접속·field 의미는 UNMEASURED이며 INVALID가 아닌 값도 의미상 
 기간 MISSING 분류의 null / blank / key 없음은 별도 원인 count와 원래 field 상태로 보존한다.
 확장자 분모는 @로 분리한 유효 파일명 token 수다. URL / 이름 pairing과 Primary Notice 역할은 가설로 유지한다.
 Run Artifact는 pages / 실패 / next action과 품질 JSON을 저장한다. 실패 시 기존 Raw를 보존하고 재요청은 새 승인·run-id로 수행한다.
-`analyze`는 Run / Raw checksum을 검증해 동일 지표와 tracked Markdown Report를 HTTP 없이 재현한다.
+`analyze`는 Run / Raw checksum을 검증해 동일 지표와 Generated Markdown Report를 HTTP 없이 재현한다.
 [품질 계약](../../contracts/schemas/phase0-api-quality.contract.json)은 full Gate 계약을 대체하지 않으며 gate_decision=pending을 유지한다.
 
 ## 승인된 Document Download Gate
@@ -78,9 +78,22 @@ SUCCESS는 완전한 non-empty HTTP 2xx body의 식별 가능한 형식이 filen
 Checkpoint는 시작·10개 결과 확정마다·실패·중단·최종 Report용 집계 확정에 순번을 늘려 기록한다.
 completed_count=SUCCESS, processed_count=SUCCESS+실패, remaining_count=100-processed_count다.
 다운로드 종료 Checkpoint의 completed는 원본·결과가 확정됐다는 뜻이며 전체 Task Validation / Gate 승인이 아니다.
-Task 종료는 해석 Report·최종 Git index·check-all·AGY/Human Review로 별도 확인한다.
+Task 종료는 Control/Input index·check-all의 exit 확인 후 Generated 해석 Report·AGY/Human Review로 기록한다.
 
-`analyze --run-id <id> --output harness/workspace/reports/<report>.md`는 HTTP 없이 source·파일 checksum을 검증해 동일 지표를 재현한다.
+`analyze --run-id <id> --output harness/workspace/reports/codex/<report>.md`는 HTTP 없이 source·파일 checksum을 검증해 동일 지표를 재현한다.
 기본 분모는 Target 100이며 size / format / hash처럼 실제 body가 필요한 지표는 별도 측정 분모를 명시한다.
 Supplementary는 @ token count만 비교한다. 의미상 pairing·Primary 본공고 의미·장기 URL 안정성은 미확정이다.
 [Download 계약](../../contracts/schemas/phase0-document-download.contract.json)의 제한은 로컬 설정이며 pending-only Gate를 유지한다.
+
+## Phase 1A Structured Data Pipeline Pilot
+
+사용자 승인으로 [제품 코드](../../data-pipeline/README.md)의 Source Model → Normalizer → Repository 경계를 구현한다.
+기존 api-quality-dev-20260928-01의 manifest / 5개 Raw checksum을 고정해 동일 100건만 읽는다.
+새 API 조회 없이 dev MySQL에 적재하고 동일 표본 재실행을 검증한다.
+공통 [Flyway](../../migrations/README.md)가 schema owner이며 Python은 DDL을 만들지 않는다.
+원본 JSON / HTML / URL / @ 파일명 / 기간은 그대로 보존하고 안전한 날짜만 파생한다.
+canonical source fingerprint는 DB lifecycle을 포함하지 않는다. 동일 원본은 content NOOP / last_seen 갱신이다.
+SAMPLE/PARTIAL의 미관측은 삭제 근거가 아니다. FULL 완전성 검사·run 성공·DB lock을 모두 통과해야 soft-delete한다.
+복원은 관측 근거로 SAMPLE에서도 가능하며 source_active는 접수 상태를 뜻하지 않는다.
+FULL은 controlled test만 실행한다. 운영 접근·증분 parameter·본문 Parser·Document 제품화·AI는 미구현이다.
+[품질 계약](../../contracts/schemas/structured-data-quality.contract.json)은 적재 품질과 completeness를 기록하며 GO/DROP을 판단하지 않는다.

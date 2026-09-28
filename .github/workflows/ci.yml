@@ -7,11 +7,23 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    # CI의 임시 test DB 전용 합성값이며 사용자 Secret과 운영 Credential을 사용하지 않는다.
+    env:
+      MYSQL_HOST: "127.0.0.1"
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: biz_aid_dev
+      MYSQL_USER: biz_aid
+      MYSQL_PASSWORD: ci-only-synthetic-password
+      MYSQL_ROOT_PASSWORD: ci-only-synthetic-root
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install structured pipeline dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r data-pipeline/requirements.txt
       - name: Check current environment
         run: ./scripts/setup.sh
       - name: Validate current scope

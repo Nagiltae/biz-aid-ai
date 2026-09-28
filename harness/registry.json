@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "phase": "phase0-preparation",
+  "phase": "phase1a-structured-pilot",
   "agy_review": "review_complete",
   "branches": {
     "development": "dev",
@@ -8,14 +8,14 @@
     "deployment": "op"
   },
   "compose_services": [
-    "phase0"
+    "phase0",
+    "mysql",
+    "flyway"
   ],
   "unimplemented_modules": [
     "frontend",
     "backend",
-    "ai",
-    "data-pipeline",
-    "migrations"
+    "ai"
   ],
   "rules": [
     "harness/rules/ai-boundary-rules.md",
@@ -50,6 +50,22 @@
     "scripts/setup.sh"
   ],
   "execution_files": [
+    "data-pipeline/src/biz_aid_pipeline/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/bizinfo/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/bizinfo/client.py",
+    "data-pipeline/src/biz_aid_pipeline/bizinfo/models.py",
+    "data-pipeline/src/biz_aid_pipeline/cli.py",
+    "data-pipeline/src/biz_aid_pipeline/config/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/config/settings.py",
+    "data-pipeline/src/biz_aid_pipeline/ingestion/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/ingestion/normalizer.py",
+    "data-pipeline/src/biz_aid_pipeline/ingestion/sample.py",
+    "data-pipeline/src/biz_aid_pipeline/ingestion/service.py",
+    "data-pipeline/src/biz_aid_pipeline/persistence/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/persistence/mysql_repository.py",
+    "data-pipeline/src/biz_aid_pipeline/quality/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/quality/structured_data_gate.py",
+    "infra/dev_mysql.py",
     "scripts/bizinfo_probe.py",
     "scripts/check-all.sh",
     "scripts/check-comments.sh",
@@ -63,21 +79,26 @@
     "scripts/phase0.py",
     "scripts/phase0_api_quality.py",
     "scripts/phase0_document_download.py",
+    "scripts/run_structured_ingestion.py",
     "scripts/setup.sh",
     "tests/contract/test_bizinfo_probe.py",
     "tests/contract/test_harness_policy.py",
     "tests/contract/test_phase0.py",
     "tests/contract/test_phase0_api_quality.py",
     "tests/contract/test_phase0_document_download.py",
+    "tests/contract/test_structured_pipeline.py",
     "tests/integration/test_bizinfo_probe_cli.py",
     "tests/integration/test_phase0_api_quality_cli.py",
     "tests/integration/test_phase0_cli.py",
-    "tests/integration/test_phase0_document_download_cli.py"
+    "tests/integration/test_phase0_document_download_cli.py",
+    "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/2026-09-28-codex-document-download-gate-report.md",
+  "report": "harness/workspace/reports/codex/2026-09-28-workspace-output-cleanup.md",
   "dynamic_paths": [
-    "harness/workspace/reports/*.md",
-    "harness/workspace/checkpoints/*.md"
+    "harness/workspace/reports/**/*.md",
+    "harness/workspace/checkpoints/**/*.md",
+    "harness/workspace/artifacts/**/*.json",
+    "harness/workspace/artifacts/**/*.log"
   ],
   "required_files": [
     ".env.example",
@@ -95,6 +116,24 @@
     "contracts/schemas/phase0-document-download.contract.json",
     "contracts/schemas/phase0-report.contract.json",
     "contracts/schemas/raw-snapshot.contract.json",
+    "contracts/schemas/structured-data-quality.contract.json",
+    "data-pipeline/README.md",
+    "data-pipeline/requirements.txt",
+    "data-pipeline/src/biz_aid_pipeline/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/bizinfo/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/bizinfo/client.py",
+    "data-pipeline/src/biz_aid_pipeline/bizinfo/models.py",
+    "data-pipeline/src/biz_aid_pipeline/cli.py",
+    "data-pipeline/src/biz_aid_pipeline/config/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/config/settings.py",
+    "data-pipeline/src/biz_aid_pipeline/ingestion/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/ingestion/normalizer.py",
+    "data-pipeline/src/biz_aid_pipeline/ingestion/sample.py",
+    "data-pipeline/src/biz_aid_pipeline/ingestion/service.py",
+    "data-pipeline/src/biz_aid_pipeline/persistence/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/persistence/mysql_repository.py",
+    "data-pipeline/src/biz_aid_pipeline/quality/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/quality/structured_data_gate.py",
     "data/downloaded/README.md",
     "data/failed/README.md",
     "data/parsed/README.md",
@@ -134,6 +173,11 @@
     "harness/workspace/checkpoints/README.md",
     "harness/workspace/current-task.md",
     "infra/README.md",
+    "infra/dev_mysql.py",
+    "infra/mysql/init-dev.sql",
+    "migrations/README.md",
+    "migrations/V1__structured_support_programs.sql",
+    "migrations/V2__add_database_comments.sql",
     "scripts/bizinfo_probe.py",
     "scripts/check-all.sh",
     "scripts/check-comments.sh",
@@ -147,6 +191,7 @@
     "scripts/phase0.py",
     "scripts/phase0_api_quality.py",
     "scripts/phase0_document_download.py",
+    "scripts/run_structured_ingestion.py",
     "scripts/setup.sh",
     "tests/README.md",
     "tests/contract/test_bizinfo_probe.py",
@@ -154,11 +199,32 @@
     "tests/contract/test_phase0.py",
     "tests/contract/test_phase0_api_quality.py",
     "tests/contract/test_phase0_document_download.py",
+    "tests/contract/test_structured_pipeline.py",
     "tests/fixtures/external-api/bizinfo-user-sample.json",
     "tests/integration/test_bizinfo_probe_cli.py",
     "tests/integration/test_phase0_api_quality_cli.py",
     "tests/integration/test_phase0_cli.py",
-    "tests/integration/test_phase0_document_download_cli.py"
+    "tests/integration/test_phase0_document_download_cli.py",
+    "tests/integration/test_structured_mysql.py"
   ],
-  "agy_review_evidence": "harness/workspace/reports/agy-harness-fix-review.md"
+  "agy_review_evidence": "harness/workspace/reports/agy/agy-harness-fix-review.md",
+  "workspace_static_files": {
+    "STATIC_CONTROL": [
+      "harness/workspace/current-task.md"
+    ],
+    "STATIC_DOCUMENTATION": [
+      "harness/workspace/artifacts/README.md",
+      "harness/workspace/checkpoints/README.md"
+    ]
+  },
+  "producer_output_paths": {
+    "codex": {
+      "reports": "harness/workspace/reports/codex/",
+      "artifacts": "harness/workspace/artifacts/codex/<task-id>/"
+    },
+    "agy": {
+      "reports": "harness/workspace/reports/agy/",
+      "artifacts": "harness/workspace/artifacts/agy/<review-id>/"
+    }
+  }
 }

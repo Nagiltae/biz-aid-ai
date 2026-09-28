@@ -10,7 +10,7 @@
 tests/fixtures/external-api/bizinfo-user-sample.json에 Contract Evidence로 추적한다.
 이 예외는 임의 Live 응답·첨부·개인정보의 Git 추가를 허용하지 않는다.
 증거는 credential 없는 상대 경로·checksum·수집 run-id로 연결한다.
-Raw metadata / 필요 JSON의 MySQL JSON column 관리는 향후 계획이다.
+Phase 1A는 source_payload JSON에 실제 source field를 보존한다. Raw snapshot metadata 전용 DB 모델은 향후 계획이다.
 실제 upstream 응답을 확인하지 않고 필수 field나 envelope를 확정하지 않는다.
 
 Local Probe는 Git Branch와 별개인 --profile dev / prod를 명시한다. 선택한 Secret 파일만 읽고 fallback하지 않는다.
@@ -23,5 +23,5 @@ Local Probe는 Git Branch와 별개인 --profile dev / prod를 명시한다. 선
 
 승인된 Document Download Gate는 기존 api-quality-dev-20260928-01의 동일 100개 printFlpthNm만 순차 요청한다.
 Supplementary는 token 수만 측정하고 원본은 다운로드하지 않는다. dev key는 반사 검출만 수행하며 문서 요청에 전달하지 않는다.
-data/downloaded 원본·manifest·metadata/checksum은 Git에서 제외하고 최종 해석 Report / Checkpoint만 추적한다.
+data/downloaded 원본·manifest·metadata/checksum은 Git에서 제외하고 최종 해석 Report / Checkpoint는 non-gating Generated Output으로 보존하며 Git 추적을 요구하지 않는다.
 재개는 검증된 확정 결과를 건너뛰며 실패 자동 재시도·원본 overwrite·본문 Parsing을 포함하지 않는다.

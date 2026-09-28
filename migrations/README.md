@@ -1,0 +1,19 @@
+# 공통 DB migration
+
+Schema owner는 이 디렉터리의 **Flyway**다. Python은 DDL을 생성하지 않는다.
+Phase 1A 이전에 backend와 migration 구현이 없었으므로 사용자 승인으로 공통 owner를 정했다.
+향후 Spring Boot도 이 migration 계보를 사용한다. Alembic 등 별도 체계를 만들지 않는다.
+
+`V1__structured_support_programs.sql`은 `support_programs`와 실행 이력을 생성한다.
+적용된 migration은 수정하지 않고 새로운 버전으로 변경한다. Flyway `validate`로 checksum을 확인한다.
+`infra/mysql/init-dev.sql`은 최초 test DB만 준비한다. `infra/dev_mysql.py`가 선택된 기존 사용자에 test DB 권한을 부여하며 application schema를 관리하지 않는다.
+
+원본 JSON은 key 누락/null/빈 문자열/unknown field를 보존한다. 날짜 파생값과 UTC lifecycle은 별도다.
+`pblanc_id`는 ASCII binary unique key다. 물리 삭제 대신 source presence를 기록한다.
+개발용 `biz_aid_test`는 fixture 검증 DB이고 `biz_aid_dev`의 Pilot 데이터를 변경하지 않는다.
+
+`V2__add_database_comments.sql`은 기존 2개 application Table / 42개 Column의 한국어 COMMENT만 추가한다.
+실제 column 정의를 보존하며 Flyway 내부 테이블은 변경하지 않는다.
+모든 신규 Table / Column은 [DB COMMENT 규칙](../harness/rules/database-rules.md)을 적용한다.
+적용된 migration에서 설명 누락을 발견해도 수정하지 않고 다음 버전으로 보완한다.
+check-integration / check-all의 실제 information_schema 검사와 V1→V2 fixture schema 비교로 검증한다.

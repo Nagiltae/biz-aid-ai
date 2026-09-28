@@ -15,5 +15,15 @@ __pycache__/
 !/data/parsed/README.md
 /data/failed/*
 !/data/failed/README.md
-/harness/workspace/artifacts/*.json
-/harness/workspace/artifacts/*.log
+# 새 Agent 산출물과 역사적인 generated 경로만 제외한다. static anchor·코드는 숨기지 않는다.
+/harness/workspace/reports/codex/**/*.md
+/harness/workspace/reports/agy/**/*.md
+/harness/workspace/reports/**/*.md
+/harness/workspace/checkpoints/**/*.md
+!/harness/workspace/checkpoints/README.md
+/harness/workspace/artifacts/**/*.json
+/harness/workspace/artifacts/**/*.log
+/harness/workspace/artifacts/codex/**/*.json
+/harness/workspace/artifacts/codex/**/*.log
+/harness/workspace/artifacts/agy/**/*.json
+/harness/workspace/artifacts/agy/**/*.log

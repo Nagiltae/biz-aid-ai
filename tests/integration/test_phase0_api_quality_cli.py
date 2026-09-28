@@ -34,7 +34,7 @@ class ApiQualityCliTests(unittest.TestCase):
         run = json.loads(result.stdout)["run"]
         self.assertEqual(run["collection_status"], "NOT_RUN")
         self.assertEqual(run["http_requests_attempted"], 0)
-        artifact = self.root / "harness/workspace/artifacts/bizinfo-quality-no-key.json"
+        artifact = self.root / "harness/workspace/artifacts/codex/phase0-api-quality/bizinfo-quality-no-key.json"
         metrics = json.loads(artifact.read_text(encoding="utf-8"))["metrics"]
         self.assertEqual(metrics["fields"]["pblancId"]["status"], "UNMEASURED")
         self.assertIsNone(metrics["fields"]["pblancId"]["counts"]["VALID"])
@@ -51,11 +51,11 @@ class ApiQualityCliTests(unittest.TestCase):
 
     def test_offline_analysis_reproduces_metrics_and_refuses_overwrite(self):
         self.cli("collect", "--profile", "dev", "--run-id", "offline")
-        destination = "harness/workspace/artifacts/reproduced.json"
+        destination = "harness/workspace/artifacts/codex/phase0-api-quality/reproduced.json"
         args = ("analyze", "--run-id", "offline", "--output", destination)
         result = self.cli(*args)
         self.assertEqual(result.returncode, 0, result.stderr)
-        expected = json.loads((self.root / "harness/workspace/artifacts/bizinfo-quality-offline.json").read_text())
+        expected = json.loads((self.root / "harness/workspace/artifacts/codex/phase0-api-quality/bizinfo-quality-offline.json").read_text())
         self.assertEqual(json.loads((self.root / destination).read_text()), expected)
         before = (self.root / destination).read_bytes()
         self.assertEqual(self.cli(*args).returncode, 1)
@@ -63,13 +63,17 @@ class ApiQualityCliTests(unittest.TestCase):
 
     def test_markdown_report_and_output_boundary_without_network(self):
         self.cli("collect", "--profile", "dev", "--run-id", "report")
-        (self.root / "harness/workspace/reports").mkdir()
-        destination = "harness/workspace/reports/offline-report.md"
+        (self.root / "harness/workspace/reports/codex").mkdir(parents=True)
+        destination = "harness/workspace/reports/codex/offline-report.md"
         result = self.cli("analyze", "--run-id", "report", "--output", destination, "--markdown")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("UNMEASURED", (self.root / destination).read_text())
         self.assertEqual(self.cli("analyze", "--run-id", "report", "--output", "outside.json").returncode, 1)
         self.assertFalse((self.root / "outside.json").exists())
+        for wrong in ("harness/workspace/reports/agy/review.md", "harness/workspace/reports/root-report.md"):
+            result = self.cli("analyze", "--run-id", "report", "--output", wrong, "--markdown")
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertFalse((self.root / wrong).exists())
 
     def test_help_needs_no_secret_or_http(self):
         self.assertEqual(self.cli("--help").returncode, 0)

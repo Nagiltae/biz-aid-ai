@@ -209,7 +209,7 @@ class ApiQualityTests(unittest.TestCase):
             with redirect_stdout(stdout), redirect_stderr(stderr):
                 code = quality.main(["collect", "--profile", "dev", "--run-id", "safe"], self.root, self.env)
         self.assertEqual(code, 0)
-        result = phase0.read_json(self.root / "harness/workspace/artifacts/bizinfo-quality-safe.json")
+        result = phase0.read_json(self.root / "harness/workspace/artifacts/codex/phase0-api-quality/bizinfo-quality-safe.json")
         for value in (stdout.getvalue()+stderr.getvalue(), json.dumps(result), quality.render(result)):
             self.assertNotIn(SYNTHETIC_KEY, value)
             self.assertNotIn(quote(SYNTHETIC_KEY, safe=""), value)

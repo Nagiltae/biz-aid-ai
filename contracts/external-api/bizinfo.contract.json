@@ -243,7 +243,7 @@
     "run_id": "bizinfo-dev-20260928-01",
     "profile": "dev",
     "http_request_count": 4,
-    "report": "harness/workspace/reports/2026-09-28-codex-bizinfo-profile-live-probe-report.md",
+    "report": "harness/workspace/reports/codex/2026-09-28-codex-bizinfo-profile-live-probe-report.md",
     "raw_evidence": [
       {
         "name": "page1",
@@ -301,6 +301,6 @@
     ],
     "creatPnttm_ordering": "observed_descending",
     "ordering_guarantee": "UNCONFIRMED",
-    "evidence_report": "harness/workspace/reports/2026-09-28-phase0-api-data-quality-report.md"
+    "evidence_report": "harness/workspace/reports/codex/2026-09-28-phase0-api-data-quality-report.md"
   }
 }

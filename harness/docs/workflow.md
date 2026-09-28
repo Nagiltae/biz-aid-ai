@@ -4,40 +4,66 @@
 2. Registry에서 필요한 Context / Rules / Skills를 읽는다.
 3. 충돌·큰 기술 변경·규칙 완화는 구현 전에 보고한다.
 4. dev에서 허용된 변경을 작성하고 관련 Unit / Contract / Integration을 검증한다.
-5. check-all 결과와 실패 원인을 External Memory에 기록한다.
-6. 실행 결과를 확인하고 Codex Final Report를 작성한다.
-7. 신규 파일과 이번 Task에서 수정한 파일을 명시적 경로로 Git index에 반영하고 최종 check-all과 Git 상태를 확인한다.
-   기존의 관련 없는 사용자 변경은 stage하거나 되돌리지 않는다.
-8. AGY가 별도 Reviewer Report를 작성한다. Codex가 대신 승인하지 않는다.
+5. 신규·수정 Control/Input 자산만 명시적 경로로 Git index에 반영한다. 관련 없는 사용자 변경은 보존한다.
+6. 최종 check-all의 exit result와 Git 상태를 확인한다. 실패는 이후 생성물로 덮어 성공 처리하지 않는다.
+7. 실제 결과를 Generated Report / Artifact에 기록한다. 생성물 작성·갱신 때문에 검증을 다시 실행하지 않는다.
+8. AGY가 독립 검토하고 별도 Generated Review Report를 작성한다. Codex가 대신 승인하지 않는다.
 9. 사용자가 Git Diff / Report를 확인한 뒤 다음 Task·Push·main / op 승격을 결정한다.
 
 CI는 dev Push에 현재 적용 검증을 실행한다. 원격 실행 여부는 로컬 실행과 구분한다.
 현재 운영 배포 workflow는 없다. 미래 자동 배포 trigger는 op Merge로 유지한다.
 
-## Static Harness / Dynamic Workspace / Artifact
+## Workspace Control/Input / Generated Output
 
-- `required_files`는 정적 규칙·계약·실행 구조와 current-task, 기존 Workspace README의 개별 필수 목록이다.
-  이 영역의 새 파일·누락은 기존처럼 Registry Drift로 실패한다.
-- `dynamic_paths`는 `harness/workspace/reports/*.md`, `harness/workspace/checkpoints/*.md`다.
-  바로 아래 Markdown 일반 파일만 허용하며 symlink·실행 권한·하위 디렉터리·실행 코드는 금지한다.
-  Git 추적과 ignore 금지를 check-harness / check-git-tracked에서 확인한다.
-  개별 Report·Checkpoint를 required_files에 추가하지 않는다. 기존 고정 README는 required_files에 유지한다.
-- artifacts의 재생성 log / JSON과 data 원문은 기존 ignore 정책을 따른다.
-  코드·규칙·최종 해석 Markdown Report를 Artifact 영역에 숨기지 않는다.
+실제 Inventory의 고정 입력은 current-task 1개와 artifacts/README.md, checkpoints/README.md 두 문서다.
+Registry.workspace_static_files는 이 anchor의 역할을 선언하고 required_files는 개별 strict 구조를 관리한다.
 
-일반 Report의 안전한 존재는 Trusted Review Evidence 승인이 아니다.
-특정 Report를 실제 Lifecycle Evidence로 쓸 때만 사용자 확인된 ACCEPTED_AGY_REVIEWS 기준과
-원문 checksum·검토 대상 checksum·관계·판정을 검증한다. 파일 추가만으로 Review 상태를 바꾸지 않는다.
+| 분류 | 현재 경계 | Validation / Git |
+| --- | --- | --- |
+| STATIC_CONTROL | harness/workspace/current-task.md | format·tracking·link/scope·Registry strict |
+| STATIC_DOCUMENTATION | artifacts/README.md, checkpoints/README.md | format·tracking·links·Registry strict |
+| GENERATED_REPORT | reports/**/*.md | non-gating, 신규 파일 ignore |
+| GENERATED_CHECKPOINT | checkpoints/**/*.md 중 고정 README 제외 | non-gating, 신규 파일 ignore |
+| GENERATED_ARTIFACT | artifacts/**/*.json / **/*.log, OS .DS_Store | non-gating, ignore |
+
+생성물의 존재·부재·format·trailing whitespace·untracked·ignored·unstaged·index 미등록은
+제품 Validation의 PASS/FAIL에 영향을 주지 않는다. 검증 명령 자체의 실패 exit는 그대로 실패다.
+기존 committed Report / Checkpoint는 삭제·강제 untrack·history rewrite하지 않는다.
+HEAD에 없는 staged 생성물은 사용자 승인 범위에서 index만 제거하고 로컬 원문을 보존한다.
+새 산출물은 Git 추적을 요구하지 않으며 공유·보존은 사용자 관리 작업이다.
+
+workspace 전체를 제외하지 않는다. .py/.sh/SQL/설정 등 코드와 미분류 입력은 생성물로 인정하지 않으며
+제품·Rule·Skill·CI·정적 문서를 ignore로 숨기면 실패한다. 정적 template / 새 입력을 도입하면 anchor와 Registry를 명시한다.
+생성물 symlink·실행 권한·내용은 build에서 따라가거나 실행하지 않는다. 신뢰 근거로 쓸 때는 별도 안전·무결성 확인이 필요하다.
+
+### Producer별 보관
+
+Codex Report는 reports/codex/, AGY Review는 reports/agy/에 작성한다.
+Artifact는 artifacts/codex/<task-id>/ 또는 artifacts/agy/<review-id>/에 묶고 로그는 작업별 logs/에 둔다.
+Agent는 다른 Producer 경로에 새 산출물을 만들지 않는다. 안정적인 Task 이름과 실행별 run-id를 구분한다.
+Registry.producer_output_paths와 Agent 지침은 정적 계약으로 검증하며 출력 디렉터리·파일의 존재는 요구하지 않는다.
+역사적인 root 경로도 기존 Generated 분류를 유지하지만 새 산출물의 기본 위치로 사용하지 않는다.
+
+보관 정리는 Inventory / Reference Graph → KEEP·MOVE·DELETE·UNCLASSIFIED 판정 → 명시적 파일 목록으로 수행한다.
+Final Report·Review·Validation·Preservation·accepted evidence·live 참조는 보존한다.
+참조 없는 중간 산출물만 Final Evidence로 완전히 대체됐고 Phase audit에 필요하지 않을 때 삭제한다.
+producer를 확인할 수 없는 파일은 보존하고 사용자 판단을 받는다. checkpoints는 별도 run/resume 영역이다.
+tracked historical Report는 git mv, ignored 파일은 filesystem move로 원문을 그대로 옮긴다.
+static 참조와 accepted mapping의 경로만 갱신하며 checksum·verdict·승인 상태는 바꾸지 않는다.
+과거 Generated Report 내부 링크는 수정하지 않고 cleanup manifest의 old/new relocation mapping으로 해석한다.
+cleanup manifest / reference graph는 artifacts/codex/workspace-output-cleanup/의 non-gating 산출물이다.
 
 ## 최종 Validation 순서
 
-작업 → Test / Validation → 결과 확인 → Final Report → 최종 Git index 구성 → check-all PASS → 추적 파일 변경 금지.
-최종 실행 전 format / lint / contract / integration / comments / harness / git-tracked를 각각 실행한다.
-이후 git status, git diff --cached --stat, git diff --cached --check,
-git ls-files --others --exclude-standard로 최종 상태를 확인한다.
-최종 Validation 이후 추적 파일이나 새 프로젝트 파일이 바뀌면 기존 결과는 Final 결과가 아니다.
-Git 상태를 다시 구성하고 최종 Validation을 재실행한다. Report는 최종 실행 전 작성하며,
-작성 시점에 실제 실행한 결과와 이후 최종 실행 절차를 구분한다. 동결 후 결과는 ignored 실행 로그와 최종 응답으로 전달한다.
+작업 → Control/Input·Git index 확정 → Test / 최종 check-all → 실제 exit 결과 확인 → Generated Report / Artifact → AGY / 사용자 검토.
+최종 실행에는 format / lint / contract / integration / comments / harness / git-tracked를 각각 실행한다.
+git status, git diff --cached --stat와 입력 자산의 Git whitespace / untracked 경계를 확인한다.
+원시 git diff --check는 역사적인 Generated Report 공백을 표시할 수 있으므로 그 전체 결과를 build 승인으로 사용하지 않는다.
+check-format이 생성물을 제외한 입력 자산의 Git diff를 검사한다.
+
+최종 Validation 이후 **Control/Input**이 바뀌면 결과를 최종 근거로 재사용하지 않고 검증을 다시 실행한다.
+Generated Output만 작성·갱신됐으면 기존 제품 검증 결과는 유효하다. Report를 고치기 위한 재검증 순환을 만들지 않는다.
+Report에는 실제 실행 결과를 쓰며 미래 실행이나 Mock을 실제 PASS / Live Evidence로 기록하지 않는다.
 
 ## current-task 상태 전환
 
@@ -47,12 +73,12 @@ Git 상태를 다시 구성하고 최종 Validation을 재실행한다. Report�
 | --- | --- |
 | 새 Task 승인 / 시작 | 이전 current-task 내용과 완료·미완료 항목을 Report에 보존한 뒤 목표·범위·Acceptance·Read First·Validation·Expected Report로 교체 |
 | 작업 진행 | current-task의 진행 상태를 갱신하고 장시간 작업은 [Checkpoint 규칙](../workspace/checkpoints/README.md)에 따라 기록 |
-| 작업 종료 | Final Report에 변경 목록·실행 결과·남은 문제를 기록하고 current-task를 검토 대기 상태로 유지 |
+| 작업 종료 | current-task를 검토 대기 상태로 확정하고 검증한 뒤 Generated Report에 결과 기록. 생성물만 추가되면 재검증 없음 |
 | 다음 Task 승인 | 이전 Final Report·Review·최신 checkpoint를 링크하고 Registry의 report를 새 Task 보고서로 교체 |
 
 Codex가 작업 구현 상태를 갱신할 수 있으나 Human Review 승인·다음 Task 승인·AGY 판정을 만들 수 없다.
 Expected Report는 [Final Report]라는 label의 로컬 Markdown 링크 하나로 지정하고 Registry.report와 일치시킨다.
-check-harness는 이 연결을 검사해 과거 Report를 현재 Task의 Review 대상으로 잘못 사용하는 것을 막는다.
+check-harness는 이 참조의 경로와 Registry 일치를 검사한다. Report 파일의 존재·내용·추적 상태를 요구하지 않는다.
 진행 중 Session 교체는 current-task와 최신 checkpoint에서 재개한다.
 Task 전환은 현재 사용자의 요청과 저장된 Report로 확인하며 Agent 내부 Memory만으로 결정하지 않는다.
 Task 교체 전 상태는 해당 새 Task의 Final Report에 보존한다.
@@ -74,12 +100,14 @@ Review 완료는 승인 판정이 아니다. PASS / PASS WITH FIXES / FAIL은 �
 AGY / 사용자가 판정과 완료를 결정한다. Codex는 명시된 독립 Evidence에 맞는 상태 동기화만 수행한다.
 Codex 작업 Report나 Reviewer / COMPLETE 문구만으로 상태를 전환하지 않는다.
 
-현재 사용자가 제공·확인한 [Initial Review](../workspace/reports/agy-initial-harness-review.md)와
-[Targeted Re-review](../workspace/reports/agy-harness-fix-review.md)를
+현재 사용자가 제공·확인한 [Initial Review](../workspace/reports/agy/agy-initial-harness-review.md)와
+[Targeted Re-review](../workspace/reports/agy/agy-harness-fix-review.md)를
 `scripts/lib/validate.py`의 ACCEPTED_AGY_REVIEWS에 원문 SHA-256·검토 대상 Report SHA-256·결과로 고정했다.
-check-harness는 Evidence 경로가 그 기준에 있는지, 원문과 검토 대상이 안전한 Git 추적 Dynamic Workspace 파일인지,
-symlink가 아닌지, byte가 기준과 일치하는지를 검사한다.
-Registry 값이나 자기 Report의 hash만 변경해서는 통과할 수 없다.
+check-harness는 lifecycle 상태·사용자 확인된 Evidence 참조를 제어 입력으로 검증한다.
+자기 Report나 미승인 Evidence 경로로 review_complete를 선언하면 실패한다.
+원문 / 검토 대상의 존재·symlink·byte checksum은 별도의 **non-gating integrity 상태**로 표시한다.
+VERIFIED / UNAVAILABLE / MISMATCH / UNSAFE를 구분하며 미검증 근거로 현재 Review를 complete 처리하지 않는다.
+checksum 불일치나 Report format/Git 상태는 제품 build를 실패시키지 않으며, 사람의 Review 승인을 대신하지도 않는다.
 새 증거 기준은 사용자 승인 Task에서만 추가하며 Codex가 Review 원문을 작성·편집해 등록하지 않는다.
 
 Hash는 원문 무결성을 확인하며 저자의 신원을 서명으로 인증하지는 않는다.

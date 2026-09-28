@@ -78,9 +78,10 @@ status: blocked
 5. resume_command의 존재·권한·재실행 안전성을 확인하고 next_action 범위 안에서만 재개한다.
 6. 재개 결과를 새 checkpoint에 기록한다. 증거가 불일치하면 멈추고 이유를 Report에 남긴다.
 
-완료 checkpoint도 삭제하지 않는다. 프로젝트 기록은 Git에 추적하고 payload·credential은 제외한다.
-새 checkpoint는 Dynamic Workspace 경로 규칙으로 검증하며 Registry.required_files에 개별 등록하지 않는다.
-바로 아래 Markdown 일반 파일을 Git 추적한다. ignore·symlink·실행 코드·하위 디렉터리는 금지한다.
+완료 checkpoint도 보존하며 payload·credential은 기록하지 않는다.
+이 README는 STATIC_DOCUMENTATION으로 strict 검증한다. run-specific Markdown은 GENERATED_CHECKPOINT다.
+새 checkpoint는 ignore 가능하며 tracking·format·존재·Git 상태는 build 조건이 아니다. required_files 개별 등록도 하지 않는다.
+하위 run 디렉터리 기록도 생성물이다. build는 생성물 내용을 읽거나 실행하지 않으며 실제 Resume는 명시적 실행에서 무결성을 확인한다.
 
 ## Document Download Gate 적용
 

@@ -321,7 +321,7 @@ def run_probe(root, profile, identifier, mode, environ, fetch=None):
                  for name, value in (("known_id", spec["known_id"]), ("presumed_missing_id", spec["presumed_missing_id"]))]
     if not plan or len(plan) > spec["request_limit"]:
         raise ProbeError("unsupported_probe_plan")
-    output = root / f"harness/workspace/artifacts/bizinfo-probe-{identifier}.json"
+    output = root / f"harness/workspace/artifacts/codex/bizinfo-probe/bizinfo-probe-{identifier}.json"
     if output.exists() or output.is_symlink():
         raise ProbeError("output_exists")
     if output.parent.resolve() != output.parent:

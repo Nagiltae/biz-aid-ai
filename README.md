@@ -4,23 +4,23 @@
 최상위 설계는 [PROJECT_DESIGN.md](PROJECT_DESIGN.md), 작업 진입점은 [AGENTS.md](AGENTS.md)다.
 
 현재는 **Phase 0 준비**다. API 100건 품질 표본을 보존하고 승인된 Document Download Gate를 수행한다. GO / DROP은 대기 중이다.
-제품 서비스, DB, 문서 Parser, RAG는 구현되지 않았다.
+제품 데이터 Pipeline과 dev MySQL은 구현됐다. 제품 서비스 API, 문서 Parser, RAG는 미구현이다.
 
 ## 현재 실행 환경
 
 Bash, Git, Python 3.11 이상, Docker Compose v2 이상이 필요하다.
-Python 도구는 표준 라이브러리만 사용한다. 로컬 파일 도구·CI에는 필수 환경변수가 없다.
+Phase 0 도구는 표준 라이브러리를 사용하며 Phase 1A는 `.venv`의 제품 dependency가 필요하다. dev DB 설정은 [Infra](infra/README.md)를 따른다.
 
 ```bash
 ./scripts/setup.sh
 ./scripts/check-all.sh
-docker compose run --rm phase0 --help
-docker compose run --rm phase0 init-report --output /artifacts/phase0-report.json
+docker compose --env-file .env.dev run --rm phase0 --help
+docker compose --env-file .env.dev run --rm phase0 init-report --output /artifacts/phase0-report.json
 ```
 
-Compose에는 실제 파일 보존·보고서 도구인 `phase0` Batch만 있다.
+Compose에는 파일 보존 도구 `phase0`와 dev-db Profile의 MySQL / Flyway가 있다.
 Batch 실행에는 Docker daemon 및 최초 Python 이미지 다운로드가 필요하다.
-`docker compose up`으로 실행할 상시 서비스는 아직 없다.
+dev MySQL은 사용자 관리 `.env.dev`로 127.0.0.1:3306에서 실행한다. 준비는 `.venv/bin/python -B infra/dev_mysql.py`를 사용한다.
 setup은 CLI와 Compose 구성을 검사하며 daemon·네트워크 접근은 요구하지 않는다.
 
 이미 확보한 공식 API 응답을 원문 그대로 보존하는 예:
@@ -28,12 +28,12 @@ setup은 CLI와 Compose 구성을 검사하며 daemon·네트워크 접근은 �
 ```bash
 python3 scripts/phase0.py snapshot /path/to/response.json --run-id sample-001 --media-type application/json
 python3 scripts/phase0.py verify-snapshot data/raw/sample-001/metadata.json
-python3 scripts/phase0.py init-report --output harness/workspace/artifacts/phase0-report.json
-python3 scripts/phase0.py validate-report harness/workspace/artifacts/phase0-report.json
+python3 scripts/phase0.py init-report --output harness/workspace/artifacts/codex/phase0-report/phase0-report.json
+python3 scripts/phase0.py validate-report harness/workspace/artifacts/codex/phase0-report/phase0-report.json
 ```
 
 Compose에서 snapshot을 만들려면 입력을 `data/raw/inbox/`에 두고
-`docker compose run --rm phase0 snapshot /data/raw/inbox/response.json --run-id sample-001 --media-type application/json`
+`docker compose --env-file .env.dev run --rm phase0 snapshot /data/raw/inbox/response.json --run-id sample-001 --media-type application/json`
 을 실행한다. 동일 run-id나 출력 파일은 덮어쓰지 않는다.
 전체 Collector·Production Downloader·Parser는 없다. 승인된 문서 Gate 도구는 아래 범위로 제한한다. 도구가 보고서 생성만으로 Gate를 통과시키지 않는다.
 
@@ -53,12 +53,12 @@ CI는 오프라인 검증만 수행한다. Compose Batch는 network_mode=none을
 ## 검토
 
 `check-all.sh`는 현재 Harness 및 로컬 도구 범위만 검증한다.
-제품 API·DB·AI 검증은 출력과 [검증 정책](harness/docs/testing.md)에 미구현으로 표시한다.
+실제 MySQL Integration을 포함하며 제품 API·AI는 [검증 정책](harness/docs/testing.md)에 미구현으로 표시한다.
 생성 파일은 Git index에 추가한 뒤 `git diff --cached`로 검토한다.
-기반 구축 이력은 [최초 작업 보고서](harness/workspace/reports/2026-09-27-codex-harness-report.md),
-독립 결과는 [AGY Initial Review](harness/workspace/reports/agy-initial-harness-review.md),
-과거 보완은 [보완 보고서](harness/workspace/reports/2026-09-27-codex-harness-fix-report.md),
-그 독립 PASS는 [AGY Targeted Re-review](harness/workspace/reports/agy-harness-fix-review.md)에 기록한다.
+기반 구축 이력은 [최초 작업 보고서](harness/workspace/reports/codex/2026-09-27-codex-harness-report.md),
+독립 결과는 [AGY Initial Review](harness/workspace/reports/agy/agy-initial-harness-review.md),
+과거 보완은 [보완 보고서](harness/workspace/reports/codex/2026-09-27-codex-harness-fix-report.md),
+그 독립 PASS는 [AGY Targeted Re-review](harness/workspace/reports/agy/agy-harness-fix-review.md)에 기록한다.
 현재 Task의 독립 검토·사용자 판단은 대기 중이다.
 사용자가 Diff와 독립 Review를 확인한 뒤 다음 Task·Push·승격을 결정한다.
 
@@ -68,7 +68,7 @@ CI는 오프라인 검증만 수행한다. Compose Batch는 network_mode=none을
 
 ```bash
 python3 -B scripts/phase0_api_quality.py collect --profile dev --run-id api-quality-dev-unique
-python3 -B scripts/phase0_api_quality.py analyze --run-id api-quality-dev-unique --output harness/workspace/reports/api-quality-dev-unique.md --markdown
+python3 -B scripts/phase0_api_quality.py analyze --run-id api-quality-dev-unique --output harness/workspace/reports/codex/api-quality-dev-unique.md --markdown
 ```
 
 분석은 HTTP 없이 Raw checksum에서 재현된다. Raw와 실행 JSON은 ignored이며 해석 Report는 Git 추적한다.
@@ -81,8 +81,15 @@ python3 -B scripts/phase0_api_quality.py analyze --run-id api-quality-dev-unique
 ```bash
 python3 -B scripts/phase0_document_download.py download --profile dev --run-id <unique-id>
 python3 -B scripts/phase0_document_download.py download --profile dev --run-id <same-id> --resume
-python3 -B scripts/phase0_document_download.py analyze --run-id <id> --output harness/workspace/reports/<report>.md
+python3 -B scripts/phase0_document_download.py analyze --run-id <id> --output harness/workspace/reports/codex/<report>.md
 ```
 
 원본은 data/downloaded에서 checksum과 함께 보존하고 Git에서 제외한다.
 [Pipeline 경계](harness/docs/data-pipeline.md)에 크기·Redirect·형식 식별·재개 제한을 명시한다. 문서 본문 Parser는 없다.
+
+## 현재 Phase 1A Pilot
+
+사용자 승인으로 기존 동일 100건의 제품용 Normalize / dev MySQL 적재를 구현한다.
+[제품 Pipeline 실행 / 정책](data-pipeline/README.md), [dev DB 준비](infra/README.md),
+[공통 migration](migrations/README.md)을 따른다. 기존 Phase 0 Gate / 증거는 보존한다.
+실제 FULL / prod / 문서 Parsing / AI는 이번 범위 밖이다.

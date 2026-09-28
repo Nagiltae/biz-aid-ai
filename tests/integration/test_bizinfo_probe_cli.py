@@ -37,7 +37,7 @@ class BizinfoProbeCliTests(unittest.TestCase):
         self.assertEqual(payload["observations"], [])
         self.assertEqual(payload["reason"], "credential_missing")
         self.assertEqual(payload["profile"], "dev")
-        path = self.root / "harness/workspace/artifacts/bizinfo-probe-ci-no-credential.json"
+        path = self.root / "harness/workspace/artifacts/codex/bizinfo-probe/bizinfo-probe-ci-no-credential.json"
         self.assertEqual(json.loads(path.read_text(encoding="utf-8")), payload)
         self.assertFalse((self.root / "data/raw").exists())
 
