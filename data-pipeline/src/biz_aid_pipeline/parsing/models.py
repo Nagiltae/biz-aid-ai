@@ -1,8 +1,11 @@
 import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from importlib import metadata
+from pathlib import Path
 
 from docling_core.types.doc import DoclingDocument
 
@@ -61,6 +64,76 @@ def installed_version(package):
         return None
 
 
+def pipeline_config(contract):
+    config = dict(contract["routes"]["PDF"]["docling_options"])
+    # BOUNDARY: OCR baseline은 이번 Phase 범위 밖이므로 설정이 바뀌어도 OCR이 켜진 변환기를 만들지 않는다.
+    if config.get("do_ocr") is not False:
+        raise ValueError("pdf_ocr_must_be_disabled")
+    return config
+
+
+def pipeline_identity(contract):
+    revision = contract["routes"]["PDF"]["layout_model_revision"]
+    # RISK: Docling 기본 layout 모델 revision은 "main"이라 새 환경에서 다른 가중치를 받을 수 있으므로 commit hash만 허용한다.
+    if not re.fullmatch(r"[0-9a-f]{40}", revision):
+        raise ValueError("layout_model_revision_must_be_commit")
+    return {"docling_options": pipeline_config(contract), "layout_model_revision": revision,
+            "table_structure_options": dict(contract["routes"]["PDF"]["table_structure_options"])}
+
+
+def artifact_files(contract):
+    spec = contract["dependencies"]["docling"]["model_artifacts"]
+    return tuple((model["folder"], name) for model in spec["models"] for name in model["files"])
+
+
+def docling_artifacts_path(contract, environ=None):
+    # BOUNDARY: test·실행 중 모델 자동 다운로드를 막기 위해 미리 준비한 명시적 경로만 쓰고 없으면 변환 전에 멈춘다.
+    spec = contract["dependencies"]["docling"]["model_artifacts"]
+    value = (os.environ if environ is None else environ).get(spec["artifacts_path_env"], "").strip()
+    if not value:
+        raise PipelineError("docling_artifacts_path_required:" + spec["artifacts_path_env"])
+    path = Path(value).expanduser().resolve()
+    missing = [f"{folder}/{name}" for folder, name in artifact_files(contract) if not (path / folder / name).is_file()]
+    if missing:
+        raise PipelineError("docling_artifacts_missing:" + ",".join(missing))
+    return path
+
+
+@lru_cache(maxsize=4)
+def artifacts_manifest_sha256(path, files):
+    # 같은 tag라도 실제 가중치가 다르면 결과가 달라지므로 Contract가 지정한 파일의 경로와 내용 hash를 parser identity로 쓴다.
+    # 목록 밖 파일(README·다운로드 metadata)은 모델 입력이 아니므로 제공 방식이 달라도 identity가 같아야 한다.
+    digest = hashlib.sha256()
+    for folder, name in sorted(files):
+        with (Path(path) / folder / name).open("rb") as stream:
+            digest.update(f"{folder}/{name}\0{hashlib.file_digest(stream, 'sha256').hexdigest()}\n".encode())
+    return digest.hexdigest()
+
+
+def model_artifacts_sha256(contract, environ=None):
+    actual = artifacts_manifest_sha256(str(docling_artifacts_path(contract, environ)), artifact_files(contract))
+    # RISK: cache 복원·수동 복사된 artifact를 그대로 믿으면 다른 가중치로 같은 설정의 결과를 만들 수 있다.
+    if actual != contract["dependencies"]["docling"]["model_artifacts"]["expected_manifest_sha256"]:
+        raise PipelineError("docling_artifacts_identity_mismatch")
+    return actual
+
+
+def artifacts_cache_key(contract):
+    # 모델 identity만 key에 넣어 Contract의 무관한 문서 수정으로 대용량 cache가 무효화되지 않게 한다.
+    spec = contract["dependencies"]["docling"]["model_artifacts"]
+    identity = {"schema": spec["cache_key_schema"], "expected_manifest_sha256": spec["expected_manifest_sha256"],
+                "models": [{key: model[key] for key in ("repo_id", "folder", "resolved_snapshot", "files")}
+                           for model in spec["models"]]}
+    digest = hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    revisions = "-".join(model["resolved_snapshot"][:12] for model in spec["models"])
+    return f"docling-artifacts-v{spec['cache_key_schema']}-{revisions}-{digest[:16]}"
+
+
+def pipeline_config_sha256(contract):
+    return hashlib.sha256(json.dumps(pipeline_identity(contract), sort_keys=True,
+                                     separators=(",", ":")).encode()).hexdigest()
+
+
 def parse_key(source_sha256, route, contract, converter_version=None):
     # 부품 버전이 바뀐 route의 문서만 새 key를 받아 선택적으로 재처리되고 과거 결과는 덮어쓰지 않는다.
     versioning = contract["versioning"]
@@ -70,9 +143,21 @@ def parse_key(source_sha256, route, contract, converter_version=None):
         "adapter_version": versioning["adapter_version"],
         "normalizer_version": versioning["normalizer_version"],
         "docling_core_version": installed_version("docling-core"),
-        "docling_version": installed_version("docling") if route in ("DOCLING_PDF", "HWP_PDF_DOCLING") else None,
+        "docling_version": None,
+        "docling_parse_version": None,
+        "docling_ibm_models_version": None,
+        "pipeline_config_sha256": None,
+        "model_artifacts_sha256": None,
         "converter_version": converter_version,
     }
+    # HWP route의 Docling identity는 변환기 버전이 정해져 route가 활성화될 때 함께 채운다.
+    if route == "DOCLING_PDF" or (route == "HWP_PDF_DOCLING" and converter_version is not None):
+        # Docling 배포는 docling-slim이며 layout/table 모델 revision은 docling-slim과 docling-ibm-models 버전이 고정한다.
+        identity.update(docling_version=installed_version("docling-slim"),
+                        docling_parse_version=installed_version("docling-parse"),
+                        docling_ibm_models_version=installed_version("docling-ibm-models"),
+                        pipeline_config_sha256=pipeline_config_sha256(contract),
+                        model_artifacts_sha256=model_artifacts_sha256(contract))
     if sorted(identity) != sorted(versioning["parse_key_inputs"]):
         raise PipelineError("parse_key_contract_drift")
     return hashlib.sha256(json.dumps(identity, sort_keys=True, ensure_ascii=False,

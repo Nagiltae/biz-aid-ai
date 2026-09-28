@@ -57,6 +57,14 @@ parse_key는 source SHA·route·adapter/normalizer/docling-core/docling/converte
 같은 parse_key와 무결성이 재확인된 artifact만 재사용하고, 버전 변경은 해당 route 문서만 새 key로 재처리한다. 과거 결과는 덮어쓰지 않는다.
 parser 호출이 예외 없이 끝났다는 사실만으로 PARSED가 아니다. DoclingDocument 재적재와 text 양 Gate를 통과해야 한다.
 native text가 부족한 PDF는 OCR_REQUIRED로 분리한다. OCR 도입은 실제 분포 근거로 별도 Task에서 결정한다.
+PDF route는 Docling DocumentConverter를 `do_ocr=false`로만 만들고 OCR engine을 설치하지 않는다. 입력은 DocumentStream으로 메모리에서 넘긴다.
+Docling 부분 성공(PARTIAL_SUCCESS)은 page 누락 위험이 있으므로 PARSE_FAILED다. status는 결과 분류, failure_code는 Contract에 등록한 구체 원인이다.
+PARSED는 실행·재적재·text 양 Gate 통과이며 본문·표의 의미상 완전성을 보장하지 않는다. 소비자는 warning을 함께 읽는다.
+Docling 표 cell 탈락은 conversion 범위의 logger filter로 TABLE_CELL_DROP_DETECTED / TABLE_CELLS_DROPPED warning에 남기고 전역 logging을 바꾸지 않는다.
+표 설정(ACCURATE + cell matching) 변경은 corpus A/B evidence와 새 pipeline_config_sha256 없이 하지 않는다.
+Docling 모델은 저장소 밖 명시적 `BIZAID_DOCLING_ARTIFACTS_PATH`의 고정 snapshot만 사용한다. Contract 파일 목록의 manifest가 기대값과 같아야 변환하며 parse_key에 넣는다.
+네트워크 provisioning은 `provision --allow-network` 명령과 CI cache miss step에서만 허용하고 resolved commit으로 받는다.
+parsing·test runtime의 모델 네트워크 다운로드는 금지하며 artifact가 없으면 변환 전에 실패한다. 모델·cache를 저장소·data/에 두지 않는다.
 
 Container는 풀어서 디스크에 쓰지 않고 메모리에서 제한적으로 읽는다. 절대·상위 경로, 중복 entry, 암호화 entry,
 entry 수·전체 해제 크기·압축비·XML 크기 한도 초과는 REJECTED_UNSAFE 또는 ENCRYPTED다. XML은 DTD·entity를 거부한다.

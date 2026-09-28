@@ -4,3 +4,5 @@ PyMySQL[rsa]==1.2.3
 boto3[crt]==1.43.103
 docling-core==2.99.0
 defusedxml==0.7.1
+docling-slim[convert-core,format-pdf,models-local]==2.130.0
+docling-ibm-models[opencv-python-headless]==4.0.3

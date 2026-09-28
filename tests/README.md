@@ -24,3 +24,6 @@ integration/test_phase0_document_download_cli.py는 dev 제한·출력·분석/o
 
 contract/test_document_parsing.py는 합성 HWPX로 detected-format router, HwpxDoclingAdapter의 DoclingDocument 재적재·표·정규화,
 container/XML 안전 한도, 빈 text 비성공, parse_key 재처리 규칙을 검증한다. 실제 corpus·S3·Docling 변환은 사용하지 않는다.
+
+contract/test_document_parsing_pdf.py는 합성 PDF로 Docling PDF route의 PARSED / OCR_REQUIRED / PARSE_FAILED 구분,
+PDF handler 호출 경계, OCR 비활성과 parse_key 버전 추적을 검증한다. 실제 corpus·S3는 사용하지 않는다.

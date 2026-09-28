@@ -109,12 +109,15 @@ class DocumentParsingContractTests(unittest.TestCase):
         self.assertEqual(storage["persistent_parsed_artifact"], "S3")
         self.assertNotIn("persistent", storage["local_filesystem"])
         self.assertNotIn("V5", json.dumps(self.contract))
-        self.assertEqual(self.contract["dependencies"]["docling"]["status"], "not_installed")
+        docling = self.contract["dependencies"]["docling"]
+        # 3-B는 PDF 전용 extras만 허용하며 OCR engine을 끌어오는 standard/ocr extras를 pin하지 않는다.
+        self.assertEqual(docling["pin"], "docling-slim[convert-core,format-pdf,models-local]==2.130.0")
+        self.assertNotIn("ocr", docling["pin"])
+        self.assertNotIn("standard", docling["pin"])
 
     def test_router_uses_detected_format_only_and_reports_disabled_routes(self):
         raw = b"%PDF-1.7 synthetic"
-        pdf = parse(raw, "PDF")
-        self.assertEqual((pdf.route, pdf.status, pdf.failure_code), ("DOCLING_PDF", "ROUTE_NOT_ENABLED", "route_not_enabled"))
+        self.assertEqual(route_for("PDF", self.contract), ("DOCLING_PDF", True))
         # HWPX byte라도 detected_format이 HWP이면 HWP 변환 경계로만 보낸다.
         hwp = parse(hwpx({"Contents/section0.xml": section(paragraph("<hp:t>본문</hp:t>"))}), "HWP")
         self.assertEqual((hwp.route, hwp.status), ("HWP_PDF_DOCLING", "ROUTE_NOT_ENABLED"))

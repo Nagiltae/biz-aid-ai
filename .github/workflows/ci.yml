@@ -24,7 +24,40 @@ jobs:
         run: |
           python3 -m venv .venv
           .venv/bin/python -m pip install -r data-pipeline/requirements.txt
+      # Docling 모델은 Git에 넣지 않고 Contract의 모델 identity로 만든 key의 Actions cache로 공급한다.
+      - name: Resolve Docling artifact location and cache key
+        id: docling
+        run: |
+          echo "BIZAID_DOCLING_ARTIFACTS_PATH=$HOME/.cache/biz-aid/docling-artifacts" >> "$GITHUB_ENV"
+          echo "key=$(.venv/bin/python -B scripts/provision_docling_artifacts.py cache-key)" >> "$GITHUB_OUTPUT"
+      - name: Restore Docling artifacts
+        id: docling-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/biz-aid/docling-artifacts
+          key: ${{ steps.docling.outputs.key }}
+      # 네트워크 다운로드는 cache miss일 때 이 명시적 provisioning step에서만 허용한다.
+      - name: Provision Docling artifacts (network, cache miss only)
+        if: steps.docling-cache.outputs.cache-hit != 'true'
+        env:
+          HF_HUB_OFFLINE: "0"
+        run: .venv/bin/python -B scripts/provision_docling_artifacts.py provision --allow-network
+      # cache hit도 그대로 믿지 않고 Contract의 manifest identity와 대조한 뒤에만 사용·저장한다.
+      - name: Verify Docling artifacts identity
+        env:
+          HF_HUB_OFFLINE: "1"
+        run: .venv/bin/python -B scripts/provision_docling_artifacts.py verify
+      - name: Save Docling artifacts
+        if: steps.docling-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/biz-aid/docling-artifacts
+          key: ${{ steps.docling.outputs.key }}
       - name: Check current environment
+        env:
+          HF_HUB_OFFLINE: "1"
         run: ./scripts/setup.sh
       - name: Validate current scope
+        env:
+          HF_HUB_OFFLINE: "1"
         run: ./scripts/check-all.sh

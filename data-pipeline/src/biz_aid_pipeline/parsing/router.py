@@ -28,13 +28,23 @@ def parse_document(request, raw, contract=None):
     if not enabled:
         result.failure_code = "policy_pending" if route == "POLICY_PENDING" else "route_not_enabled"
         return result
+    page_count = None
     if route == "HWPX_DOCLING_ADAPTER":
         try:
             document = HwpxDoclingAdapter(contract).convert(raw, request.source_sha256, result)
         except HwpxError as error:
             result.status, result.failure_code = error.status, error.code
             return result
+    elif route == "DOCLING_PDF":
+        # BOUNDARY: torch를 포함한 Docling 본체는 PDF route에서만 적재해 HWPX 경로가 모델 환경에 의존하지 않게 한다.
+        from biz_aid_pipeline.parsing.pdf import PdfConversionError, convert_pdf
+        try:
+            document, page_count = convert_pdf(raw, request.source_sha256, contract, result)
+        except PdfConversionError as error:
+            result.status, result.failure_code = "PARSE_FAILED", error.code
+            return result
+        result.unit_count = page_count
     else:
         raise PipelineError("enabled_route_without_handler")
     normalize_document(document, result)
-    return apply_gate(result, document, contract)
+    return apply_gate(result, document, contract, page_count=page_count)

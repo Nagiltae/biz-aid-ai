@@ -126,5 +126,16 @@ updtPnttm incremental semantics / scheduler는 후속 검증 대상이다.
 ## Phase 3 Document Parsing
 
 `parsing` package가 S3 원본 byte를 DoclingDocument로 변환한다. route는 `detected_format`만 따르며 자체 문서 tree를 만들지 않는다.
-현재 HWPX → `HwpxDoclingAdapter` route와 공통 정규화·Gate만 활성이다. PDF(Docling)·HWP(→PDF→Docling)는 비활성,
-XLSX/ZIP/OTHER/UNKNOWN은 정책 결정 대기다. 결과 영속화와 실행 CLI는 아직 없다. [Parsing 계약](../contracts/schemas/document-parsing.contract.json)을 따른다.
+현재 HWPX → `HwpxDoclingAdapter`, PDF → Docling(`parsing/pdf.py`, do_ocr=false) route와 공통 정규화·Gate가 활성이다. HWP(→PDF→Docling)는 비활성,
+XLSX/ZIP/OTHER/UNKNOWN은 정책 결정 대기다. 결과 영속화와 실행 CLI는 아직 없다.
+PDF route 전제: stdlib `lzma`가 있는 Python 3.11, 그리고 저장소 밖 모델 artifact 경로를 `BIZAID_DOCLING_ARTIFACTS_PATH`로 지정한다.
+artifact 준비는 test runtime 밖의 명시적 1회 작업이다. Contract `dependencies.docling.model_artifacts`의 파일 목록을
+`resolved_snapshot` commit으로 staging에 받고 manifest가 `expected_manifest_sha256`과 같을 때만 대상 경로로 옮긴다.
+
+```sh
+export BIZAID_DOCLING_ARTIFACTS_PATH=~/.cache/biz-aid/docling-artifacts
+.venv/bin/python -B scripts/provision_docling_artifacts.py provision --allow-network
+.venv/bin/python -B scripts/provision_docling_artifacts.py verify
+```
+
+CI는 `cache-key`로 만든 key의 Actions cache를 복원하고 miss일 때만 provisioning한 뒤 항상 verify하고 offline으로 검증한다. [Parsing 계약](../contracts/schemas/document-parsing.contract.json)을 따른다.

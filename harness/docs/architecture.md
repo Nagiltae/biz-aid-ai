@@ -12,7 +12,7 @@
 | FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 미구현 |
 | MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | Phase 1A Pilot 및 Phase 1B dev FULL DRY-RUN 경계 구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | 미구현 |
-| Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 영구 저장 구현, Phase 3 Parser는 DoclingDocument 경계와 HWPX slice 구현 |
+| Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 영구 저장 구현, Phase 3 Parser는 DoclingDocument 경계·HWPX·Docling PDF route 구현 |
 | Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe·5×20 API 품질 Batch·동일 표본의 제한된 문서 Download Gate |
 | Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
 

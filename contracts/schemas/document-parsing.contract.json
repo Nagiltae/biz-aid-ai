@@ -18,9 +18,54 @@
       "reason": "DoclingDocument model, TableData and JSON reload for HwpxDoclingAdapter without Docling converter or model weights"
     },
     "docling": {
-      "status": "not_installed",
-      "introduction_rule": "3-B locks a mutually compatible docling / docling-core set; no ad hoc upgrade or downgrade",
-      "metadata_rule": "parse_key and parser metadata record the versions actually installed at parse time"
+      "distribution": "docling-slim",
+      "pin": "docling-slim[convert-core,format-pdf,models-local]==2.130.0",
+      "status": "installed",
+      "reason": "the docling meta package equals docling-slim[standard], which also installs OCR engines (rapidocr, opencv) and office/chunking extras; the PDF-only extras keep OCR engines absent",
+      "compatibility": "docling-slim 2.130.0 requires docling-core>=2.96.0,<3.0.0; resolved with the existing docling-core==2.99.0 and pydantic==2.13.5, pip check clean",
+      "resolved_runtime": {
+        "docling-parse": "7.22.1",
+        "docling-ibm-models": "4.0.3",
+        "torch": "2.14.0",
+        "transformers": "5.17.0"
+      },
+      "introduction_rule": "docling-slim and docling-core are changed together after a resolver check; no ad hoc upgrade or downgrade",
+      "metadata_rule": "parse_key and parser metadata record the versions actually installed at parse time",
+      "model_artifacts": {
+        "artifacts_path_env": "BIZAID_DOCLING_ARTIFACTS_PATH",
+        "location": "outside the repository; never committed",
+        "models": [
+          {
+            "repo_id": "docling-project/docling-layout-heron",
+            "folder": "docling-project--docling-layout-heron",
+            "requested_revision": "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8",
+            "resolved_snapshot": "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8",
+            "files": [
+              "config.json",
+              "model.safetensors",
+              "preprocessor_config.json"
+            ]
+          },
+          {
+            "repo_id": "docling-project/docling-models",
+            "folder": "docling-project--docling-models",
+            "requested_revision": "v2.3.0",
+            "resolved_snapshot": "fc0f2d45e2218ea24bce5045f58a389aed16dc23",
+            "files": [
+              "model_artifacts/tableformer/accurate/tableformer_accurate.safetensors",
+              "model_artifacts/tableformer/accurate/tm_config.json",
+              "model_artifacts/tableformer/fast/tableformer_fast.safetensors",
+              "model_artifacts/tableformer/fast/tm_config.json"
+            ]
+          }
+        ],
+        "identity": "model_artifacts_sha256 = SHA-256 over folder/file path and file SHA-256 of every file listed in models[].files; files outside the list are ignored; must equal expected_manifest_sha256 before conversion; part of parse_key",
+        "runtime_download": "forbidden in parsing and test runtime; a missing path or folder fails before conversion",
+        "provisioning": "explicit step outside test runtime: scripts/provision_docling_artifacts.py provision --allow-network downloads models[].files at resolved_snapshot into a staging folder and moves it only after identity verification; CI restores it from the GitHub Actions cache keyed by artifacts_cache_key",
+        "cache_key_schema": 1,
+        "expected_manifest_sha256": "282d8871a673ae5b50bd5935b764b7b3c2af9349058302470ae1b339fa772da2"
+      },
+      "companion_pin": "docling-ibm-models[opencv-python-headless]==4.0.3 because TableFormer imports cv2 and models-local does not declare it; opencv is not an OCR engine"
     }
   },
   "input": {
@@ -90,13 +135,27 @@
   "routes": {
     "PDF": {
       "route": "DOCLING_PDF",
-      "enabled": false,
-      "flow": "S3 PDF bytes -> Docling DocumentConverter (do_ocr=false) -> DoclingDocument"
+      "enabled": true,
+      "flow": "source bytes -> integrity check -> DocumentStream (no temp file) -> Docling DocumentConverter (do_ocr=false) -> DoclingDocument -> normalize_document -> apply_gate",
+      "docling_options": {
+        "do_ocr": false,
+        "do_table_structure": true,
+        "enable_remote_services": false,
+        "generate_page_images": false,
+        "generate_picture_images": false
+      },
+      "layout_model_revision": "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8",
+      "table_structure_options": {
+        "mode": "accurate",
+        "do_cell_matching": true
+      },
+      "reuse": "HWP_PDF_DOCLING calls the same convert_pdf boundary after conversion; PDF logic is not duplicated",
+      "table_baseline_rationale": "explicit copy of the Docling default; changing mode or cell matching requires corpus A/B evidence and a new pipeline_config_sha256"
     },
     "HWP": {
       "route": "HWP_PDF_DOCLING",
       "enabled": false,
-      "flow": "S3 HWP bytes -> HWP to PDF conversion boundary -> Docling DocumentConverter (do_ocr=false) -> DoclingDocument",
+      "flow": "S3 HWP bytes -> HWP to PDF conversion boundary -> convert_pdf (same Docling PDF route) -> DoclingDocument",
       "converter": {
         "candidate": "LibreOffice + H2Orestart",
         "decision": "UNDECIDED",
@@ -168,14 +227,55 @@
     "UNSUPPORTED_FORMAT",
     "ROUTE_NOT_ENABLED"
   ],
+  "parse_status_semantics": {
+    "PARSED": "parser execution succeeded, the DoclingDocument reloads from JSON and passes the text-quantity gate; it does not guarantee semantic or table fidelity",
+    "consumer_rule": "downstream consumers must read warnings; TABLE_CELL_DROP_DETECTED means table text was dropped by Docling TableFormer cell matching",
+    "warning_counts": "TABLE_CELL_DROP_DETECTED counts drop events (tables); TABLE_CELLS_DROPPED counts dropped PDF cells"
+  },
   "warning_codes": [
     "CONTROL_CHARACTERS_REMOVED",
     "REPLACEMENT_CHARACTERS_PRESENT",
     "NESTED_TABLE_FLATTENED",
     "TABLE_CELL_OUT_OF_RANGE",
     "EMBEDDED_OBJECT_SKIPPED",
-    "SECTION_ORDER_FROM_FILENAME"
+    "SECTION_ORDER_FROM_FILENAME",
+    "TABLE_CELL_DROP_DETECTED",
+    "TABLE_CELLS_DROPPED",
+    "TABLE_CELL_DROP_COUNT_UNPARSED"
   ],
+  "failure_codes": {
+    "rule": "status names the outcome class; failure_code names the concrete cause and is null for PARSED, EMPTY_TEXT and OCR_REQUIRED",
+    "UNSUPPORTED_FORMAT": [
+      "unknown_detected_format"
+    ],
+    "ROUTE_NOT_ENABLED": [
+      "route_not_enabled",
+      "policy_pending"
+    ],
+    "PARSE_FAILED": [
+      "invalid_zip_container",
+      "missing_section_xml",
+      "malformed_xml",
+      "artifact_reload_failed",
+      "artifact_reload_mismatch",
+      "docling_conversion_failed",
+      "docling_partial_conversion",
+      "pdf_no_pages",
+      "docling_conversion_error:<ExceptionClass>"
+    ],
+    "REJECTED_UNSAFE": [
+      "container_entries_rejected",
+      "container_path_rejected",
+      "compression_ratio_exceeded",
+      "uncompressed_size_exceeded",
+      "section_count_exceeded",
+      "xml_entry_size_exceeded",
+      "xml_declaration_rejected"
+    ],
+    "ENCRYPTED": [
+      "encrypted_entry"
+    ]
+  },
   "versioning": {
     "parse_key_inputs": [
       "source_sha256",
@@ -184,9 +284,13 @@
       "normalizer_version",
       "docling_core_version",
       "docling_version",
+      "docling_parse_version",
+      "docling_ibm_models_version",
+      "pipeline_config_sha256",
+      "model_artifacts_sha256",
       "converter_version"
     ],
-    "parse_key": "SHA-256 of sorted compact UTF-8 JSON of parse_key_inputs; absent components are null",
+    "parse_key": "SHA-256 of sorted compact UTF-8 JSON of parse_key_inputs; absent components are null; docling_version is the installed docling-slim version",
     "adapter_version": 1,
     "normalizer_version": 1,
     "skip_rule": "an existing result is reused only when parse_key is identical and the stored artifact size and SHA-256 re-verify",
@@ -236,5 +340,10 @@
     "parsed artifact storage implementation (S3 + MySQL policy fixed, implementation deferred)",
     "DOCX / PPTX / ODT routes and Generic ZIP member provenance contract",
     "HwpxDoclingAdapter quality validation"
-  ]
+  ],
+  "test_runtime": {
+    "network_download": "forbidden",
+    "hf_hub_offline": "1",
+    "missing_model_artifacts": "fail fast"
+  }
 }

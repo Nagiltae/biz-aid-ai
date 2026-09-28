@@ -119,3 +119,13 @@ DoclingDocument JSON 재적재·표 병합·section 순서·글상자/중첩 표
 경로 탈출·중복·압축비·해제 크기·DTD/entity·암호화·손상 XML/ZIP 거부와 parse_key 버전 규칙을 검증한다.
 Contract의 unique content SHA / source relation 기준 분리와 합계, 미결정 route의 비활성 상태도 검사한다.
 실제 corpus·S3·Docling PDF 변환·HWP 변환·결과 영속화·HWPX 구조 품질은 아직 검증 대상이 아니며 PASS로 계산하지 않는다.
+
+`test_document_parsing_pdf.py`는 결정론적 합성 PDF로 text PDF → PARSED와 JSON 재적재, image-only PDF → OCR_REQUIRED,
+손상 PDF와 Docling 부분 성공 → PARSE_FAILED(등록된 failure_code), detected_format이 PDF일 때만 PDF handler 호출,
+integrity 오류의 선행, OCR 비활성, parse_key의 Docling 배포·설정 추적을 검증한다.
+표 cell 탈락 warning 노출·전역 logging 불변, upstream 탈락 문구 drift, 명시적 표 설정, artifact 경로 fail-fast·manifest identity도 검증한다.
+test runtime은 모델을 다운로드하지 않는다. validator는 HF_HUB_OFFLINE=1로 실행하고 `BIZAID_DOCLING_ARTIFACTS_PATH`에 준비된 artifact가 없으면 setup이 FAIL이다.
+CI는 모델 identity 기반 key의 Actions cache를 복원하고 miss일 때만 명시적 provisioning step에서 네트워크를 쓴다.
+cache hit·miss와 무관하게 manifest identity를 verify한 뒤 setup·check-all을 HF_HUB_OFFLINE=1로 실행한다. PDF test skip은 없다.
+`test_docling_provisioning.py`는 cache key의 identity 한정 변화, resolved commit 다운로드, staging 원자성, 손상·중단 거부, CI step 순서·network 경계를 검증한다.
+프로젝트 인터프리터 요구사항은 stdlib `lzma`를 포함한 Python 3.11이다. setup은 lzma 부재를 Docling PDF prerequisite 미충족으로 보고한다.

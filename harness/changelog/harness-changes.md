@@ -164,3 +164,25 @@ docling-core·defusedxml을 pin한다. Docling 변환기·HWP 변환기·결과 
 Contract에 unique content SHA와 source relation count 기준을 분리하고, HWPX 품질 검증 pending 항목,
 HWP 변환기 UNDECIDED, S3 artifact + MySQL metadata 저장 정책, Generic ZIP member provenance 요건과 docling-core 사용 이유를 고정한다.
 PROJECT_DESIGN §20의 `data/parsed/` 보존 표현이 승인 정책과 충돌함을 기록한다. 새 route·S3 PUT·migration은 추가하지 않았다.
+
+## 2026-09-29 — Phase 3-A DONE / 3-B Docling PDF route
+
+3-A는 AGY Review·Status Semantics Re-review·Human Review PASS로 DONE이며 current-task와 3-B Report에 기록한다. 3-A Report 원문은 변경하지 않는다.
+3-B는 PDF route를 기존 router 안에서 Docling DocumentConverter(do_ocr=false)로 활성화하고 HWP가 재사용할 `convert_pdf` 경계를 둔다.
+`docling` meta 패키지는 OCR engine을 포함하므로 PDF 전용 `docling-slim[convert-core,format-pdf,models-local]==2.130.0`과
+TableFormer용 `docling-ibm-models[opencv-python-headless]==4.0.3`을 pin한다. docling-core 2.99.0과 호환을 resolver·pip check로 확인했다.
+parse_key에 docling-slim·docling-parse·docling-ibm-models 버전과 PDF pipeline 설정 hash를 추가하고 failure_code 목록을 Contract에 등록한다.
+setup은 Phase 3에서 Docling import·lzma·OCR engine 부재를 검사한다. 로컬 `.venv`는 lzma가 있는 별도 CPython 3.11.16 빌드로 재생성했다.
+
+## 2026-09-29 — Phase 3-B 보정: 표 cell 탈락 관찰·offline 모델
+
+Docling 표 cell 탈락(docling-ibm-models MatchingPostProcessor WARNING)을 conversion 범위 logger filter로 warning에 노출한다. 새 status는 만들지 않는다.
+PARSED는 실행·재적재·text 양 Gate 통과이며 의미·표 완전성 보장이 아님을 Contract에 명시한다. 표 설정 ACCURATE + cell matching을 명시값으로 고정한다.
+모델은 명시적 artifact 경로의 고정 snapshot만 쓰고 manifest hash를 parse_key에 넣는다. test runtime 다운로드를 금지하고 validator는 HF offline으로 실행한다.
+setup은 lzma와 artifact 부재를 fail-fast로 보고한다. CI artifact 공급은 후속 Infra Task이며 그 전까지 CI Phase 3 setup은 실패한다.
+
+## 2026-09-29 — Phase 3-B AGY B-1: CI Docling artifact 공급
+
+AGY 3-B Review(CONDITIONAL PASS)의 B-1을 해결한다. 모델은 Git에 넣지 않고 모델 identity만으로 만든 key의 Actions cache로 공급한다.
+cache miss일 때만 `provision --allow-network`가 Contract의 resolved commit으로 staging에 받고 manifest 검증 후 이동한다.
+hit·miss 모두 verify한 뒤 setup·check-all을 HF_HUB_OFFLINE=1로 실행한다. manifest는 Contract 파일 목록 기준이며 기대값과 달라도 변환 전 실패한다.

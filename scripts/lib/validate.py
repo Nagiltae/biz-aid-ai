@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import ast
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -80,7 +81,8 @@ def run(*command, capture=False):
         command, cwd=ROOT, text=True,
         stdout=subprocess.PIPE if capture else None,
         stderr=subprocess.PIPE if capture else None,
-        env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"),
+        # BOUNDARY: test runtime은 모델을 네트워크에서 받지 않고 준비된 artifacts만 사용한다.
+        env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", HF_HUB_OFFLINE="1"),
     )
     if result.returncode:
         raise ValueError(f"command failed ({result.returncode}): {' '.join(command)}\n{result.stderr or ''}")
@@ -216,7 +218,24 @@ def setup_check():
         print("PASS: Pydantic v2, SQLAlchemy v2, PyMySQL available; DB tested in integration")
     if registry()["phase"] == "phase3-document-parsing":
         import docling_core
-        print("PASS: docling-core available for DoclingDocument; Docling converter/OCR not required in this slice")
+        try:
+            import lzma
+        except ImportError:
+            raise ValueError("Docling PDF prerequisite missing: Python 3.11 with stdlib lzma (_lzma) is required") from None
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        from docling.document_converter import DocumentConverter
+        sys.path.insert(0, str(ROOT / "data-pipeline/src"))
+        from biz_aid_pipeline.parsing.models import docling_artifacts_path, model_artifacts_sha256, parsing_contract
+        try:
+            artifacts = docling_artifacts_path(parsing_contract())
+            model_artifacts_sha256(parsing_contract())
+        except ValueError as error:
+            raise ValueError(f"Docling model artifacts not provisioned ({error}); see data-pipeline/README.md") from None
+        # BOUNDARY: 3-B는 OCR 없는 native PDF baseline이므로 OCR engine이 설치돼 있으면 설정 실수로 켜질 여지를 막는다.
+        present = [name for name in ("rapidocr", "easyocr", "tesserocr", "ocrmac") if importlib.util.find_spec(name)]
+        if present:
+            raise ValueError(f"OCR engine must not be installed in Phase 3 PDF baseline: {present}")
+        print(f"PASS: docling-core, Docling PDF converter, lzma and pinned model artifacts ({artifacts.name}) identity verified; OCR engines absent; HF offline")
     print("N/A: Java/Node/Qdrant/product APIs/AI; live upstream calls are separate")
 
 
@@ -259,8 +278,8 @@ def lint_check():
 def contract_check():
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/contract", "-p", "test_*.py", "-v")
     print("PASS: snapshot/report, upstream Probe, API-quality and bounded document mock-transport Unit and Contract tests")
-    print("PASS: Phase 3 parsing contract, detected-format router and HWPX DoclingDocument adapter with synthetic containers")
-    print("N/A in offline validation: live HTTP, full provider specification, product API and Qdrant contracts; Docling PDF/HWP conversion")
+    print("PASS: Phase 3 parsing contract, detected-format router, HWPX adapter and Docling PDF route (do_ocr=false) with synthetic fixtures")
+    print("N/A in offline validation: live HTTP, full provider specification, product API and Qdrant contracts; HWP to PDF conversion")
 
 
 def integration_check():
@@ -269,7 +288,7 @@ def integration_check():
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/integration", "-p", "test_*.py", "-v")
     print("PASS: local CLI integration including credential-missing Probe/API-quality and bounded document failure exits; no live HTTP")
     print("PASS: structured dev MySQL integration (Phase 1A/1B); no live upstream HTTP")
-    print("N/A: live API/document HTTP, Docling PDF/HWP conversion, parse persistence, product APIs")
+    print("N/A: live API/document HTTP, HWP to PDF conversion, parse persistence, product APIs")
 
 
 def database_comment_problem(name, comment):

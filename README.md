@@ -4,7 +4,7 @@
 최상위 설계는 [PROJECT_DESIGN.md](PROJECT_DESIGN.md), 작업 진입점은 [AGENTS.md](AGENTS.md)다.
 
 현재는 **Phase 3 Document Parsing**이다. S3 원본 문서를 후속 Chunking이 소비할 DoclingDocument로 변환한다.
-제품 데이터 Pipeline·dev MySQL·S3 원본 저장은 구현됐다. Parser는 HWPX vertical slice만 구현됐고 서비스 API·OCR·RAG는 미구현이다.
+제품 데이터 Pipeline·dev MySQL·S3 원본 저장은 구현됐다. Parser는 HWPX와 Docling PDF route가 구현됐고 HWP 변환·서비스 API·OCR·RAG는 미구현이다.
 
 ## 현재 실행 환경
 
