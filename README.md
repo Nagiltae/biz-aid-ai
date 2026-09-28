@@ -3,7 +3,7 @@
 기업 정보와 지원사업 공고문 근거를 결합하는 AI 서비스 프로젝트다.
 최상위 설계는 [PROJECT_DESIGN.md](PROJECT_DESIGN.md), 작업 진입점은 [AGENTS.md](AGENTS.md)다.
 
-현재는 **Phase 0 준비**다. API 100건 품질 표본을 보존하고 승인된 Document Download Gate를 수행한다. GO / DROP은 대기 중이다.
+현재는 **Phase 2.5 S3 Document Storage**다. 구조화 FULL과 문서 수집 결과를 dev S3 영구 저장소에 연결한다.
 제품 데이터 Pipeline과 dev MySQL은 구현됐다. 제품 서비스 API, 문서 Parser, RAG는 미구현이다.
 
 ## 현재 실행 환경
@@ -95,3 +95,4 @@ python3 -B scripts/phase0_document_download.py analyze --run-id <id> --output ha
 Phase 1B는 실행 시점 totalCount 기반 dev 전체 pagination / Raw 검증 / 적재와 soft-delete 후보 DRY-RUN을 제공한다.
 실제 soft-delete / prod는 범위 밖이다. Phase 2는 검증된 dev DB의 전체 문서 후보 원본과 provenance metadata를 수집한다.
 문서 본문 Parsing/OCR/AI는 수행하지 않는다. FULL 및 Document Acquisition 명령과 실패 경계는 제품 Pipeline 문서를 따른다.
+Phase 2.5는 기존 S3 object를 checksum으로 검증하고 MySQL relation에 위치 metadata를 연결한다. 로컬 corpus는 Review 전까지 보존한다.

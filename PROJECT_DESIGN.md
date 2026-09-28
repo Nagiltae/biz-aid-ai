@@ -2,12 +2,17 @@
 
 > 프로젝트명(가칭): **BizAid AI**
 >
-> 현재 단계: **Phase 2 Full Document Acquisition** (2026-09-28 사용자 승인)
+> 현재 단계: **Phase 2.5 S3 Document Storage + Local Pipeline Execution** (2026-09-29 사용자 승인)
 >
 > 이 문서는 확정 설계가 아니라 데이터 검증 및 프로젝트 방향 논의를 위한
 > 초안이다.
 
 ## 승인된 현재 실행 범위
+
+2026-09-29 사용자 승인: Phase 2에서 확보한 3,231개 고유 binary를 기존 S3 object와
+`ChecksumSHA256`으로 대조한 뒤 3,288개 provenance relation에 S3 metadata를 연결한다.
+S3는 영구 binary 저장소, MySQL은 relation/metadata, 로컬 corpus는 검토 전 보존하는 migration source다.
+기존 object 재업로드·삭제, upstream 재다운로드, prod 접근, Parser 구현은 금지한다.
 
 2026-09-28 후속 사용자 승인: dev MySQL의 검증된 1,554개 `support_programs`에서
 `printFlpthNm` / `flpthNm` 후보 전체를 수집해 Parser가 사용할 원본 byte·provenance·checksum·실패 상태를 만든다.

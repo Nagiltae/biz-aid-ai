@@ -5,6 +5,9 @@ from pathlib import Path
 from urllib.parse import quote, unquote
 
 ROOT = Path(__file__).resolve().parents[4]
+S3_REGION = "ap-southeast-2"
+S3_BUCKET = "amazon-s3-biz-aid-bucket-695694684371-ap-southeast-2-an"
+S3_PREFIX = "biz-aid/documents"
 
 
 class PipelineError(ValueError):
@@ -111,3 +114,62 @@ class DbConfig:
                 or not result.password or result.port != 3306):
             raise PipelineError("dev_database_boundary")
         return result
+
+@dataclass(frozen=True)
+class S3Config:
+    region: str
+    bucket: str
+    prefix: str
+    profile: str = "dev"
+
+    @classmethod
+    def load(cls, root, profile, environ=None):
+        # Phase 2.5의 실제 S3 작업은 dev 환경에서만 허용한다.
+        if profile != "dev":
+            raise PipelineError("prod_s3_access_forbidden")
+
+        names = {
+            "AWS_REGION",
+            "AWS_S3_BUCKET",
+            "AWS_S3_PREFIX",
+        }
+
+        config = profile_values(
+            root,
+            profile,
+            names,
+            environ,
+        )
+
+        missing = sorted(
+            name
+            for name in ("AWS_REGION", "AWS_S3_BUCKET")
+            if not config.get(name, "").strip()
+        )
+
+        if missing:
+            raise PipelineError(
+                "dev_s3_configuration_required:"
+                + ",".join(missing)
+            )
+
+        region = config["AWS_REGION"].strip()
+        bucket = config["AWS_S3_BUCKET"].strip()
+        prefix = config.get("AWS_S3_PREFIX", S3_PREFIX).strip("/")
+
+        if not prefix:
+            raise PipelineError(
+                "dev_s3_configuration_required:AWS_S3_PREFIX"
+            )
+
+        # Phase 2.5 검증 대상은 사용자가 확정한 단일 dev 저장소다.
+        # 잘못된 환경변수로 다른 버킷을 검증하거나 DB에 기록하지 못하게 한다.
+        if (region, bucket, prefix) != (S3_REGION, S3_BUCKET, S3_PREFIX):
+            raise PipelineError("unsupported_s3_configuration")
+
+        return cls(
+            region=region,
+            bucket=bucket,
+            prefix=prefix,
+            profile=profile,
+        )

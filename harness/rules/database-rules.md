@@ -12,6 +12,8 @@ Python Repository는 DDL을 만들지 않는다. dev Pilot과 controlled test DB
 Phase 2 문서 원본 byte는 MySQL에 넣지 않는다. DB는 공고와 source field/token 관계, 공개 URL, 원본 파일명,
 content-addressed 로컬 경로, format/HTTP/size/SHA-256, 성공·실패 상태와 실행 이력만 보존한다.
 동일 binary dedupe가 provenance relation을 제거해서는 안 되며 V3는 기존 V1/V2를 수정하지 않고 추가한다.
+Phase 2.5의 V4는 검증된 S3 region/bucket/object key/시각만 추가한다. legacy `storage_path`는 로컬 migration source로
+유지하고 S3 영구 위치와 혼용하지 않는다. 전체 S3 object 검증 뒤 모든 relation metadata를 한 transaction에서 연결한다.
 
 ## Application schema COMMENT
 

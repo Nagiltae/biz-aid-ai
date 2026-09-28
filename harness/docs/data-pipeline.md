@@ -135,3 +135,12 @@ DB/filesystem readback 순으로 처리한다. 동일 URL은 run에서 한 번, 
 0.25초 간격은 로컬 안전 경계다. HTML/error 응답은 INVALID_RESPONSE이고 UNKNOWN/OTHER 원본은 삭제하지 않는다.
 모든 후보 relation이 ACQUIRED이고 checksum/format/readback/source snapshot이 일치해야 품질 PASS다.
 `verify --run-id`는 HTTP 없이 manifest/result/DB/binary integrity를 재검증한다. 본문 Parsing은 수행하지 않는다.
+
+## Phase 2.5 S3 Document Storage
+
+S3 object key는 `biz-aid/documents/sha256/<2>/<2>/<sha256>`이며 확장자를 붙이지 않는다.
+기존 3,231개 object 연결은 로컬 SHA와 S3 HEAD 크기/`ChecksumSHA256` 전수 검증 후에만 수행한다.
+누락 object를 자동 upload하지 않으며 모든 3,288 relation의 `s3_*`를 단일 transaction으로 기록한다.
+`storage_path`는 legacy 로컬 migration source이고 `s3_region`/`s3_bucket_name`/`s3_object_key`가 영구 위치다.
+신규 acquisition은 bounded body를 임시 파일로 옮겨 SHA/format을 확인한 뒤 S3에 조건부 생성하고 임시 파일을 정리한다.
+캐시 재사용과 강한 Gate는 실제 S3 body의 size/SHA/format을 확인한다. Parser는 S3 read 경계를 사용하며 아직 미구현이다.

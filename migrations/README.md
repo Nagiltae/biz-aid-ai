@@ -22,3 +22,7 @@ check-integration / check-all의 실제 information_schema 검사와 V1→V2 fix
 Binary는 DB가 아닌 ignored content-addressed local storage에 두며 FK로 support_program과 run을 연결한다.
 source role/field/token, URL/filename, format/HTTP/size/SHA/path, 성공·실패와 마지막 실행 action을 보존한다.
 V1/V2는 수정하지 않으며 V3의 모든 Table / Column도 동일 COMMENT 정책을 적용한다.
+
+`V4__document_s3_storage.sql`은 기존 V1/V2/V3를 보존하며 `document_sources`에 검증된 S3 위치와 검증 시각을 추가한다.
+네 S3 field는 모두 NULL 또는 모두 non-NULL이어야 한다. `storage_path`는 legacy 로컬 migration source로 유지한다.
+로컬 corpus 삭제나 이 호환 제약 변경은 Phase 2.5 독립 검토 이후 별도 신규 migration에서만 판단한다.

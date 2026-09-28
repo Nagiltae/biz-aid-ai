@@ -103,3 +103,10 @@ retry 0, overwrite 거부와 false PASS를 mock/temp file로 검증한다. Integ
 relation 보존, checksum readback, partial/resume, rerun 성공 재사용, 실패 새 run 재요청과 품질 Gate를 검증한다.
 CI는 문서 Live HTTP를 호출하지 않는다. Preliminary Validation 이후에만 dev 전체 acquisition을 실행하고
 DB relation과 binary checksum을 다시 읽어 확인한 뒤 Final Validation을 실행한다.
+
+## Phase 2.5 S3 저장 검증
+
+Contract는 SHA key, 조건부 PUT, 412 race, HEAD checksum, 실제 GET SHA, overwrite 금지와 metadata all-or-none을 mock S3로 검증한다.
+metadata-link 테스트는 누락 object에서 PUT 없이 실패하고 전체 검증 후에만 DB update 경계로 진입함을 확인한다.
+Integration은 실제 test MySQL V4와 S3 readback을 모사하며 live AWS나 upstream HTTP를 호출하지 않는다.
+dev 별도 검증에서 로컬 3,231 SHA와 S3 HEAD checksum을 대조하고 DB 3,288 relation readback 후 기존 Phase 2 run을 S3 byte로 재검증한다.

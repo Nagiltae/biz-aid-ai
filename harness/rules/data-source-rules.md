@@ -35,6 +35,14 @@ UNKNOWN/OTHER byte도 Evidence로 보존하되 품질 Report에 드러낸다. �
 같은 run의 확정 실패는 자동 재시도하지 않는다. 새 run은 검증된 성공을 재사용하고 과거 실패 URL만 다시 요청할 수 있다.
 모든 relation metadata/readback과 source snapshot이 일치하고 실패가 0일 때만 품질 PASS다. Parser 의미 검증은 Phase 3 대상이다.
 
+## Phase 2.5 S3 저장 안전 규칙
+
+고정 dev region/bucket/prefix와 content SHA-256 key만 사용한다. AWS key를 설정 파일에 두지 않고 boto3 credential chain을 사용한다.
+metadata 연결은 기존 object의 HEAD 크기와 `ChecksumSHA256`을 전수 검증하며 ETag를 checksum으로 사용하지 않는다.
+누락·크기·checksum 불일치는 FAIL이고 자동 upload로 복구하지 않는다. 이 단계의 허용 S3 동작은 HEAD와 검증용 GET뿐이다.
+모든 object 검증 전 DB를 변경하지 않으며 3,288 relation metadata는 단일 transaction으로 연결한다.
+실제 byte GET으로 SHA와 format을 재검증한다. 기존 로컬 corpus와 S3 object 삭제는 AGY와 사용자 승인 전 금지한다.
+
 승인된 Phase 0 API 품질 Batch는 dev만 선택하며 5 Page × 20건으로 제한한다. 재시도·prod 요청·다운로드는 없다.
 수집 시점 API 기본 정렬 기준 선두 100건을 표본으로 사용한다. 공식 최신순 보장은 추정하지 않는다.
 품질 분모는 성공 Envelope의 실제 Item 수이며 중복 행·null·blank·누락을 제거하지 않는다.

@@ -103,6 +103,19 @@ Binary는 ignored data/downloaded에, 실패 body는 ignored data/failed에 저�
 PRINT_CANDIDATE / ATTACHMENT_CANDIDATE는 source field provenance이며 문서의 업무 의미를 확정하지 않는다.
 PDF/HWP/HWPX signature/container 식별까지만 수행하고 본문 Parsing/OCR/Chunking/AI는 후속 Phase다.
 
+## Phase 2.5 S3 Document Storage
+
+```sh
+.venv/bin/python -B scripts/migrate_documents_to_s3.py --profile dev
+.venv/bin/python -B scripts/migrate_documents_to_s3.py --profile dev --write-db
+.venv/bin/python -B scripts/verify_s3_document_storage.py --profile dev
+```
+
+첫 명령은 로컬 SHA와 기존 S3 object의 HEAD checksum을 읽기 전용으로 검증한다. `--write-db`도 object를 upload하지 않으며
+전체 검증 뒤 V4 `s3_*` metadata만 단일 transaction으로 연결한다. 누락·크기·checksum 불일치는 즉시 실패한다.
+신규 acquisition의 S3 PUT은 별도 제품 경계이며 `IfNoneMatch=*`와 `ChecksumSHA256`으로 기존 object overwrite를 막는다.
+AWS 인증은 boto3 credential chain을 사용한다. `storage_path` legacy 경로와 로컬 corpus는 독립 검토 전까지 보존한다.
+
 updtPnttm incremental semantics / scheduler는 후속 검증 대상이다.
 본문 Parsing / OCR / AI는 UNMEASURED다. 최신순 공식 보장도 UNCONFIRMED다. GO/DROP을 자동 판단하지 않는다.
 기존 sample의 API totalCount=1514는 snapshot 당시 source universe 관찰이고 Pilot 목표 / 적재 대상은 100이다.

@@ -133,3 +133,11 @@ Registry / Agent 지침에 Producer 출력 경로를 고정하고 current-task·
 V1/V2를 보존한 신규 V3, 제품 documents package, 얇은 CLI, 품질 계약과 offline/MySQL 회귀를 정적 Registry에 추가한다.
 공개 요청에는 인증정보를 전달하지 않으며 순차 요청·자동 retry 0·redirect/size/timeout·HTML 거부·exclusive 저장을 적용한다.
 URL/SHA dedupe 뒤에도 모든 pblancId/source field/token relation을 보존한다. Parser/OCR/AI와 prod는 범위 밖이며 현재 Review는 pending이다.
+
+## 2026-09-29 — Phase 2.5 S3 Document Storage
+
+사용자 승인으로 Phase 2의 3,231개 고유 binary를 고정 dev S3의 content-addressed object와 연결한다.
+수동 구현의 metadata-link PUT 가능성, MySQL rowcount 재실행 의존, cached HEAD-only 검증, write smoke를 제거했다.
+V4는 검증된 S3 위치 metadata만 추가하고 legacy `storage_path`와 로컬 1.6GB corpus를 보존한다.
+로컬 SHA/S3 HEAD checksum 전수 검증 뒤 3,288 relation을 원자적으로 연결하고 실제 S3 byte로 Phase 2 run을 재검증한다.
+prod/upstream HTTP/Parser/S3 삭제는 수행하지 않으며 AGY 독립 Review와 로컬 삭제 사용자 승인은 pending이다.
