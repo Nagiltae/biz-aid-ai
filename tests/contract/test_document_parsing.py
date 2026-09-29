@@ -12,11 +12,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "data-pipeline/src"))
 
-from docling_core.types.doc import DoclingDocument
+from docling_core.types.doc import DocItemLabel, DoclingDocument, RichTableCell
 
 from biz_aid_pipeline.config.settings import PipelineError
 from biz_aid_pipeline.parsing import parse_document, route_for
-from biz_aid_pipeline.parsing.models import ParseRequest, ParseResult, parse_key, parsing_contract
+from biz_aid_pipeline.parsing.models import ParseRequest, ParseResult, parse_identity, parse_key, parsing_contract
 from biz_aid_pipeline.parsing.quality import apply_gate, artifact_bytes, normalize_document
 
 NS = ('xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" '
@@ -37,11 +37,28 @@ def section(*paragraphs):
     return f'<?xml version="1.0" encoding="UTF-8"?><hs:sec {NS}>{"".join(paragraphs)}</hs:sec>'
 
 
-def hwpx(sections, spine=None, extra=None):
+HEADER = ('<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"><hh:refList>'
+          '<hh:paraProperties>'
+          '<hh:paraPr id="1"><hh:heading type="OUTLINE" idRef="0" level="1"/></hh:paraPr>'
+          '<hh:paraPr id="2"><hh:heading type="NUMBER" idRef="1" level="0"/></hh:paraPr>'
+          '<hh:paraPr id="3"><hh:heading type="BULLET" idRef="1" level="0"/></hh:paraPr>'
+          '<hh:paraPr id="4"><hh:heading type="NONE" idRef="0" level="0"/></hh:paraPr></hh:paraProperties>'
+          '<hh:numberings><hh:numbering id="1" start="0"><hh:paraHead level="1" numFormat="DIGIT">^1.</hh:paraHead>'
+          '</hh:numbering></hh:numberings><hh:bullets><hh:bullet id="1" char="-"/></hh:bullets>'
+          '<hh:styles><hh:style id="0" type="PARA" name="바탕글" engName="Normal" paraPrIDRef="4"/>'
+          '<hh:style id="2" type="PARA" name="개요 1" engName="Outline 1" paraPrIDRef="4"/>'
+          '<hh:style id="9" type="PARA" name="제목" engName="" paraPrIDRef="4"/></hh:styles></hh:refList></hh:head>')
+
+
+def styled(body, para_pr="4", style="0", pid="0"):
+    return f'<hp:p id="{pid}" paraPrIDRef="{para_pr}" styleIDRef="{style}"><hp:run>{body}</hp:run></hp:p>'
+
+
+def hwpx(sections, spine=None, extra=None, header="<head/>"):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("mimetype", "application/hwp+zip")
-        archive.writestr("Contents/header.xml", "<head/>")
+        archive.writestr("Contents/header.xml", header)
         for name, xml in sections.items():
             archive.writestr(name, xml)
         if spine is not None:
@@ -69,8 +86,12 @@ class DocumentParsingContractTests(unittest.TestCase):
         self.assertIs(representation["own_canonical_document_tree"], False)
         self.assertEqual(self.contract["input"]["trusted_format_hints"], [])
         self.assertEqual(self.contract["input"]["format_source"], "document_sources.detected_format")
-        for excluded in ("OCR", "Chunking", "Embedding", "Qdrant"):
+        for excluded in ("Chunking", "Embedding", "Qdrant"):
             self.assertIn(excluded, self.contract["out_of_scope"])
+        # OCR은 low-text page에만 허용되고 Docling 자체 OCR은 계속 꺼져 있다.
+        self.assertEqual(self.contract["routes"]["PDF"]["ocr"]["selection_scope"], "page")
+        self.assertIn("document-average", self.contract["routes"]["PDF"]["ocr"]["trigger"])
+        self.assertIs(self.contract["routes"]["PDF"]["docling_options"]["do_ocr"], False)
         formats = {"PDF", "HWP", "HWPX", "ZIP", "XLSX", "OTHER", "UNKNOWN"}
         self.assertEqual(set(self.contract["routes"]), formats)
         self.assertEqual(self.contract["routes"]["PDF"]["route"], "DOCLING_PDF")
@@ -105,12 +126,18 @@ class DocumentParsingContractTests(unittest.TestCase):
             "archive_depth", "parent_member_provenance"})
         for detected in ("XLSX", "OTHER", "UNKNOWN"):
             self.assertFalse(routes[detected]["enabled"])
-        self.assertEqual(routes["HWPX"]["quality_status"]["pending_validation"],
-                         ["Heading", "Paragraph", "List", "Table", "Reading Order", "Source Location"])
+        quality = routes["HWPX"]["quality_status"]
+        self.assertEqual(quality["validated"], ["Paragraph", "List", "Table", "Reading Order", "Source Location", "Footnote/Header"])
+        # 실제 문서에서 명시적 heading을 아직 관찰하지 못했으므로 Heading은 제한 사항으로 남긴다.
+        self.assertIn("Heading", quality["limited"])
+        self.assertIn("never used", routes["HWPX"]["structure_rules"]["heading"])
         storage = self.contract["artifact_storage"]
         self.assertEqual(storage["persistent_parsed_artifact"], "S3")
         self.assertNotIn("persistent", storage["local_filesystem"])
-        self.assertNotIn("V5", json.dumps(self.contract))
+        self.assertEqual(storage["migration"], "V5__document_parse_results.sql")
+        self.assertIn("{parse_key}.json", storage["parsed_key"])
+        self.assertIn("S3", storage["commit_order"])
+        self.assertIn("MySQL", storage["commit_order"])
         docling = self.contract["dependencies"]["docling"]
         # 3-B는 PDF 전용 extras만 허용하며 OCR engine을 끌어오는 standard/ocr extras를 pin하지 않는다.
         self.assertEqual(docling["pin"], "docling-slim[convert-core,format-pdf,models-local]==2.130.0")
@@ -198,10 +225,66 @@ class DocumentParsingContractTests(unittest.TestCase):
             paragraph(textbox), paragraph("<hp:pic/>"))})
         result = parse(raw)
         self.assertEqual(result.status, "PARSED")
-        self.assertEqual(result.document.tables[0].data.table_cells[0].text, "외부\n내부")
-        self.assertEqual([item.text for item in result.document.texts], ["글상자"])
-        self.assertEqual(result.warnings["NESTED_TABLE_FLATTENED"], 1)
+        document = result.document
+        outer = document.tables[0].data.table_cells[0]
+        # 중첩 표는 평탄화하지 않고 표를 부모로 둔 group에 두며 RichTableCell이 참조한다. 평탄화 text도 cell.text에 남는다.
+        self.assertIsInstance(outer, RichTableCell)
+        self.assertEqual(outer.text, "외부\n내부")
+        group = outer.ref.resolve(document)
+        self.assertEqual(group.parent.cref, document.tables[0].self_ref)
+        self.assertEqual([child.resolve(document).label for child in group.children], [DocItemLabel.PARAGRAPH, DocItemLabel.TABLE])
+        self.assertEqual(document.tables[1].data.table_cells[0].text, "내부")
+        self.assertNotIn("NESTED_TABLE_FLATTENED", result.warnings)
+        self.assertEqual([item.text for item, _ in document.iterate_items(root=document.body) if item.label == DocItemLabel.PARAGRAPH
+                          and item.parent.cref == "#/body"], ["글상자"])
         self.assertEqual(result.warnings["EMBEDDED_OBJECT_SKIPPED"], 1)
+        # 중첩 표도 원문 text 손실 없이 한 번만 센다.
+        self.assertEqual(result.text_chars, len("외부내부글상자"))
+
+    def test_explicit_hwpx_structure_becomes_heading_list_and_notes(self):
+        footnote = f'<hp:ctrl><hp:footNote><hp:subList>{styled("<hp:t>각주 내용</hp:t>")}</hp:subList></hp:footNote></hp:ctrl>'
+        header = f'<hp:ctrl><hp:header><hp:subList>{styled("<hp:t>머리말</hp:t>")}</hp:subList></hp:header></hp:ctrl>'
+        table = ('<hp:tbl rowCnt="1" colCnt="1"><hp:tr><hp:tc><hp:subList>'
+                 f'{styled("<hp:t>셀 제목</hp:t>", style="2")}{styled("<hp:t>셀 목록</hp:t>", para_pr="3")}</hp:subList>'
+                 '<hp:cellAddr colAddr="0" rowAddr="0"/><hp:cellSpan colSpan="1" rowSpan="1"/></hp:tc></hp:tr></hp:tbl>')
+        raw = hwpx({"Contents/section0.xml": section(
+            styled(header), styled("<hp:t>사업 개요</hp:t>", para_pr="1", pid="10"), styled("<hp:t>개요 스타일 제목</hp:t>", style="2"),
+            styled("<hp:t>사용자 제목 스타일</hp:t>", style="9"), styled("<hp:t>첫째 번호</hp:t>", para_pr="2"),
+            styled("<hp:t>둘째 번호</hp:t>", para_pr="2"), styled("<hp:t>글머리</hp:t>", para_pr="3"),
+            styled("<hp:t>본문 문단</hp:t>" + footnote), styled(table))}, header=HEADER)
+        result = parse(raw)
+        document = result.document
+        items = [(item.label, item.text) for item, _ in document.iterate_items(included_content_layers=None) if hasattr(item, "text")]
+        # HWPX가 명시한 개요(OUTLINE)·내장 개요 스타일만 heading이다. 사용자 정의 "제목" 스타일은 문단으로 둔다.
+        self.assertIn((DocItemLabel.SECTION_HEADER, "사업 개요"), items)
+        self.assertIn((DocItemLabel.SECTION_HEADER, "개요 스타일 제목"), items)
+        self.assertIn((DocItemLabel.PARAGRAPH, "사용자 제목 스타일"), items)
+        heading = next(item for item in document.texts if item.text == "사업 개요")
+        self.assertEqual(heading.level, 2)
+        lists = [item for item in document.texts if item.label == DocItemLabel.LIST_ITEM and item.parent.cref.startswith("#/groups")
+                 and item.parent.resolve(document).parent.cref == "#/body"]
+        self.assertEqual([(item.text, item.enumerated, item.marker) for item in lists],
+                         [("첫째 번호", True, ""), ("둘째 번호", True, ""), ("글머리", False, "-")])
+        # 번호 목록과 글머리 목록은 다른 선언이므로 다른 list group이다.
+        self.assertEqual(lists[0].parent.cref, lists[1].parent.cref)
+        self.assertNotEqual(lists[1].parent.cref, lists[2].parent.cref)
+        self.assertIn((DocItemLabel.FOOTNOTE, "각주 내용"), items)
+        page_header = next(item for item in document.texts if item.text == "머리말")
+        self.assertEqual((page_header.label, page_header.content_layer.value), (DocItemLabel.PAGE_HEADER, "furniture"))
+        # 표 cell 안 개요 스타일은 heading이 되지 않고, cell 안 목록은 RichTableCell group에 남는다.
+        cell_heading = next(item for item in document.texts if item.text == "셀 제목")
+        self.assertEqual(cell_heading.label, DocItemLabel.PARAGRAPH)
+        self.assertIsInstance(document.tables[0].data.table_cells[0], RichTableCell)
+        provenance = heading.meta.get_custom_part()["bizaid__hwpx"]
+        self.assertEqual((provenance["source_sha256"], provenance["section"], provenance["path"], provenance["paragraph_id"],
+                          provenance["structure"]), (hashlib.sha256(raw).hexdigest(), "Contents/section0.xml", "p[1]", "10",
+                                                     "paraPr.heading=OUTLINE"))
+        # HWPX에는 page·좌표가 없으므로 가짜 provenance를 만들지 않는다.
+        self.assertTrue(all(not item.prov for item in document.texts))
+        self.assertTrue(all(item.meta and item.meta.get_custom_part().get("bizaid__hwpx")
+                            for item, _ in document.iterate_items(included_content_layers=None)))
+        reloaded = DoclingDocument.model_validate_json(artifact_bytes(document))
+        self.assertEqual(reloaded.export_to_markdown(), document.export_to_markdown())
 
     def test_parser_completion_without_text_is_not_success(self):
         result = parse(hwpx({"Contents/section0.xml": section(paragraph("<hp:t>   </hp:t>"))}))
@@ -253,11 +336,32 @@ class DocumentParsingContractTests(unittest.TestCase):
         self.assertEqual(key, parse_key(sha, "HWPX_DOCLING_ADAPTER", self.contract))
         self.assertNotEqual(key, parse_key(sha, "DOCLING_PDF", self.contract))
         self.assertNotEqual(key, parse_key("b" * 64, "HWPX_DOCLING_ADAPTER", self.contract))
-        bumped = copy.deepcopy(self.contract)
-        bumped["versioning"]["adapter_version"] += 1
-        self.assertNotEqual(key, parse_key(sha, "HWPX_DOCLING_ADAPTER", bumped))
         self.assertNotEqual(parse_key(sha, "HWP_PDF_DOCLING", self.contract, "converter-1"),
                             parse_key(sha, "HWP_PDF_DOCLING", self.contract, "converter-2"))
+
+    def test_parse_key_changes_only_on_routes_that_depend_on_the_component(self):
+        sha = "a" * 64
+
+        def keys(contract):
+            return {"HWPX": parse_key(sha, "HWPX_DOCLING_ADAPTER", contract), "PDF": parse_key(sha, "DOCLING_PDF", contract),
+                    "HWP": parse_key(sha, "HWP_PDF_DOCLING", contract, "converter-1")}
+
+        def changed(mutate):
+            contract = copy.deepcopy(self.contract)
+            mutate(contract)
+            after = keys(contract)
+            return {route for route, key in base.items() if after[route] != key}
+        base = keys(self.contract)
+        # HWPX adapter 변경은 HWPX만, PDF parser 설정 변경은 PDF와 이를 재사용하는 HWP만, 공통 normalizer 변경은 모두를 바꾼다.
+        self.assertEqual(changed(lambda c: c["versioning"].update(hwpx_adapter_version=c["versioning"]["hwpx_adapter_version"] + 1)),
+                         {"HWPX"})
+        self.assertEqual(changed(lambda c: c["routes"]["PDF"]["table_engine"].update(edge_tolerance_px=9)), {"PDF", "HWP"})
+        self.assertEqual(changed(lambda c: c["versioning"].update(normalizer_version=c["versioning"]["normalizer_version"] + 1)),
+                         {"HWPX", "PDF", "HWP"})
+        self.assertNotEqual(base["HWP"], parse_key(sha, "HWP_PDF_DOCLING", self.contract, "converter-2"))
+        self.assertIsNone(parse_identity(sha, "DOCLING_PDF", self.contract)["hwpx_adapter_version"])
+        self.assertIsNone(parse_identity(sha, "DOCLING_PDF", self.contract)["converter_version"])
+        self.assertIsNone(parse_identity(sha, "HWPX_DOCLING_ADAPTER", self.contract)["pipeline_config_sha256"])
         drift = copy.deepcopy(self.contract)
         drift["versioning"]["parse_key_inputs"].append("unregistered")
         with self.assertRaisesRegex(PipelineError, "parse_key_contract_drift"):

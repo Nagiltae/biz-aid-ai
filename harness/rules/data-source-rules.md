@@ -46,6 +46,9 @@ metadata 연결은 기존 object의 HEAD 크기와 `ChecksumSHA256`을 전수 �
 ## Phase 3 Document Parsing 규칙
 
 입력은 ACQUIRED이고 `s3_*`가 검증된 relation의 unique `content_sha256`이다. 원본은 S3에서 읽고 크기·SHA를 다시 확인한다.
+Production orchestration은 호출자가 명시한 unique content SHA만 조회한다. 한 실행은 1~3개로 제한하고 SHA 오름차순으로 순차 처리하며,
+DB에서 대상을 자동 발견하거나 전체 corpus를 암묵적으로 순회하지 않는다. 한 source 실패는 해당 결과로 격리하고 다른 명시 source의 결과를 되돌리지 않는다.
+같은 SHA relation의 format·크기·S3 위치가 모두 일치해야 하고, 재실행 판단은 별도 우회 없이 persistence의 parse_key idempotency에 맡긴다.
 route는 `detected_format`만 따른다. 파일명 확장자·declared_extension·Content-Type은 route 근거가 아니다.
 결과는 content SHA 단위로 만들고 relation provenance는 `document_sources.content_sha256` join으로 모두 유지한다.
 모든 parsing 수치는 unique content SHA 기준인지 source relation 기준인지 명시하며 두 값을 합치거나 바꿔 쓰지 않는다.
@@ -54,11 +57,22 @@ PDF/HWP/HWPX의 구조화 표현은 DoclingDocument 하나다. 자체 canonical 
 정규화는 Contract의 NFC·줄바꿈·제어문자·줄 끝 공백만 수행하고 추출 원문은 TextItem.orig에 남긴다.
 
 parse_key는 source SHA·route·adapter/normalizer/docling-core/docling/converter 버전으로 계산한다.
+parse identity는 route 의존 범위와 같다. HWPX adapter는 HWPX만, PDF parser·PP·OCR은 PDF와 이를 재사용하는 HWP만, HWP 변환기는 HWP만, normalizer·docling-core는 모든 route key를 바꾼다.
+corpus 실행 단위는 검증된 unique content SHA이고 enabled route format만 자동 대상이다. 비활성 format은 집계만 하며 성공으로 기록하지 않는다.
+corpus 실행은 dev 전용·순차이며 현재 parse_key 결과가 있으면 재처리하지 않고, source별 실패를 격리하고, progress·result 파일로 관찰·재개할 수 있어야 한다. 기존 artifact·row는 지우거나 덮어쓰지 않는다.
+corpus runner는 명시적 상한(--max-completed)과 종료 요청을 source 경계에서만 반영한다. 실행 중 source를 강제 종료해 반쯤 기록된 artifact·row를 만들지 않는다.
+조립에서 native 단어 하나는 한 곳에만 속한다. PP 영역 안 단어는 PP 결과가, 영역에 걸친 native item은 영역 밖 단어만 가진다. OCR 부족 page는 warning·metadata로 드러내고 문서 status는 문서 text Gate가 정한다.
+native text가 조금이라도 있고 raster image가 없는 low-text page는 OCR하지 않고 native text를 유지한다(OCR은 같은 글자를 다시 읽을 뿐이다).
 같은 parse_key와 무결성이 재확인된 artifact만 재사용하고, 버전 변경은 해당 route 문서만 새 key로 재처리한다. 과거 결과는 덮어쓰지 않는다.
 parser 호출이 예외 없이 끝났다는 사실만으로 PARSED가 아니다. DoclingDocument 재적재와 text 양 Gate를 통과해야 한다.
-native text가 부족한 PDF는 OCR_REQUIRED로 분리한다. OCR 도입은 실제 분포 근거로 별도 Task에서 결정한다.
+일반 PDF는 native text가 우선이다. 문서 평균이 아니라 각 page를 독립 판정해 native text가 기준 이하인 page만 OCR하고, 기준을 넘는 page는 OCR하지 않는다.
+OCR은 PaddleX PP-OCRv5(한국어 인식) 일반 OCR이며 Docling 자체 OCR은 끈다. OCR text도 원본 SHA·page·bbox·confidence·engine identity를 남기고 최종 표현은 DoclingDocument다.
+OCR engine 오류는 PARSE_FAILED, OCR 후에도 text가 기준 이하면 OCR_REQUIRED + OCR_TEXT_INSUFFICIENT다. Visual VLM 해석은 OCR이 아니며 production 보류다.
 PDF route는 Docling DocumentConverter를 `do_ocr=false`, `do_table_structure=false`로만 만들고 OCR engine을 설치하지 않는다. 입력은 DocumentStream으로 메모리에서 넘긴다.
 HWP는 전용 Docker 변환 이미지(host 설치 없음, 네트워크 없음)로 PDF를 만든 뒤 production PDF parser를 그대로 재사용한다. HWP 전용 문서·표 parser를 두지 않고 HWPX는 native adapter를 유지한다.
+HWPX 구조는 XML의 명시 정보(header.xml의 문단 모양 heading OUTLINE/NUMBER/BULLET, 내장 개요 스타일, 머리말·꼬리말·각주 control)만 쓴다.
+글자 크기·layout·사용자 정의 스타일 이름으로 heading을 추측하지 않고, 문서 SHA·파일명별 예외를 두지 않는다.
+표현할 수 없는 구조는 버리지 않고 text와 warning·provenance로 남긴다. HWPX에는 page·좌표가 없으므로 가짜 page/bbox를 만들지 않는다.
 변환 실패는 CONVERSION_FAILED이며 다른 변환기·parser로 넘어가지 않는다. provenance의 source는 원본 HWP SHA이고 중간 PDF는 저장하지 않는다.
 Docling 부분 성공(PARTIAL_SUCCESS)은 page 누락 위험이 있으므로 PARSE_FAILED다. status는 결과 분류, failure_code는 Contract에 등록한 구체 원인이다.
 PARSED는 실행·재적재·text 양 Gate 통과이며 본문·표의 의미상 완전성을 보장하지 않는다. 소비자는 warning을 함께 읽는다.
@@ -73,6 +87,9 @@ entry 수·전체 해제 크기·압축비·XML 크기 한도 초과는 REJECTED
 detected ZIP은 DOCX·PPTX·ODT·Generic ZIP을 구분해 다룬다. Generic ZIP은 archive source SHA·member path·member SHA·
 member detected format·archive depth·parent/member provenance를 표현하는 Contract 전까지 전개하지 않고 POLICY_PENDING으로 보존한다.
 Parsed artifact의 영구 저장소는 S3이며 로컬 filesystem은 fixture·scratch·임시 처리만 허용한다.
+DoclingDocument는 결정론적 JSON byte로 직렬화하고 source SHA·parse_key 주소의 immutable S3 object로 저장한다.
+S3 checksum과 실제 byte readback이 모두 성공한 뒤에만 MySQL 성공 metadata를 commit한다. 동일 source SHA·parse_key는 검증 후
+재사용하며 새 parse_key는 기존 artifact를 덮어쓰지 않는다. 비성공 결과는 artifact 없이 상태 metadata만 보존한다.
 ### PDF Table Engine 규칙 (3-B.1부터)
 
 PDF 문서 parser는 Docling이며 표 engine이 바뀌어도 최종 구조화 표현은 DoclingDocument다. 별도 CanonicalDocument·문서 tree를 만들지 않는다.

@@ -79,6 +79,8 @@ def text_page():
 
 TEXT_PDF = build_pdf([text_page()])
 IMAGE_PDF = build_pdf([b"q 400 0 0 400 100 200 cm /Im1 Do Q"], image=True)
+MIXED_PDF = build_pdf([text_page(), b"q 400 0 0 400 100 200 cm /Im1 Do Q\nBT /F1 10 Tf 72 100 Td (Scan Page) Tj ET"],
+                      image=True)
 MALFORMED_PDF = b"%PDF-1.4\n1 0 obj << /Type /Catalog >> garbage"
 
 
@@ -104,14 +106,127 @@ class DoclingPdfRouteContractTests(unittest.TestCase):
         self.assertEqual(reloaded.export_to_markdown(), text)
         self.assertGreater(result.text_chars, 200)
 
-    def test_image_only_pdf_is_ocr_required_not_failure(self):
-        from biz_aid_pipeline.parsing import pdf_tables
-        with mock.patch.object(pdf_tables, "detect_tables", wraps=pdf_tables.detect_tables) as tables:
-            result = parse(IMAGE_PDF)
-        # BOUNDARY: native text가 없는 문서는 표 cell text의 출처가 없으므로 PP를 실행하지 않고 OCR_REQUIRED로 남는다.
-        tables.assert_not_called()
+    def test_image_only_pdf_runs_ocr_and_stays_ocr_required_without_text(self):
+        result = parse(IMAGE_PDF)
+        # 합성 회색 image에는 글자가 없으므로 OCR 후에도 OCR_REQUIRED이며 OCR 결과 부족이 드러난다.
         self.assertEqual((result.status, result.failure_code, result.text_chars), ("OCR_REQUIRED", None, 0))
+        self.assertEqual((result.warnings["PDF_OCR_APPLIED"], result.warnings["OCR_TEXT_INSUFFICIENT"]), (1, 1))
+        self.assertEqual(result.ocr["pages"], [1])
+        self.assertIn("korean_PP-OCRv5_mobile_rec", result.ocr["engine"])
         self.assertIsInstance(result.document, DoclingDocument)
+
+    def test_ocr_text_becomes_parsed_document_with_provenance(self):
+        from biz_aid_pipeline.parsing import pdf_ocr
+        lines = {1: [pdf_ocr.OcrLine(1, [100, 120, 400, 140], "지원 대상 중소기업 신청 기간 안내 문서입니다", 0.98),
+                     pdf_ocr.OcrLine(1, [60, 80, 300, 100], "2026년 수출 바우처 지원사업 공고", 0.99),
+                     pdf_ocr.OcrLine(1, [100, 160, 420, 180], "문의 전화 및 제출 서류는 붙임을 참고하십시오", 0.91)]}
+        with mock.patch.object(pdf_ocr, "ocr_pages", return_value=lines):
+            result = parse(IMAGE_PDF)
+        self.assertEqual((result.status, result.warnings["PDF_OCR_APPLIED"]), ("PARSED", 1))
+        texts = [item for item in result.document.texts if item.meta and item.meta.get_custom_part().get("bizaid__ocr")]
+        # 읽기 순서(위→아래)로 들어가고 OCR provenance를 모두 가진다.
+        self.assertEqual([item.text for item in texts][0], "2026년 수출 바우처 지원사업 공고")
+        ocr = texts[0].meta.get_custom_part()["bizaid__ocr"]
+        self.assertEqual((ocr["source_sha256"], ocr["page"], ocr["bbox_pt"], ocr["confidence"]),
+                         (hashlib.sha256(IMAGE_PDF).hexdigest(), 1, [60, 80, 300, 100], 0.99))
+        self.assertIn("PP-OCRv5_mobile_det", ocr["engine"])
+        reloaded = DoclingDocument.model_validate_json(artifact_bytes(result.document))
+        self.assertEqual(reloaded.export_to_markdown(), result.document.export_to_markdown())
+
+    def test_mixed_pdf_ocrs_only_low_text_page_and_keeps_native_page(self):
+        from biz_aid_pipeline.parsing import pdf_ocr, pdf_tables
+        ocr_text = ("Scan Page 스캔 페이지의 지원 대상 신청 기간 제출 서류 안내를 OCR로 복원한 충분한 길이의 본문입니다. "
+                    "이 페이지의 접수 조건과 문의 방법도 함께 보존합니다")
+        lines = {2: [pdf_ocr.OcrLine(2, [72, 80, 500, 105], ocr_text, 0.97)]}
+        with (mock.patch.object(pdf_ocr, "ocr_pages", return_value=lines) as ocr,
+              mock.patch.object(pdf_tables, "page_tables", wraps=pdf_tables.page_tables) as page_tables):
+            result = parse(MIXED_PDF)
+        self.assertEqual((result.status, result.ocr["pages"], result.ocr["insufficient_pages"]), ("PARSED", [2], []))
+        self.assertEqual(ocr.call_args.args[1], [2])
+        # page 1은 native layer(None), page 2만 OCR layer를 기존 PP 경로에 전달한다.
+        self.assertIsNone(page_tables.call_args_list[0].args[4])
+        self.assertIsNotNone(page_tables.call_args_list[1].args[4])
+        markdown = result.document.export_to_markdown()
+        self.assertEqual(markdown.count("Support Program Overview"), 1)
+        self.assertEqual(markdown.count(ocr_text), 1)
+        self.assertEqual(markdown.count("Scan Page"), 1)
+        self.assertTrue(any(table.prov[0].page_no == 1 for table in result.document.tables))
+        ocr_items = [item for item in result.document.texts
+                     if item.meta and item.meta.get_custom_part().get("bizaid__ocr")]
+        self.assertEqual(len(ocr_items), 1)
+        self.assertEqual(ocr_items[0].meta.get_custom_part()["bizaid__ocr"]["page"], 2)
+        reloaded = DoclingDocument.model_validate_json(artifact_bytes(result.document))
+        self.assertEqual(reloaded.export_to_markdown(), markdown)
+
+    def test_mixed_pdf_keeps_insufficient_ocr_page_visible_without_discarding_the_document(self):
+        from biz_aid_pipeline.parsing import pdf_ocr
+        lines = {2: [pdf_ocr.OcrLine(2, [72, 80, 300, 105], "짧은 OCR", 0.9)]}
+        with mock.patch.object(pdf_ocr, "ocr_pages", return_value=lines):
+            result = parse(MIXED_PDF)
+        # OCR 부족 page는 warning·insufficient_pages로 드러나고, 문서 status는 문서 text Gate가 정한다.
+        # 빈 쪽 하나로 문서 전체를 OCR_REQUIRED로 두면 PARSED artifact가 저장되지 않아 본문이 사라진다.
+        self.assertEqual((result.status, result.ocr["insufficient_pages"]), ("PARSED", [2]))
+        self.assertEqual(result.warnings["OCR_TEXT_INSUFFICIENT"], 1)
+        self.assertIn("짧은 OCR", result.document.export_to_markdown())
+
+    def test_table_region_owns_its_words_and_native_items_keep_only_outside_words(self):
+        from docling_core.types.doc import BoundingBox, ContentLayer, CoordOrigin, DocItemLabel, ProvenanceItem, Size
+        from biz_aid_pipeline.parsing import pdf_assembly
+        from biz_aid_pipeline.parsing.models import ParseResult
+
+        def prov(l, t, r, b):
+            return ProvenanceItem(page_no=1, bbox=BoundingBox(l=l, t=t, r=r, b=b, coord_origin=CoordOrigin.TOPLEFT), charspan=(0, 1))
+        document = DoclingDocument(name="t")
+        document.add_page(page_no=1, size=Size(width=600, height=800))
+        crossing = document.add_text(label=DocItemLabel.FOOTNOTE, text="각주 표안글자", prov=prov(20, 100, 300, 120))
+        inside = document.add_text(label=DocItemLabel.TEXT, text="표안", prov=prov(150, 150, 190, 160))
+        footer = document.add_text(label=DocItemLabel.PAGE_FOOTER, text="3", prov=prov(290, 770, 300, 780),
+                                   content_layer=ContentLayer.FURNITURE)
+        words = [([20, 100, 60, 120], "각주"), ([140, 100, 200, 120], "표안글자"), ([150, 150, 190, 160], "표안")]
+        region = [100, 90, 400, 200]
+        assembler = pdf_assembly._Assembler(document, None, "a" * 64, self.contract, ParseResult("a" * 64, "PDF", "DOCLING_PDF", "k", "X"),
+                                            {1: ([], words)})
+        assembler.trim_overlapping_native(1, region, [region])
+        # 영역에 걸친 item은 영역 밖 단어만 남기고, 영역 밖 단어가 없는 item은 지운다. 영역 안 단어는 표 결과가 가진다.
+        self.assertEqual(crossing.text, "각주")
+        self.assertNotIn(inside, [item for item, _ in document.iterate_items()])
+        # OCR page의 native 제거는 furniture layer의 쪽 번호도 포함해 OCR과 중복되지 않게 한다.
+        pdf_assembly.remove_native_content_on_ocr_pages(document, [1])
+        self.assertEqual([item for item, _ in document.iterate_items(included_content_layers=set(ContentLayer))
+                          if item is footer], [])
+
+    def test_low_text_page_with_only_native_text_keeps_native_instead_of_ocr(self):
+        from biz_aid_pipeline.parsing.pdf_ocr import select_ocr_pages
+        native = {1: 0, 2: 26, 3: 26, 4: 400}
+        images = {1: 0, 2: 0, 3: 1, 4: 2}
+        # native 글자만 있는 low-text page(2)는 OCR하지 않는다. 글자 없는 page(1)와 image가 있는 page(3)는 OCR한다.
+        self.assertEqual(select_ocr_pages(native, images, 50), [1, 3])
+
+    def test_anchor_places_after_the_last_item_of_the_same_row(self):
+        from docling_core.types.doc import BoundingBox, CoordOrigin, DocItemLabel, ProvenanceItem, Size
+        from biz_aid_pipeline.parsing import pdf_assembly
+
+        def prov(l, t, r, b):
+            return ProvenanceItem(page_no=1, bbox=BoundingBox(l=l, t=t, r=r, b=b, coord_origin=CoordOrigin.TOPLEFT), charspan=(0, 1))
+        document = DoclingDocument(name="t")
+        document.add_page(page_no=1, size=Size(width=600, height=800))
+        document.add_text(label=DocItemLabel.TEXT, text="참고", prov=prov(20, 76, 60, 96))
+        second = document.add_text(label=DocItemLabel.TEXT, text="견적서 예시", prov=prov(80, 76, 300, 94))
+        # 같은 행(top 동일)의 두 item 사이가 아니라 문서 순서상 마지막 item 뒤에 넣는다.
+        self.assertEqual(pdf_assembly.anchor(document, 1, 117, []), (second, True))
+
+    def test_ocr_runs_only_for_ocr_required_documents_and_fails_loudly(self):
+        from biz_aid_pipeline.parsing import pdf_ocr
+        with mock.patch.object(pdf_ocr, "ocr_pages") as ocr:
+            self.assertEqual(parse(TEXT_PDF).status, "PARSED")
+            ocr.assert_not_called()
+        with mock.patch.object(pdf_ocr, "pipeline", side_effect=RuntimeError("boom")):
+            result = parse(IMAGE_PDF)
+        self.assertEqual((result.status, result.failure_code, result.document), ("PARSE_FAILED", "ocr_engine_error:RuntimeError", None))
+        self.assertIn("ocr_engine_error:<ExceptionClass>", self.contract["failure_codes"]["PARSE_FAILED"])
+        words = pdf_ocr.line_words(pdf_ocr.OcrLine(1, [0, 0, 110, 10], "지원 금액 100만원", 0.9))
+        self.assertEqual([text for _, text in words], ["지원", "금액", "100만원"])
+        self.assertEqual((words[0][0][0], words[-1][0][2]), (0, 110))
 
     def test_malformed_pdf_is_parse_failed_with_registered_code(self):
         result = parse(MALFORMED_PDF)

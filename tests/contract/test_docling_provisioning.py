@@ -69,7 +69,9 @@ class DoclingProvisioningContractTests(unittest.TestCase):
         repos = {model["repo_id"] for model in spec["models"]}
         self.assertNotIn("docling-project/docling-models", repos)
         self.assertIn("docling-project/docling-layout-heron", repos)
-        self.assertEqual(sum(repo.startswith("PaddlePaddle/") for repo in repos), 6)
+        # PP-TableMagic 표 모델 6개와 OCR_REQUIRED용 PP-OCRv5 모델 2개다.
+        self.assertEqual(sum(repo.startswith("PaddlePaddle/") for repo in repos), 8)
+        self.assertTrue({"PaddlePaddle/PP-OCRv5_mobile_det", "PaddlePaddle/korean_PP-OCRv5_mobile_rec"} <= repos)
 
     def test_cache_key_changes_only_with_model_identity(self):
         key = artifacts_cache_key(self.contract)
@@ -130,6 +132,21 @@ class DoclingProvisioningContractTests(unittest.TestCase):
                 with self.assertRaises((PipelineError, OSError)):
                     provisioning.provision(self.contract, allow_network=True)
                 self.assertFalse(any((self.target / model).exists() for model, _ in artifact_files(self.contract)))
+
+    def test_provision_adds_only_missing_model_folders(self):
+        spec = self.contract["dependencies"]["docling"]["model_artifacts"]
+        kept = spec["models"][0]
+        self.write(self.target)
+        new = spec["models"][-1]
+        import shutil
+        shutil.rmtree(self.target / new["folder"])
+        download, calls = self.fake_download()
+        with mock.patch.dict(os.environ, {ENV: str(self.target)}), mock.patch("huggingface_hub.hf_hub_download", download):
+            self.assertEqual(provisioning.provision(self.contract, allow_network=True), spec["expected_manifest_sha256"])
+        # 이미 완전한 모델 폴더는 다시 받지 않고 없는 폴더만 고정 commit으로 받는다.
+        self.assertEqual({repo for repo, _, _ in calls}, {new["repo_id"]})
+        self.assertTrue((self.target / kept["folder"]).exists())
+        self.assertFalse((self.target.parent / "artifacts.staging").exists())
 
     def test_provision_requires_explicit_network_and_keeps_existing_mismatch(self):
         with mock.patch.dict(os.environ, {ENV: str(self.target)}), mock.patch("huggingface_hub.hf_hub_download") as download:

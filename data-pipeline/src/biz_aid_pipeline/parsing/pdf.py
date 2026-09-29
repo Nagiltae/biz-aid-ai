@@ -61,25 +61,45 @@ def convert_pdf(pdf_bytes, source_sha256, contract):
 
 
 def parse_pdf(pdf_bytes, source_sha256, contract, result):
-    """PDF production 경계: Docling backbone → PP-TableMagic 표 → 같은 DoclingDocument로 조립. HWP→PDF도 재사용한다."""
+    """PDF production 경계: Docling backbone → (OCR_REQUIRED면 OCR text layer) → PP-TableMagic 표 → 같은 DoclingDocument.
+
+    HWP→PDF도 이 함수를 그대로 재사용한다.
+    """
     import pypdfium2
     from biz_aid_pipeline.parsing.pdf_assembly import assemble
     from biz_aid_pipeline.parsing.pdf_tables import PdfTableError, detect_tables
-    from biz_aid_pipeline.parsing.quality import text_chars
     document, page_count = convert_pdf(pdf_bytes, source_sha256, contract)
-    if text_chars(document) / page_count <= contract["document_gate"]["pdf_ocr_required_max_chars_per_page"]:
-        # BOUNDARY: native text가 부족한 문서는 apply_gate가 OCR_REQUIRED로 분리한다. 표 cell text의 출처가 없으므로 PP를 실행하지 않는다.
-        return document, page_count
-    try:
-        tables, table_pages = detect_tables(pdf_bytes, contract)
-    except PdfTableError as error:
-        # BOUNDARY: 표 engine 실패는 다른 표 parser로 넘기지 않고 문서 실패로 드러낸다.
-        raise PdfConversionError(error.code) from None
-    if table_pages != page_count:
-        raise PdfConversionError("pdf_page_count_mismatch")
+    threshold = contract["document_gate"]["pdf_ocr_required_max_chars_per_page"]
     pdf = pypdfium2.PdfDocument(pdf_bytes)
     try:
-        assemble(document, pdf, tables, source_sha256, contract, result)
+        layers = lines = engine = None
+        from biz_aid_pipeline.parsing.pdf_ocr import (PdfOcrError, line_words, ocr_identity, ocr_pages,
+                                                      ocr_text_chars, page_native_chars, page_raster_images,
+                                                      select_ocr_pages)
+        # BOUNDARY: 문서 평균은 scan page를 text page 뒤에 숨길 수 있다. 모든 page를 같은 native text 기준으로 독립 판정한다.
+        pages = select_ocr_pages(page_native_chars(pdf), page_raster_images(pdf), threshold)
+        if pages:
+            try:
+                lines = ocr_pages(pdf, pages, contract)
+            except PdfOcrError as error:
+                # BOUNDARY: OCR 실패는 PARSED로 숨기지 않고 문서 실패로 드러낸다.
+                raise PdfConversionError(error.code) from None
+            engine = ocr_identity(contract)
+            layers = {page: ([(line.bbox, line.text) for line in page_lines],
+                             [word for line in page_lines for word in line_words(line)])
+                      for page, page_lines in lines.items()}
+            insufficient = [page for page in pages if ocr_text_chars(lines.get(page, [])) <= threshold]
+            result.ocr = {"engine": engine, "pages": pages, "lines": sum(len(v) for v in lines.values()),
+                          "insufficient_pages": insufficient}
+            result.warn("PDF_OCR_APPLIED", len(pages))
+        try:
+            tables, table_pages = detect_tables(pdf_bytes, contract, layers)
+        except PdfTableError as error:
+            # BOUNDARY: 표 engine 실패는 다른 표 parser로 넘기지 않고 문서 실패로 드러낸다.
+            raise PdfConversionError(error.code) from None
+        if table_pages != page_count:
+            raise PdfConversionError("pdf_page_count_mismatch")
+        assemble(document, pdf, tables, source_sha256, contract, result, layers, lines, engine)
     finally:
         pdf.close()
     return document, page_count

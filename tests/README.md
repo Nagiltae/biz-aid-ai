@@ -27,3 +27,8 @@ container/XML 안전 한도, 빈 text 비성공, parse_key 재처리 규칙을 �
 
 contract/test_document_parsing_pdf.py는 합성 PDF로 Docling PDF route의 PARSED / OCR_REQUIRED / PARSE_FAILED 구분,
 PDF handler 호출 경계, OCR 비활성과 parse_key 버전 추적을 검증한다. 실제 corpus·S3는 사용하지 않는다.
+contract/test_parse_persistence.py와 integration/test_parse_persistence_mysql.py는 작은 ParseResult로 deterministic JSON,
+immutable S3 key·readback, V5 metadata, 동일 key 재사용과 S3 실패 시 성공 metadata 부재를 검증한다. 실제 AWS는 호출하지 않는다.
+contract/test_parse_orchestration.py는 단일 verified source의 lookup/read/parser/persistence 순서와 CLI, 최대 3개 bounded batch의
+결정적 순차 실행·실패 격리·안전 제한을 검사하고,
+integration/test_parse_persistence_mysql.py는 같은 orchestration의 재실행이 REUSED인지 확인한다. 전체 corpus와 실제 AWS는 사용하지 않는다.

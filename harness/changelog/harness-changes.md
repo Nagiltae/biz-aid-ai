@@ -235,3 +235,44 @@ native text가 부족한 PDF는 PP 없이 OCR_REQUIRED로 남기는 ocr_required
 
 사용자 승인으로 HWP 변환기를 LibreOffice headless + H2Orestart 전용 Docker 이미지로 정하고(host 설치 없음) HWP route를 활성화한다.
 Contract routes.HWP에 이미지 identity·실행 조건·provenance 규칙, CONVERSION_FAILED 실패 코드를 두고 Source 규칙·Pipeline·infra README·Testing을 맞춘다. HWPX route는 바꾸지 않는다.
+
+## 2026-09-29 — Phase 3-B.7 OCR_REQUIRED OCR
+
+OCR_REQUIRED PDF에만 PaddleX PP-OCRv5(mobile det + 한국어 rec) OCR을 추가한다. Contract routes.PDF.ocr, 모델 2개의 artifact identity, PDF_OCR_APPLIED /
+OCR_TEXT_INSUFFICIENT warning, ocr_engine_error 실패 코드를 두고 out_of_scope에서 OCR을 뺀다. provisioning은 없는 모델 폴더만 받도록 바꾼다. Source 규칙·Pipeline·Testing을 맞춘다.
+
+## 2026-09-29 — Phase 3-B.8 page-selective OCR
+
+문서 평균이 scan page를 숨기지 않도록 PDF page마다 native text를 독립 판정한다. 선택한 page만 기존 PP-OCRv5 text layer로
+교체하며 충분한 page는 native text를 유지한다. OCR 부족 page는 다른 page의 text 양과 무관하게 OCR_REQUIRED로 남긴다.
+
+## 2026-09-29 — Phase 3-B.9 Parse persistence
+
+PARSED DoclingDocument를 source SHA·parse_key 주소의 immutable S3 JSON으로 저장하고, checksum·실제 byte 검증 후 V5 MySQL
+metadata를 확정한다. 동일 key는 재사용하고 새 parse_key는 별도 결과로 보존하며 비성공 결과는 artifact를 만들지 않는다.
+
+## 2026-09-29 — Phase 3-B.10 Single-source parse orchestration
+
+verified `document_sources`의 unique content SHA 하나를 S3 readback → 기존 parser → 기존 persistence로 연결하는 dev-only CLI를 추가한다.
+relation metadata가 충돌하면 중단하고, 재실행은 persistence의 source SHA·parse_key idempotency를 그대로 사용한다. 암묵적 batch와 실제 AWS 검증은 포함하지 않는다.
+
+## 2026-09-29 — Phase 3-B.11 Bounded parse orchestration
+
+기존 single-source orchestration을 호출자 명시 SHA 1~3개의 결정적 순차 batch로 감쌌다. source 자동 탐색과 병렬 처리를 두지 않고,
+source별 실패를 격리해 INSERTED/REUSED/실패를 집계하며 재실행은 기존 persistence idempotency를 그대로 사용한다.
+
+## 2026-09-29 — Phase 3-B.12 HWPX 구조·provenance
+
+HwpxDoclingAdapter가 header.xml의 명시 선언으로 heading·list·각주·머리말을 만들고, 목록·중첩 표가 있는 cell을 RichTableCell로 보존하며 모든 item에 `bizaid__hwpx` provenance를 남긴다.
+Contract routes.HWPX에 structure_rules·provenance·quality_status를, versioning.adapter_version을 2로, HWPX_STYLE_HEADER_MISSING warning을 둔다. Source 규칙·Pipeline·Testing을 맞춘다.
+
+## 2026-09-30 — Phase 3-B.13 Parser Hardening
+
+parse identity를 route 의존 범위로 나누고(`adapter_version` → HWPX 전용 `hwpx_adapter_version`, Contract versioning.route_scope), 조립의 단어 소유 규칙,
+OCR page furniture 제거, 같은 행 anchor, OCR 부족 page의 status 규칙을 Contract·Source 규칙·Testing에 반영한다. 3-B.8의 "부족 page 하나면 문서 OCR_REQUIRED"는 실제 문서 근거로 바꾼다.
+
+## 2026-09-30 — Phase 3-C Corpus Parsing
+
+기존 orchestrate_source를 재사용하는 dev 전용 corpus runner(`parsing/corpus.py`, `scripts/run_corpus_parsing.py`)를 추가한다. 자식 process 하나로 순차 실행하고
+source별 timeout·실패 격리·현재 parse_key skip·연속 환경 실패 중단·progress 파일을 둔다. Contract `corpus_execution`과 Source 규칙에 corpus 실행 규칙을 둔다.
+corpus 100건 실행에서 native text만 있는 low-text page의 native가 OCR로 교체되는 반복 문제(27건, 77쪽)를 확인해 OCR page 선택에 raster image 조건을 두고, runner에 --max-completed·source 경계 종료·--sources-file 재처리를 둔다.

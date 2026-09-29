@@ -149,10 +149,17 @@ S3 object key는 `biz-aid/documents/sha256/<2>/<2>/<sha256>`이며 확장자를 
 
 [Parsing 계약](../../contracts/schemas/document-parsing.contract.json)과 [Source 규칙](../rules/data-source-rules.md)의 Phase 3 절을 따른다.
 `parsing/router.py`가 `detected_format`으로 route를 고르고 입력 byte의 크기·SHA를 재확인한다.
-PDF: S3 byte → Docling DocumentConverter(do_ocr=false, 표 구조 off) → PP-TableMagic 표(native text 주입·grid adapter·품질 Gate) → 같은 DoclingDocument로 조립(`parsing/pdf_tables.py`, `parsing/pdf_assembly.py`). HWP: S3 byte → 전용 Docker 변환기(LibreOffice headless + H2Orestart, 네트워크 없음) → 임시 PDF → 같은 `parse_pdf` 경로(`parsing/hwp_pdf.py`).
-HWPX: S3 byte → 제한된 container read → section XML → `HwpxDoclingAdapter` → DoclingDocument. 세 경로의 결과는 모두 DoclingDocument다.
+PDF: S3 byte → Docling DocumentConverter(do_ocr=false, 표 구조 off) → page별 native text 판정 → 부족한 page만 PP-OCRv5 text layer(`parsing/pdf_ocr.py`) → PP-TableMagic 표(OCR page는 OCR text, 나머지는 native text·grid adapter·품질 Gate) → 같은 DoclingDocument로 조립(`parsing/pdf_tables.py`, `parsing/pdf_assembly.py`). HWP: S3 byte → 전용 Docker 변환기(LibreOffice headless + H2Orestart, 네트워크 없음) → 임시 PDF → 같은 `parse_pdf` 경로(`parsing/hwp_pdf.py`).
+HWPX: S3 byte → 제한된 container read → header.xml 선언 + section XML → `HwpxDoclingAdapter`(명시 heading·list·각주·머리말, RichTableCell, `bizaid__hwpx` provenance) → DoclingDocument. 세 경로의 결과는 모두 DoclingDocument다.
 공통 후처리 `quality.normalize_document`가 text를 정규화하고 원문을 orig에 두며 `apply_gate`가 JSON 재적재·text 양으로 상태를 정한다.
 현재 구현은 HWPX route, Docling PDF route(`parsing/pdf.py`, do_ocr=false)와 공통 router/Gate다. HWP는 Docker 변환 후 PDF route를 재사용하고, XLSX/ZIP/OTHER/UNKNOWN은 POLICY_PENDING이다.
+
+Parse persistence는 `parsing/persistence.py`가 DoclingDocument를 결정론적 JSON으로 직렬화해 source SHA·parse_key 기반 S3 key에
+conditional PUT하고 HEAD checksum과 실제 byte를 재검증한 뒤, `parsing/repository.py`가 V5 MySQL metadata를 확정한다.
+MySQL에는 JSON byte를 넣지 않으며 local file은 SDK 전송용 임시 파일만 쓴다. PARSED가 아닌 결과는 artifact 없이 상태만 기록한다.
+`parsing/orchestration.py`는 명시된 unique content SHA의 일치하는 verified S3 relation을 조회해 원본 byte를 검증하고,
+기존 `parse_document`와 `persist_parse_result`를 순서대로 호출한다. CLI는 `--source-sha256`를 1~3회 명시하며 SHA 오름차순으로 순차 실행한다.
+대상을 자동 발견하지 않고 source별 실패를 격리하며 별도 중복 판정 없이 persistence idempotency를 사용한다.
 Docling 배포는 PDF 전용 extras의 docling-slim이다. layout(heron)·PP 표 모델 6개는 `BIZAID_DOCLING_ARTIFACTS_PATH`에 미리 준비한 고정 snapshot만 읽고 실행 중 다운로드하지 않는다.
 TABLE_QUALITY_FAILED·겹친 PP 영역·PP 밖 Docling 표는 구조 없는 native text와 `bizaid__table_quality` provenance로 남고 PARSED는 표 완전성을 뜻하지 않는다. 전체 실행 전 동시성·메모리(PDF 표본 peak RSS 약 3.55 GB) 정책이 필요하다.
-저장 정책은 S3 artifact + MySQL metadata로 정해졌고 구현·Pilot·Full Parse는 후속 sub-step이다. HWP 변환기 이미지는 `infra/hwp-converter/Dockerfile`로 빌드한다(infra README). Chunking은 이 산출물을 HybridChunker로 직접 소비하는 후속 Task다.
+저장 정책과 최대 3개 explicit source의 bounded orchestration은 구현됐다. Full Parse는 후속 sub-step이다. HWP 변환기 이미지는 `infra/hwp-converter/Dockerfile`로 빌드한다(infra README). Chunking은 이 산출물을 HybridChunker로 직접 소비하는 후속 Task다.

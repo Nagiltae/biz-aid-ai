@@ -122,7 +122,7 @@ Contract 테스트는 합성 HWPX container로 detected-format route, 비활성 
 DoclingDocument JSON 재적재·표 병합·section 순서·글상자/중첩 표·정규화와 orig 보존, 빈 text의 비성공 상태,
 경로 탈출·중복·압축비·해제 크기·DTD/entity·암호화·손상 XML/ZIP 거부와 parse_key 버전 규칙을 검증한다.
 Contract의 unique content SHA / source relation 기준 분리와 합계, 미결정 route의 비활성 상태도 검사한다.
-실제 corpus·S3·Docling PDF 변환·HWP 변환·결과 영속화·HWPX 구조 품질은 아직 검증 대상이 아니며 PASS로 계산하지 않는다.
+실제 corpus·AWS S3·Docling PDF 변환·HWP 변환·HWPX 구조 품질은 아직 검증 대상이 아니며 PASS로 계산하지 않는다.
 
 `test_document_parsing_pdf.py`는 결정론적 합성 PDF로 text PDF → PARSED와 JSON 재적재, image-only PDF → OCR_REQUIRED,
 손상 PDF와 Docling 부분 성공 → PARSE_FAILED(등록된 failure_code), detected_format이 PDF일 때만 PDF handler 호출,
@@ -174,3 +174,44 @@ PDF route Contract test는 합성 PDF로 PP 표가 TABLE_VALID TableItem과 prov
 HWP route Contract test는 docker 호출을 대체해 변환 성공 시 `parse_pdf` 재사용·원본 SHA provenance·derivation·임시 디렉터리 삭제를,
 변환 실패·timeout·이미지 identity 불일치가 fallback 없이 CONVERSION_FAILED인지, Dockerfile이 Contract의 hash·base digest·H2Orestart SHA와 같은지 확인한다.
 실제 변환은 check-all 밖에서 HWP 최대 3개의 targeted 확인으로만 하며 check-all은 변환 이미지를 요구하지 않는다.
+
+## Phase 3-B.7 OCR_REQUIRED OCR
+
+PDF Contract test는 합성 image-only PDF 1쪽에 실제 OCR을 돌려 글자가 없으면 OCR_REQUIRED + OCR_TEXT_INSUFFICIENT인지 확인하고,
+OCR 결과를 대체한 test로 PARSED 조립·읽기 순서·`bizaid__ocr` provenance, OCR engine 오류의 PARSE_FAILED, text PDF에서 OCR 미호출을 확인한다.
+실제 OCR_REQUIRED 문서 확인은 check-all 밖에서 최대 3문서로만 한다.
+
+부분 scan PDF는 text page와 image page를 합친 2-page fixture로 검증한다. OCR mock은 image page만 선택되는지, native page text가 한 번만
+남는지, OCR text·provenance·JSON round-trip과 기존 PP table route가 유지되는지를 확인한다. 일반 text PDF는 계속 OCR 호출 0회다.
+
+## Phase 3 Parse persistence
+
+Contract test는 parsed S3 key 결정성, conditional PUT·checksum·full readback 및 verify 실패 시 repository 미호출을 검사한다.
+MySQL integration은 작은 기존 ParseResult fixture로 V5 metadata·JSON reload, 동일 source SHA·parse_key 재사용과 S3 실패 시 row 부재를
+검사한다. 실제 AWS, parser model 반복 실행, 전체 corpus와 Markdown artifact는 사용하지 않는다.
+
+## Phase 3 Parse orchestration
+
+Contract test는 단일 SHA source lookup → S3 read → parser → persistence 호출 순서와 CLI의 명시적 SHA 입력을 검사한다.
+Bounded batch test는 1~3개 unique SHA 제한, 결정적 순차 순서, source별 실패 격리와 INSERTED/REUSED 집계를 검사한다.
+MySQL integration은 같은 source를 두 번 실행해 persistence가 INSERTED → REUSED를 반환하는지 확인한다.
+S3 read 실패 case는 parser와 persistence가 모두 호출되지 않아야 한다. fake S3와 작은 ParseResult를 사용하며 실제 모델 반복 실행은 없다.
+실제 dev smoke는 사용자가 명시적으로 승인한 경우에만 최대 3개 source로 제한하고 prod·자동 source discovery·전체 corpus 실행은 금지한다.
+
+## Phase 3-B.12 HWPX 구조·provenance
+
+HWPX Contract test는 합성 header.xml로 OUTLINE·내장 개요 스타일 heading, 사용자 정의 스타일 비heading, NUMBER/BULLET list group,
+머리말 furniture·각주, cell 안 heading 무시와 RichTableCell, 중첩 표 구조 보존과 글자 1회 계수, `bizaid__hwpx` provenance, page/bbox 미생성을 확인한다.
+실제 HWPX 확인은 check-all 밖에서 최대 3문서로만 한다.
+
+## Phase 3-B.13 Parser Hardening
+
+parse_key test는 HWPX adapter·PDF 표 설정·HWP 변환기·normalizer 변경이 각각 의존 route key만 바꾸는지 확인한다.
+PDF test는 PP 영역에 걸친 native item의 영역 밖 단어 보존과 중복 제거, OCR page의 furniture 제거, 같은 행 anchor, OCR 부족 page의 warning 유지와 문서 status를 확인한다.
+실제 문서 점검은 check-all 밖에서 format별 최대 2개, 총 6개로만 한다.
+
+## Phase 3-C Corpus Parsing
+
+corpus runner test는 enabled format unique SHA 선택·SHA 순서, 현재 parse_key 결과 skip, source 실패 격리와 연속 환경 실패 시 중단을 확인한다.
+실제 통합 검증은 dev corpus 실행 자체이며 check-all에 넣지 않는다.
+OCR page 선택 test는 native 글자만 있는 low-text page를 OCR하지 않고, 글자 없는 page와 raster image가 있는 page만 OCR하는지 확인한다.

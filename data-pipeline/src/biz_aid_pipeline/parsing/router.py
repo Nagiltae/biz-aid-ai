@@ -61,4 +61,10 @@ def parse_document(request, raw, contract=None):
     else:
         raise PipelineError("enabled_route_without_handler")
     normalize_document(document, result)
-    return apply_gate(result, document, contract, page_count=page_count)
+    gated = apply_gate(result, document, contract, page_count=page_count)
+    if gated.ocr and (gated.status == "OCR_REQUIRED" or gated.ocr["insufficient_pages"]):
+        # BOUNDARY: OCR 부족 page는 warning과 insufficient_pages metadata로 드러내고, 문서 status는 문서 text Gate가 정한다.
+        # WHY: OCR은 "읽을 것이 없는 page"(빈 쪽·쪽 번호만 있는 쪽)와 "읽지 못한 scan page"를 추측 없이 구분할 근거가 없다.
+        # page 하나로 문서 전체를 OCR_REQUIRED로 두면 PARSED artifact가 저장되지 않아 나머지 본문이 사라진다(3-B.13 HWP 2건).
+        gated.warn("OCR_TEXT_INSUFFICIENT")
+    return gated

@@ -26,3 +26,7 @@ V1/V2는 수정하지 않으며 V3의 모든 Table / Column도 동일 COMMENT �
 `V4__document_s3_storage.sql`은 기존 V1/V2/V3를 보존하며 `document_sources`에 검증된 S3 위치와 검증 시각을 추가한다.
 네 S3 field는 모두 NULL 또는 모두 non-NULL이어야 한다. `storage_path`는 legacy 로컬 migration source로 유지한다.
 로컬 corpus 삭제나 이 호환 제약 변경은 Phase 2.5 독립 검토 이후 별도 신규 migration에서만 판단한다.
+
+`V5__document_parse_results.sql`은 `(source_sha256, parse_key)`별 parsing 상태와 parser identity를 보존한다.
+PARSED 결과만 검증된 S3 DoclingDocument JSON pointer·artifact SHA·byte 크기를 가지며, 비성공 결과는 artifact metadata를 가질 수 없다.
+같은 key 재실행은 row와 object를 재사용하고 새 parse_key는 기존 결과를 덮어쓰지 않고 별도 row로 남긴다.

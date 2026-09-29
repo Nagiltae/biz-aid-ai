@@ -126,8 +126,12 @@ updtPnttm incremental semantics / scheduler는 후속 검증 대상이다.
 ## Phase 3 Document Parsing
 
 `parsing` package가 S3 원본 byte를 DoclingDocument로 변환한다. route는 `detected_format`만 따르며 자체 문서 tree를 만들지 않는다.
-현재 HWPX → `HwpxDoclingAdapter`, PDF → Docling(`parsing/pdf.py`, do_ocr=false) route와 공통 정규화·Gate가 활성이다. HWP(→PDF→Docling)는 비활성,
-XLSX/ZIP/OTHER/UNKNOWN은 정책 결정 대기다. 결과 영속화와 실행 CLI는 아직 없다.
+현재 HWPX → `HwpxDoclingAdapter`, PDF → Docling + PP-TableMagic + page-selective OCR, HWP → 전용 Docker PDF 변환 후 같은 PDF route가 활성이다.
+XLSX/ZIP/OTHER/UNKNOWN은 정책 결정 대기다. PARSED 결과는 결정론적 JSON으로 S3에 영구 저장하고 V5 MySQL에는 상태·identity·pointer만 저장한다.
+동일 source SHA·parse_key는 S3와 row를 검증 후 재사용하며 local disk는 전송용 임시 파일만 사용한다. 전체 corpus parsing은 아직 없다.
+`scripts/run_document_parsing.py --profile dev --source-sha256 <sha256> [--source-sha256 <sha256> ...]`는 verified S3 원본 1~3건을
+SHA 오름차순으로 읽어 기존 parser와 persistence를 연결한다. CLI는 SHA를 반드시 명시하며 전체 corpus를 찾거나 별도 중복 규칙을 만들지 않는다.
+실제 AWS 실행은 별도 승인 범위다.
 PDF route 전제: stdlib `lzma`가 있는 Python 3.11, 그리고 저장소 밖 모델 artifact 경로를 `BIZAID_DOCLING_ARTIFACTS_PATH`로 지정한다.
 artifact 준비는 test runtime 밖의 명시적 1회 작업이다. Contract `dependencies.docling.model_artifacts`의 파일 목록을
 `resolved_snapshot` commit으로 staging에 받고 manifest가 `expected_manifest_sha256`과 같을 때만 대상 경로로 옮긴다.

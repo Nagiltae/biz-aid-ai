@@ -293,8 +293,8 @@ def integration_check():
         run(sys.executable, "-B", "infra/dev_mysql.py")
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/integration", "-p", "test_*.py", "-v")
     print("PASS: local CLI integration including credential-missing Probe/API-quality and bounded document failure exits; no live HTTP")
-    print("PASS: structured dev MySQL integration (Phase 1A/1B); no live upstream HTTP")
-    print("N/A: live API/document HTTP, HWP to PDF conversion, parse persistence, product APIs")
+    print("PASS: structured dev MySQL integration (Phase 1A/1B) and parse persistence metadata; no live upstream HTTP")
+    print("N/A: live API/document HTTP, HWP to PDF conversion, real S3 parsed-artifact persistence, product APIs")
 
 
 def database_comment_problem(name, comment):

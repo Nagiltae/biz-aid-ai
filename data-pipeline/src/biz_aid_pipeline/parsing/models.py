@@ -48,6 +48,8 @@ class ParseResult:
     unit_count: int = 0
     # 변환 경로(HWP→PDF)에서만 채운다. 중간 PDF는 저장하지 않고 SHA·크기·변환기 identity만 남긴다.
     derivation: dict | None = None
+    # OCR한 page가 있을 때만 채운다. engine identity와 OCR한 page 및 결과 부족 page를 남긴다.
+    ocr: dict | None = None
 
     def warn(self, code, count=1):
         self.warnings[code] = self.warnings.get(code, 0) + count
@@ -57,7 +59,7 @@ class ParseResult:
                 "route": self.route, "parse_key": self.parse_key, "status": self.status,
                 "failure_code": self.failure_code, "text_chars": self.text_chars,
                 "unit_count": self.unit_count, "warnings": dict(sorted(self.warnings.items())),
-                "derivation": self.derivation}
+                "derivation": self.derivation, "ocr": self.ocr}
 
 
 def installed_version(package):
@@ -69,7 +71,7 @@ def installed_version(package):
 
 def pipeline_config(contract):
     config = dict(contract["routes"]["PDF"]["docling_options"])
-    # BOUNDARY: OCR baseline은 이번 Phase 범위 밖이므로 설정이 바뀌어도 OCR이 켜진 변환기를 만들지 않는다.
+    # BOUNDARY: BizAid page OCR은 별도 layer로 결합하므로 Docling 내장 OCR은 켜지 않는다.
     if config.get("do_ocr") is not False:
         raise ValueError("pdf_ocr_must_be_disabled")
     return config
@@ -84,7 +86,8 @@ def pipeline_identity(contract):
     # BOUNDARY: 표 engine 설정도 parser identity라서 바뀌면 PDF 문서만 새 parse_key를 받는다. OCR 모델은 허용하지 않는다.
     if engine.get("use_ocr_model") is not False or any(module == "text_recognition" for module, _ in engine["submodules"].values()):
         raise ValueError("pdf_table_engine_ocr_must_be_disabled")
-    return {"docling_options": pipeline_config(contract), "layout_model_revision": revision, "table_engine": engine}
+    return {"docling_options": pipeline_config(contract), "layout_model_revision": revision, "table_engine": engine,
+            "ocr": dict(contract["routes"]["PDF"]["ocr"])}
 
 
 def artifact_files(contract):
@@ -140,27 +143,27 @@ def pipeline_config_sha256(contract):
                                      separators=(",", ":")).encode()).hexdigest()
 
 
-def parse_key(source_sha256, route, contract, converter_version=None):
-    # 부품 버전이 바뀐 route의 문서만 새 key를 받아 선택적으로 재처리되고 과거 결과는 덮어쓰지 않는다.
+# parse_key 입력은 코드가 소유한 목록이다. Contract의 parse_key_inputs와 다르면 drift로 실패한다.
+PARSE_KEY_INPUTS = ("source_sha256", "route", "hwpx_adapter_version", "normalizer_version", "docling_core_version",
+                    "docling_version", "docling_parse_version", "docling_ibm_models_version", "pipeline_config_sha256",
+                    "model_artifacts_sha256", "converter_version", "paddlepaddle_version", "paddlex_version")
+
+
+def parse_identity(source_sha256, route, contract, converter_version=None):
+    """parse_key 입력과 영구 metadata가 같은 identity를 공유하도록 결정론적 mapping을 만든다.
+
+    각 부품 identity는 그 부품이 결과에 영향을 주는 route에만 넣는다(Contract versioning.route_scope).
+    """
+    # WHY: 한 route의 부품 변경이 다른 route 문서까지 재처리하게 만들지 않는다(예: HWPX adapter 변경이 PDF key를 바꾸던 문제).
     versioning = contract["versioning"]
-    identity = {
-        "source_sha256": source_sha256,
-        "route": route,
-        "adapter_version": versioning["adapter_version"],
-        "normalizer_version": versioning["normalizer_version"],
-        "docling_core_version": installed_version("docling-core"),
-        "docling_version": None,
-        "docling_parse_version": None,
-        "docling_ibm_models_version": None,
-        "pipeline_config_sha256": None,
-        "model_artifacts_sha256": None,
-        "converter_version": converter_version,
-        "paddlepaddle_version": None,
-        "paddlex_version": None,
-    }
-    # HWP route의 Docling identity는 변환기 버전이 정해져 route가 활성화될 때 함께 채운다.
+    identity = dict.fromkeys(PARSE_KEY_INPUTS)
+    identity.update(source_sha256=source_sha256, route=route, normalizer_version=versioning["normalizer_version"],
+                    docling_core_version=installed_version("docling-core"))
+    if route == "HWPX_DOCLING_ADAPTER":
+        identity["hwpx_adapter_version"] = versioning["hwpx_adapter_version"]
+    # HWP route의 PDF identity는 변환기 버전이 정해져 실제 PDF parser를 탈 때 함께 채운다.
     if route == "DOCLING_PDF" or (route == "HWP_PDF_DOCLING" and converter_version is not None):
-        # Docling 배포는 docling-slim이고 표는 PP-TableMagic이 맡으므로 두 쪽의 설치 버전과 모델 identity를 모두 넣는다.
+        # Docling 배포는 docling-slim이고 표·OCR은 PaddleX가 맡으므로 두 쪽의 설치 버전과 모델 identity를 모두 넣는다.
         identity.update(docling_version=installed_version("docling-slim"),
                         docling_parse_version=installed_version("docling-parse"),
                         docling_ibm_models_version=installed_version("docling-ibm-models"),
@@ -168,7 +171,15 @@ def parse_key(source_sha256, route, contract, converter_version=None):
                         model_artifacts_sha256=model_artifacts_sha256(contract),
                         paddlepaddle_version=installed_version("paddlepaddle"),
                         paddlex_version=installed_version("paddlex"))
+    if route == "HWP_PDF_DOCLING":
+        identity["converter_version"] = converter_version
     if sorted(identity) != sorted(versioning["parse_key_inputs"]):
         raise PipelineError("parse_key_contract_drift")
+    return identity
+
+
+def parse_key(source_sha256, route, contract, converter_version=None):
+    # 부품 버전이 바뀐 route의 문서만 새 key를 받아 선택적으로 재처리되고 과거 결과는 덮어쓰지 않는다.
+    identity = parse_identity(source_sha256, route, contract, converter_version)
     return hashlib.sha256(json.dumps(identity, sort_keys=True, ensure_ascii=False,
                                      separators=(",", ":")).encode()).hexdigest()

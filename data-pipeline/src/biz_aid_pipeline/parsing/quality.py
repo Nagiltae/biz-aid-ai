@@ -2,7 +2,7 @@ import json
 import re
 import unicodedata
 
-from docling_core.types.doc import DoclingDocument
+from docling_core.types.doc import DoclingDocument, RichTableCell
 
 CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 WHITESPACE = re.compile(r"\s")
@@ -32,7 +32,8 @@ def normalize_document(document, result):
 
 def document_text(document):
     parts = [item.text for item in document.texts]
-    parts.extend(cell.text for table in document.tables for cell in table.data.table_cells)
+    # RichTableCell의 text는 참조한 group item의 평탄화 사본이므로 두 번 세지 않는다.
+    parts.extend(cell.text for table in document.tables for cell in table.data.table_cells if not isinstance(cell, RichTableCell))
     return "\n".join(parts)
 
 
@@ -63,7 +64,7 @@ def apply_gate(result, document, contract, page_count=None):
     if replacement and replacement / max(chars, 1) >= gate["replacement_character_warning_ratio"]:
         result.warn("REPLACEMENT_CHARACTERS_PRESENT", replacement)
     if page_count and chars / page_count <= gate["pdf_ocr_required_max_chars_per_page"]:
-        # BOUNDARY: OCR은 이번 범위 밖이므로 scan 추정 문서를 실패가 아닌 별도 상태로 드러내고 text를 확정하지 않는다.
+        # BOUNDARY: page OCR 뒤에도 문서 전체 text가 부족하면 성공으로 확정하지 않고 별도 상태로 드러낸다.
         result.status = "OCR_REQUIRED"
     elif chars <= gate["empty_text_max_chars"]:
         result.status = "EMPTY_TEXT"

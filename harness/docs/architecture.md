@@ -75,4 +75,5 @@ Dev MySQL은 Host 127.0.0.1:3306 → container 3306이며 사용자 계정·비�
 
 문서 구조의 공통 표현은 docling-core의 DoclingDocument다. BizAid는 source SHA·route·parse_key·상태·경고만 결과 봉투에 둔다.
 PDF와 HWP(→PDF)는 Docling 변환기, HWPX는 native XML Adapter가 같은 표현을 만든다. 자체 canonical document tree는 없다.
+PARSED DoclingDocument의 결정론적 JSON은 S3, `(source_sha256, parse_key)` 상태·identity·pointer는 V5 MySQL이 소유한다.
 후속 Chunking(HybridChunker·BGE-M3 tokenizer·BizAidChunkEnricher)은 이 DoclingDocument를 직접 소비하는 전제이며 이번 범위가 아니다.

@@ -14,8 +14,9 @@ content-addressed 로컬 경로, format/HTTP/size/SHA-256, 성공·실패 상태
 동일 binary dedupe가 provenance relation을 제거해서는 안 되며 V3는 기존 V1/V2를 수정하지 않고 추가한다.
 Phase 2.5의 V4는 검증된 S3 region/bucket/object key/시각만 추가한다. legacy `storage_path`는 로컬 migration source로
 유지하고 S3 영구 위치와 혼용하지 않는다. 전체 S3 object 검증 뒤 모든 relation metadata를 한 transaction에서 연결한다.
-Phase 3 parse 상태·provenance·S3 artifact pointer·parser metadata는 MySQL이 소유한다. 해당 migration 번호는 미리 고정하지 않고
-구현 시점 `migrations/`의 마지막 번호 다음을 사용한다. 3-A에서는 migration을 만들지 않는다.
+Phase 3의 V5는 `(source_sha256, parse_key)`별 parse 상태·provenance·S3 artifact pointer·parser identity를 MySQL에 저장한다.
+DoclingDocument JSON byte는 MySQL에 넣지 않는다. PARSED만 artifact metadata를 가지며 S3 검증 전 성공 row commit을 금지한다.
+같은 key는 idempotent하게 재사용하고 새 parse_key는 기존 row와 artifact를 덮어쓰지 않는다.
 
 ## Application schema COMMENT
 

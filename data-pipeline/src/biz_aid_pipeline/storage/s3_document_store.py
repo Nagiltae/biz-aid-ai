@@ -74,41 +74,25 @@ class S3DocumentStore:
         같은 SHA의 object가 이미 존재하면 덮어쓰지 않고
         기존 object의 size/checksum을 검증한 뒤 재사용한다.
         """
-        self._validate_sha256(sha256_hex)
+        return self.put_key(file_path, self.object_key(sha256_hex), sha256_hex, byte_size)
 
+    def put_key(self, file_path: Path, key: str, sha256_hex: str, byte_size: int,
+                content_type: str = "application/octet-stream") -> str:
+        """검증된 임의 key에 immutable object를 저장한다. content-addressed 원문과 parsed artifact가 함께 쓴다."""
+        self._validate_sha256(sha256_hex)
+        self._validate_key(key)
         if not file_path.is_file():
             raise FileNotFoundError(file_path)
-
         actual_size = file_path.stat().st_size
-
         if actual_size != byte_size:
-            raise ValueError(
-                f"file size mismatch: "
-                f"expected={byte_size}, "
-                f"actual={actual_size}"
-            )
-
-        # 호출자가 전달한 SHA 값을 그대로 믿지 않고
-        # 실제 파일 byte로 다시 계산한다.
-        actual_sha256 = self._calculate_file_sha256(
-            file_path
-        )
-
+            raise ValueError(f"file size mismatch: expected={byte_size}, actual={actual_size}")
+        actual_sha256 = self._calculate_file_sha256(file_path)
         if actual_sha256 != sha256_hex:
-            raise ValueError(
-                f"file sha256 mismatch: "
-                f"expected={sha256_hex}, "
-                f"actual={actual_sha256}"
-            )
-
-        key = self.object_key(sha256_hex)
+            raise ValueError(f"file sha256 mismatch: expected={sha256_hex}, actual={actual_sha256}")
 
         # 이미 같은 SHA object가 존재하면 덮어쓰지 않는다.
-        if self.exists(sha256_hex):
-            if not self.verify(
-                    sha256_hex=sha256_hex,
-                    byte_size=byte_size,
-            ):
+        if self.exists_key(key):
+            if not self.verify_key(key, sha256_hex, byte_size):
                 raise RuntimeError(
                     "existing S3 object failed "
                     "integrity verification"
@@ -129,9 +113,7 @@ class S3DocumentStore:
                     Key=key,
                     Body=file_obj,
                     ContentLength=byte_size,
-                    ContentType=(
-                        "application/octet-stream"
-                    ),
+                    ContentType=content_type,
                     ChecksumSHA256=checksum_base64,
 
                     # 동시에 같은 SHA object를 생성하려는 경우에도
@@ -149,20 +131,14 @@ class S3DocumentStore:
             # 다른 실행이 먼저 같은 object를 생성했다면
             # 해당 object를 검증한 뒤 재사용한다.
             if status_code == 412:
-                if self.verify(
-                        sha256_hex=sha256_hex,
-                        byte_size=byte_size,
-                ):
+                if self.verify_key(key, sha256_hex, byte_size):
                     return key
 
             raise
 
         # PUT 성공 응답만 믿지 않고
         # S3 metadata를 다시 확인한다.
-        if not self.verify(
-                sha256_hex=sha256_hex,
-                byte_size=byte_size,
-        ):
+        if not self.verify_key(key, sha256_hex, byte_size):
             raise RuntimeError(
                 "uploaded S3 object failed "
                 "integrity verification"
@@ -177,7 +153,11 @@ class S3DocumentStore:
         """
         SHA에 대응하는 S3 object가 존재하는지 확인한다.
         """
-        key = self.object_key(sha256_hex)
+        return self.exists_key(self.object_key(sha256_hex))
+
+    def exists_key(self, key: str) -> bool:
+        """고정된 object key의 존재를 확인한다."""
+        self._validate_key(key)
 
         try:
             self.client.head_object(
@@ -209,7 +189,12 @@ class S3DocumentStore:
         """
         self._validate_sha256(sha256_hex)
 
-        key = self.object_key(sha256_hex)
+        return self.verify_key(self.object_key(sha256_hex), sha256_hex, byte_size)
+
+    def verify_key(self, key: str, sha256_hex: str, byte_size: int) -> bool:
+        """고정된 key object의 크기와 SHA-256 checksum metadata를 검증한다."""
+        self._validate_sha256(sha256_hex)
+        self._validate_key(key)
 
         try:
             response = self.client.head_object(
@@ -277,7 +262,19 @@ class S3DocumentStore:
                 "S3 object exceeds configured read limit"
             )
 
-        key = self.object_key(sha256_hex)
+        return self.read_key(self.object_key(sha256_hex), sha256_hex, byte_size, max_bytes)
+
+    def read_key(self, key: str, sha256_hex: str, byte_size: int,
+                 max_bytes: int = 100 * 1024 * 1024) -> bytes:
+        """고정된 key의 실제 byte를 읽어 size, SHA-256과 S3 checksum metadata를 검증한다."""
+        self._validate_sha256(sha256_hex)
+        self._validate_key(key)
+
+        if byte_size <= 0:
+            raise ValueError("byte_size must be positive")
+
+        if byte_size > max_bytes:
+            raise ValueError("S3 object exceeds configured read limit")
 
         response = self.client.get_object(
             Bucket=self.bucket,
@@ -395,3 +392,9 @@ class S3DocumentStore:
                 "SHA-256 must contain only "
                 "hexadecimal characters"
             ) from exc
+
+    @staticmethod
+    def _validate_key(key: str) -> None:
+        parts = key.split("/")
+        if not key or key.startswith("/") or any(part in ("", ".", "..") for part in parts):
+            raise ValueError("unsafe S3 object key")

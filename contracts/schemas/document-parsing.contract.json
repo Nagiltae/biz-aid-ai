@@ -117,14 +117,38 @@
               "inference.pdiparams",
               "inference.yml"
             ]
+          },
+          {
+            "repo_id": "PaddlePaddle/PP-OCRv5_mobile_det",
+            "folder": "PaddlePaddle--PP-OCRv5_mobile_det",
+            "requested_revision": "0d63e78e2b680928f6b1747d76a08db6e645efb7",
+            "resolved_snapshot": "0d63e78e2b680928f6b1747d76a08db6e645efb7",
+            "files": [
+              "config.json",
+              "inference.json",
+              "inference.pdiparams",
+              "inference.yml"
+            ]
+          },
+          {
+            "repo_id": "PaddlePaddle/korean_PP-OCRv5_mobile_rec",
+            "folder": "PaddlePaddle--korean_PP-OCRv5_mobile_rec",
+            "requested_revision": "c02ecaf1f22bfd1c618cce154fd19185b47e663a",
+            "resolved_snapshot": "c02ecaf1f22bfd1c618cce154fd19185b47e663a",
+            "files": [
+              "config.json",
+              "inference.json",
+              "inference.pdiparams",
+              "inference.yml"
+            ]
           }
         ],
         "identity": "model_artifacts_sha256 = SHA-256 over folder/file path and file SHA-256 of every file listed in models[].files; files outside the list are ignored; must equal expected_manifest_sha256 before conversion; part of parse_key",
         "runtime_download": "forbidden in parsing and test runtime; a missing path or folder fails before conversion",
         "provisioning": "explicit step outside test runtime: scripts/provision_docling_artifacts.py provision --allow-network downloads models[].files at resolved_snapshot into a staging folder and moves it only after identity verification; CI restores it from the GitHub Actions cache keyed by artifacts_cache_key",
         "cache_key_schema": 1,
-        "expected_manifest_sha256": "ee82196d0651f54c9bb417e22fe289c9cf1d3cdb0e076278d1eee66631523d00",
-        "scope": "Docling layout model and the six PP-TableMagic table models share one pinned artifacts directory, identity and CI cache; TableFormer weights are no longer used by the production route and are not listed"
+        "expected_manifest_sha256": "5b35f8ca044cdab9e691f17d07ae2635cb6c650e479e7deb569e8a90943316d2",
+        "scope": "Docling layout model, the six PP-TableMagic table models and the two PP-OCRv5 OCR models share one pinned artifacts directory, identity and CI cache; TableFormer weights are not listed"
       },
       "companion_pin": "docling-ibm-models[opencv-python-headless]==4.0.3 declares opencv for layout post-processing; opencv-python-headless is pinned to 4.10.0.84 to equal the opencv-contrib-python version required by paddlex so both distributions ship the same cv2 build; opencv is not an OCR engine"
     },
@@ -203,14 +227,42 @@
     "persistent_parsed_artifact": "S3",
     "parse_metadata": "MySQL: parsing status, provenance, artifact pointer, parser metadata",
     "local_filesystem": "fixture, scratch and temporary processing only",
-    "implementation_status": "deferred to a later sub-step; no S3 PUT or migration in 3-A",
-    "migration_version_rule": "next number after the latest migration in migrations/ at implementation time; not pre-assigned"
+    "implementation_status": "implemented by Phase 3 persistence with Flyway V5",
+    "serialization": "sorted-key compact UTF-8 JSON from DoclingDocument.export_to_dict; no Markdown artifact",
+    "parsed_prefix": "biz-aid/parsed/docling-json",
+    "parsed_key": "biz-aid/parsed/docling-json/sha256/{source_sha256[0:2]}/{source_sha256[2:4]}/{source_sha256}/{parse_key}.json",
+    "idempotency": "source_sha256 + parse_key is the MySQL primary key and immutable S3 address; identical reruns verify and reuse both",
+    "new_parse_key": "a new parse_key creates a different object and row without overwriting prior results",
+    "commit_order": "serialize and reload -> artifact SHA/size -> conditional S3 PUT or verified reuse -> HEAD and full-byte readback -> MySQL transaction",
+    "non_success": "non-PARSED status stores metadata only and never creates a DoclingDocument artifact",
+    "migration": "V5__document_parse_results.sql"
+  },
+  "orchestration": {
+    "entrypoint": "python3 -B scripts/run_document_parsing.py --profile dev --source-sha256 <sha256> [--source-sha256 <sha256> ...]",
+    "execution_unit": "one to three unique document_sources.content_sha256 values explicitly supplied by the caller",
+    "batch_boundary": {
+      "maximum_unique_sources": 3,
+      "selection": "caller-supplied only; the command never discovers or scans sources",
+      "order": "ascending source_sha256 for deterministic sequential execution",
+      "failure_isolation": "one source failure is recorded and does not roll back or skip the other explicitly supplied sources"
+    },
+    "source_requirement": "all ACQUIRED relations for the SHA have complete and consistent verified s3_* metadata",
+    "source_read": "S3DocumentStore.read_key verifies object key, byte size and SHA-256 before parse_document",
+    "sequence": [
+      "verified source lookup",
+      "S3 source read and integrity verification",
+      "parse_document",
+      "persist_parse_result"
+    ],
+    "reuse": "orchestration does not add a duplicate check; source_sha256 + parse_key reuse belongs to persistence",
+    "implicit_batch": false,
+    "live_scope": "real AWS read/write and corpus execution require a separately approved explicit run"
   },
   "routes": {
     "PDF": {
       "route": "DOCLING_PDF",
       "enabled": true,
-      "flow": "source bytes -> integrity check -> DocumentStream (no temp file) -> Docling DocumentConverter (do_ocr=false, do_table_structure=false) -> PP-TableMagic table detection and structure on each page with native PDF text rectangles injected -> detection-edge grid adapter with native PDF words -> table quality gate -> assembly into the same DoclingDocument -> normalize_document -> apply_gate",
+      "flow": "source bytes -> integrity check -> DocumentStream (no temp file) -> Docling DocumentConverter (do_ocr=false, do_table_structure=false) -> independently select low-native-text pages for PP-OCRv5 -> PP-TableMagic table detection and structure with OCR text on selected pages and native text elsewhere -> detection-edge grid adapter -> table quality gate -> assembly into the same DoclingDocument -> normalize_document -> apply_gate",
       "docling_options": {
         "do_ocr": false,
         "do_table_structure": false,
@@ -268,8 +320,48 @@
           "PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT": "False"
         },
         "cpu_kernel_rule": "oneDNN (MKLDNN) is disabled on every platform so macOS arm64 (wheel without oneDNN) and Linux x86_64 (wheel with oneDNN) run the same Paddle CPU path; paddlepaddle 3.3.1 PIR oneDNN raises NotImplementedError for the layout model on Linux; flags are set before paddlex import and verified, otherwise the engine fails",
-        "ocr_required_rule": "the table engine runs only when Docling native text exceeds document_gate.pdf_ocr_required_max_chars_per_page; image-only PDFs stay OCR_REQUIRED without PP"
-      }
+        "ocr_required_rule": "the table engine reads the OCR text layer on independently selected low-native-text pages and native text on all other pages"
+      },
+      "ocr": {
+        "engine": "paddlex OCR pipeline (PP-OCRv5 text detection + Korean text recognition)",
+        "pipeline": "OCR",
+        "text_type": "general",
+        "device": "cpu",
+        "render_scale": 2.0,
+        "submodules": {
+          "TextDetection": [
+            "text_detection",
+            "PaddlePaddle--PP-OCRv5_mobile_det"
+          ],
+          "TextRecognition": [
+            "text_recognition",
+            "PaddlePaddle--korean_PP-OCRv5_mobile_rec"
+          ]
+        },
+        "module_options": {
+          "TextDetection": {
+            "limit_side_len": 64,
+            "limit_type": "min",
+            "max_side_limit": 4000,
+            "thresh": 0.3,
+            "box_thresh": 0.6,
+            "unclip_ratio": 1.5
+          },
+          "TextRecognition": {
+            "batch_size": 6,
+            "score_thresh": 0.0
+          }
+        },
+        "selection_scope": "page",
+        "trigger": "each PDF page whose native PDF text is at or below document_gate.pdf_ocr_required_max_chars_per_page is selected independently; document-average text never suppresses OCR for a low-text page",
+        "page_rule": "a page is OCRed when its native text is at or below document_gate.pdf_ocr_required_max_chars_per_page and either it has no native text or it contains a raster image object; a low-text page whose content is native text only keeps native text; every other page keeps native text and never invokes OCR",
+        "model_choice": "PP-OCRv5_mobile_det instead of server_det: on the 1-page sample both found 50 lines, server_det needed 13.3 s and about 10 GB RSS, mobile_det 5.4 s and 1.8 GB; not an accuracy benchmark",
+        "text_layer": "OCR lines replace the native text rectangles injected into PP-TableMagic and OCR words (line text split by spaces, x range by character share) replace native words for table cells",
+        "provenance": "each OCR text item keeps bizaid__ocr with source_sha256, page, bbox_pt, confidence and engine identity; ParseResult.ocr records engine, OCR pages and insufficient OCR pages",
+        "not_vlm": "general OCR only; PaddleOCR-VL visual parsing stays deferred",
+        "failure": "an OCR engine error is PARSE_FAILED ocr_engine_error:<ExceptionClass>; a selected page whose OCR text stays at or below the gate is reported by OCR_TEXT_INSUFFICIENT and ocr.insufficient_pages, while the document status follows the document text gate (a blank or page-number-only page cannot be told apart from an unreadable scan without guessing, and a non-PARSED status would drop the whole document artifact)"
+      },
+      "docling_ocr": "Docling's own OCR stays disabled (do_ocr=false); BizAid OCR runs outside Docling on OCR_REQUIRED pages only"
     },
     "HWP": {
       "route": "HWP_PDF_DOCLING",
@@ -309,18 +401,31 @@
     "HWPX": {
       "route": "HWPX_DOCLING_ADAPTER",
       "enabled": true,
-      "flow": "S3 HWPX bytes -> bounded ZIP container read -> Contents section XML -> HwpxDoclingAdapter -> DoclingDocument",
+      "flow": "S3 HWPX bytes -> bounded ZIP container read -> Contents/header.xml declarations + section XML (spine order) -> HwpxDoclingAdapter -> DoclingDocument",
       "quality_status": {
-        "execution_evidence": "local sample runs prove execution only, not parsing quality PASS",
-        "pending_validation": [
-          "Heading",
+        "execution_evidence": "3 real HWPX documents (targeted) and synthetic fixtures",
+        "validated": [
           "Paragraph",
           "List",
           "Table",
           "Reading Order",
-          "Source Location"
-        ]
-      }
+          "Source Location",
+          "Footnote/Header"
+        ],
+        "limited": {
+          "Heading": "no real document in the targeted set has non-empty explicit outline headings; the rule is fixed by synthetic fixtures"
+        }
+      },
+      "structure_rules": {
+        "source": "only explicit HWPX declarations: paraPr heading type (OUTLINE / NUMBER / BULLET, idRef, level), built-in outline style name or engName (개요 N / Outline N), and control names (header, footer, footNote, endNote)",
+        "heading": "paraPr heading OUTLINE level L -> section header level L+1; built-in outline style N -> level N; user-defined style names, font size or layout are never used",
+        "list": "paraPr heading NUMBER or BULLET -> list item in a list group; consecutive paragraphs with the same numbering or bullet declaration share one group; bullet marker is the declared char; numbers are not computed and the numbering format is kept in provenance",
+        "notes": "header / footer text -> page_header / page_footer in the furniture layer; footNote / endNote text -> footnote",
+        "table": "cellAddr / cellSpan grid as before; a cell containing an explicit list or a nested table becomes a RichTableCell referencing a group under the table, and its flattened text stays in cell.text; headings are not created inside table cells",
+        "unrepresentable": "structure that cannot be represented keeps its text with a warning or provenance note; nothing is silently dropped",
+        "no_special_case": "no rule depends on a document SHA, file name or fixture"
+      },
+      "provenance": "every item carries bizaid__hwpx: source_sha256, section entry name, XML path from the section root (for example p[3]/run[0]/tbl[0]/tr[1]/tc[0]/subList[0]/p[0]), paragraph id, style, paraPr id, structure evidence and container; HWPX has no page or coordinates, so no ProvenanceItem page/bbox is created"
     },
     "XLSX": {
       "route": "POLICY_PENDING",
@@ -423,7 +528,7 @@
         "overlapping_regions": "overlapping PP regions (container or duplicate candidates) are not resolved by choosing one; their union bbox is preserved as TABLE_QUALITY_FAILED native text until a verified rule exists"
       }
     },
-    "assembly_rule": "assembly into DoclingDocument never drops native text: a replaced Docling item keeps its non-replaced children (caption, footnote) as items, TABLE_VALID words outside every cell stay as text with provenance, text items only partly inside a PP region are kept, Docling table text outside the PP region stays as text, picture child text inside a PP region is owned by that region, a PP region overlapping a Docling picture is recorded for human review, and silent loss is judged per page against the Docling baseline, not by document totals",
+    "assembly_rule": "assembly into DoclingDocument never drops native text: a replaced Docling item keeps its non-replaced children (caption, footnote) as items, TABLE_VALID words outside every cell stay as text with provenance, each native word belongs to one owner: words inside a PP region belong to the PP result and any native item overlapping the region keeps only its words outside every PP region (an item with none left is removed), Docling table text outside the PP region stays as text, picture child text inside a PP region is owned by that region, a PP region overlapping a Docling picture is recorded for human review, and silent loss is judged per page against the Docling baseline, not by document totals; OCR pages replace native content of every content layer, including furniture; an insertion anchor ties on the same row resolve to the last item in document order",
     "decision": "2026-09-29 user decision: replace_with_pp_tablemagic; Docling stays the document backbone; TableFormer is not run",
     "docling_table_rule": "a Docling table region that no PP region owns becomes non-table native text of its bbox (TableFormer is disabled, so no structure is invented)",
     "uncertain_regions": "overlapping, container or duplicate PP regions are preserved as TABLE_QUALITY_FAILED native text; no region is chosen until a verified rule exists"
@@ -479,7 +584,10 @@
     "PDF_TABLE_QUALITY_FAILED",
     "PDF_TABLE_OVERLAP_PRESERVED_AS_TEXT",
     "PDF_DOCLING_TABLE_PRESERVED_AS_TEXT",
-    "PDF_TABLE_PICTURE_OVERLAP"
+    "PDF_TABLE_PICTURE_OVERLAP",
+    "PDF_OCR_APPLIED",
+    "OCR_TEXT_INSUFFICIENT",
+    "HWPX_STYLE_HEADER_MISSING"
   ],
   "failure_codes": {
     "rule": "status names the outcome class; failure_code names the concrete cause and is null for PARSED, EMPTY_TEXT and OCR_REQUIRED",
@@ -501,7 +609,8 @@
       "pdf_no_pages",
       "docling_conversion_error:<ExceptionClass>",
       "pp_table_engine_error:<ExceptionClass>",
-      "pdf_page_count_mismatch"
+      "pdf_page_count_mismatch",
+      "ocr_engine_error:<ExceptionClass>"
     ],
     "REJECTED_UNSAFE": [
       "container_entries_rejected",
@@ -527,7 +636,7 @@
     "parse_key_inputs": [
       "source_sha256",
       "route",
-      "adapter_version",
+      "hwpx_adapter_version",
       "normalizer_version",
       "docling_core_version",
       "docling_version",
@@ -539,11 +648,46 @@
       "paddlepaddle_version",
       "paddlex_version"
     ],
-    "parse_key": "SHA-256 of sorted compact UTF-8 JSON of parse_key_inputs; absent components are null; docling_version is the installed docling-slim version",
-    "adapter_version": 1,
+    "parse_key": "SHA-256 of sorted compact UTF-8 JSON of parse_key_inputs; inputs outside the route scope are null; docling_version is the installed docling-slim version",
     "normalizer_version": 1,
     "skip_rule": "an existing result is reused only when parse_key is identical and the stored artifact size and SHA-256 re-verify",
-    "reprocess_rule": "a changed component version yields a new parse_key only for documents on that route; previous results and artifacts are kept and never overwritten"
+    "reprocess_rule": "a changed component version yields a new parse_key only for documents on that route; previous results and artifacts are kept and never overwritten",
+    "hwpx_adapter_version": 2,
+    "hwpx_adapter_version_history": {
+      "1": "HWPX text as paragraphs, strings-only table cells",
+      "2": "HWPX explicit headings, lists, notes, furniture, RichTableCell for structured cells, bizaid__hwpx provenance"
+    },
+    "route_scope": {
+      "all_routes": [
+        "source_sha256",
+        "route",
+        "normalizer_version",
+        "docling_core_version"
+      ],
+      "HWPX_DOCLING_ADAPTER": [
+        "hwpx_adapter_version"
+      ],
+      "DOCLING_PDF": [
+        "docling_version",
+        "docling_parse_version",
+        "docling_ibm_models_version",
+        "pipeline_config_sha256",
+        "model_artifacts_sha256",
+        "paddlepaddle_version",
+        "paddlex_version"
+      ],
+      "HWP_PDF_DOCLING": [
+        "converter_version",
+        "docling_version",
+        "docling_parse_version",
+        "docling_ibm_models_version",
+        "pipeline_config_sha256",
+        "model_artifacts_sha256",
+        "paddlepaddle_version",
+        "paddlex_version"
+      ],
+      "rule": "a component identity is filled only on routes whose output it can change; other inputs stay null; a normalizer or DoclingDocument (docling-core) change affects every route"
+    }
   },
   "normalization": {
     "unicode_form": "NFC",
@@ -577,7 +721,6 @@
   },
   "run_gate_pass": "every input SHA has exactly one result for the current parse_key; every PARSED artifact reloads as DoclingDocument and its SHA-256 re-verifies; every result joins back to at least one document_sources relation; status and warning counts per detected_format are reported; failure-rate acceptance is a Human Review decision, not automatic",
   "out_of_scope": [
-    "OCR",
     "Chunking",
     "Embedding",
     "Qdrant",
@@ -585,13 +728,43 @@
     "LLM"
   ],
   "pending_decisions": [
-    "parsed artifact storage implementation (S3 + MySQL policy fixed, implementation deferred)",
     "DOCX / PPTX / ODT routes and Generic ZIP member provenance contract",
-    "HwpxDoclingAdapter quality validation"
+    "HwpxDoclingAdapter broader quality validation (3-document targeted check done; real explicit headings not yet observed)"
   ],
   "test_runtime": {
     "network_download": "forbidden",
     "hf_hub_offline": "1",
     "missing_model_artifacts": "fail fast"
+  },
+  "corpus_execution": {
+    "entrypoint": "scripts/run_corpus_parsing.py --profile dev --run-id <id> [--status] [--retry-failed] [--max-completed N] [--sources-file <sha list>]",
+    "profile": "dev only; prod corpus execution is refused",
+    "unit": "unique content SHA of verified acquired sources",
+    "targets": "formats whose route is enabled; other formats are counted as unsupported/inactive and never recorded as parsed",
+    "order": "content SHA ascending",
+    "execution": "sequential, concurrency 1; the parser runs in one child process that is replaced after a timeout or crash",
+    "source_timeout_seconds": 1800,
+    "resume_skip_statuses": [
+      "PARSED",
+      "EMPTY_TEXT",
+      "OCR_REQUIRED",
+      "ENCRYPTED",
+      "REJECTED_UNSAFE",
+      "PARSE_FAILED",
+      "CONVERSION_FAILED"
+    ],
+    "retry_statuses": [
+      "PARSE_FAILED",
+      "CONVERSION_FAILED"
+    ],
+    "resume": "a source whose current parse_key already has a row with a skip status is not reprocessed; sources without a row (execution failure, timeout) run again; --retry-failed also reruns retry_statuses",
+    "failure_isolation": "one source failure is recorded and the next source runs",
+    "max_consecutive_environment_failures": 3,
+    "environment_stop": "consecutive storage, credential, schema or worker-start failures stop the run as STOPPED_ENVIRONMENT instead of marking remaining sources failed",
+    "observability": "data/parsed/corpus-runs/<run-id>/progress.json and results.jsonl (ignored); --status prints total, completed, remaining, statuses, skipped, current and elapsed",
+    "immutability": "existing artifacts and rows are never deleted or overwritten; persistence keeps its INSERTED / REUSED / UPDATED rules",
+    "upper_bound": "--max-completed N stops before starting a new source once completed (processed + skipped current-key) reaches N",
+    "graceful_stop": "SIGTERM / SIGINT request a stop at the next source boundary; the in-flight source finishes and persists; the runner kills its worker only on source_timeout",
+    "reprocess": "--sources-file limits a run to listed enabled verified SHAs so a fix reprocesses only affected sources; parse_key idempotency is unchanged"
   }
 }

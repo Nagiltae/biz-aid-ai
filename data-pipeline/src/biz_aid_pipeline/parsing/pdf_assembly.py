@@ -6,7 +6,8 @@ native PDF text로 보존한다. item 단위 provenance는 BaseMeta의 `bizaid__
 import json
 from collections import Counter
 
-from docling_core.types.doc import (BoundingBox, CoordOrigin, DocItemLabel, ProvenanceItem, TableCell, TableData)
+from docling_core.types.doc import (BoundingBox, ContentLayer, CoordOrigin, DocItemLabel, ProvenanceItem, TableCell,
+                                    TableData)
 from docling_core.types.doc.common.meta import BaseMeta
 
 from biz_aid_pipeline.parsing.models import installed_version
@@ -14,6 +15,7 @@ from biz_aid_pipeline.parsing.pdf_tables import (TABLE_QUALITY_FAILED, TABLE_VAL
                                                  native_words, reading_order_text, word_center)
 
 CONTAIN_TOLERANCE_PT = 2.0
+ALL_LAYERS = set(ContentLayer)
 PICTURE_OVERLAP_IOU = 0.3
 
 
@@ -31,6 +33,10 @@ def iou(a, b):
     inter = max(0.0, min(a[2], b[2]) - max(a[0], b[0])) * max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
     union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
     return inter / union if union > 0 else 0.0
+
+
+def overlaps(a, b):
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
 
 def contained(outer, inner, tolerance=CONTAIN_TOLERANCE_PT):
@@ -107,7 +113,7 @@ def region_items(document, page_no, bbox):
              and not has_bizaid(item)
              and center_in(bbox, *(lambda b: ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2))(top_left(item.prov[0], document)))]
     # WHY: 중심만 영역 안이고 일부가 밖에 걸친 text item을 지우면 밖 부분이 사라진다. 이런 item은 남긴다.
-    # RISK: 남긴 item의 영역 안 부분은 PP 결과와 중복될 수 있다. 중복은 손실보다 우선하지 않는다.
+    # 남긴 item은 조립 끝에 trim_overlapping_native가 영역 밖 단어로만 text를 다시 만들어 중복을 없앤다.
     partial = [item for item in owned if item.label != DocItemLabel.TABLE and not contained(bbox, top_left(item.prov[0], document))]
     return [item for item in owned if not any(item is other for other in partial)], partial
 
@@ -125,9 +131,10 @@ def anchor(document, page_no, top, removing):
     # WHY: 삭제될 item이나 그 자식 옆에 넣으면 새 item이 함께 지워진다.
     candidates = [(item, top_left(item.prov[0], document)) for item, _ in document.iterate_items()
                   if getattr(item, "prov", None) and item.prov[0].page_no == page_no and not within(item, removing, document)]
-    before = [pair for pair in candidates if pair[1][1] <= top]
+    before = [(index, pair) for index, pair in enumerate(candidates) if pair[1][1] <= top]
     if before:
-        return max(before, key=lambda pair: pair[1][1])[0], True
+        # WHY: 같은 행 item은 top이 같다. 동점이면 문서 순서상 마지막 item 뒤에 넣어야 행 중간에 끼지 않는다(3-B.13 HWP p13).
+        return max(before, key=lambda entry: (entry[1][1][1], entry[0]))[1][0], True
     return (candidates[0][0], False) if candidates else (None, True)
 
 
@@ -184,9 +191,10 @@ def spill_words(page_words, table_box, page_regions, surviving_boxes):
 
 
 class _Assembler:
-    def __init__(self, document, pdf, source_sha256, contract, result):
+    def __init__(self, document, pdf, source_sha256, contract, result, layers):
         self.document, self.pdf, self.sha, self.result = document, pdf, source_sha256, result
-        self.pp_identity, self.words = parser_identity(contract), {}
+        # OCR한 page는 OCR 단어가 그 page의 text layer다. 나머지 page는 PDF native 단어를 쓴다.
+        self.pp_identity, self.words = parser_identity(contract), {page: words for page, (_, words) in (layers or {}).items()}
 
     def page_words(self, page_no):
         if page_no not in self.words:
@@ -241,6 +249,32 @@ class _Assembler:
         if removing:
             rescue_children(document, removing, removing, last)
             document.delete_items(node_items=removing)
+        self.trim_overlapping_native(page_no, bbox, page_regions)
+
+    def trim_overlapping_native(self, page_no, bbox, page_regions):
+        """PP 영역과 겹치는 native text item은 영역 밖 native 단어로만 text를 다시 만든다. 영역 안 단어는 PP 결과가 가진다."""
+        # WHY: native 단어 하나는 한 곳에만 속해야 한다. 영역에 걸친 제목·각주·옮긴 자식을 통째로 두면 영역 안 글자가 표 결과와
+        # 이중으로 들어간다(3-B.13 HWP 변환 PDF p2 각주·p10 금액). 영역 밖 단어가 없으면 item을 지운다. 단어는 원문 text layer다.
+        document = self.document
+        engine_output = ("bizaid__table_quality", "bizaid__ocr")
+        overlapping = [item for item, _ in document.iterate_items(traverse_pictures=True, included_content_layers=ALL_LAYERS)
+                       if getattr(item, "prov", None) and item.prov[0].page_no == page_no and hasattr(item, "text")
+                       and item.label not in (DocItemLabel.PICTURE, DocItemLabel.TABLE)
+                       and not (item.meta and any(key in item.meta.get_custom_part() for key in engine_output))
+                       and overlaps(top_left(item.prov[0], document), bbox)]
+        emptied = []
+        for item in overlapping:
+            box = top_left(item.prov[0], document)
+            text = reading_order_text([w for w in self.page_words(page_no) if center_in(box, *word_center(w))
+                                       and not any(center_in(region, *word_center(w)) for region in page_regions)])
+            if text.strip():
+                item.text = item.orig = text
+                item.meta = bizaid_meta("trimmed_by_table_region", {"source_sha256": self.sha, "page": page_no,
+                                                                   "table_bbox_pt": bbox, "original_label": str(item.label)})
+            elif not getattr(item, "children", None):
+                emptied.append(item)
+        if emptied:
+            document.delete_items(node_items=emptied)
 
     def keep_docling_tables(self, regions_by_page):
         """PP가 소유하지 않은 Docling 표는 구조 없이 bbox 안 native text로 남긴다(TableFormer는 실행하지 않는다)."""
@@ -261,12 +295,58 @@ class _Assembler:
             self.result.warn("PDF_DOCLING_TABLE_PRESERVED_AS_TEXT")
 
 
-def assemble(document, pdf, tables, source_sha256, contract, result):
-    """Docling 문서에 PP 표를 넣는다. pdf는 같은 byte로 연 pypdfium2 문서이며 호출자가 닫는다."""
-    assembler = _Assembler(document, pdf, source_sha256, contract, result)
+def ocr_reading_order(lines):
+    """중심 y가 줄 높이 절반 안이면 같은 행으로 묶고 행 안은 x 순서다. native 단어의 reading_order_text와 같은 규칙이다."""
+    rows = []
+    for line in sorted(lines, key=lambda item: ((item.bbox[1] + item.bbox[3]) / 2, item.bbox[0])):
+        center, height = (line.bbox[1] + line.bbox[3]) / 2, line.bbox[3] - line.bbox[1]
+        if rows and abs(rows[-1][0] - center) <= 0.5 * max(height, 1):
+            rows[-1][1].append(line)
+        else:
+            rows.append([center, [line]])
+    return [line for _, row in rows for line in sorted(row, key=lambda item: item.bbox[0])]
+
+
+def add_ocr_lines(document, ocr_lines, regions_by_page, source_sha256, identity):
+    """PP 표 영역 밖 OCR 줄을 읽기 순서로 text item에 넣는다. 표 영역 안 줄은 표 조립이 OCR 단어로 채운다."""
+    for page_no, lines in sorted(ocr_lines.items()):
+        regions = regions_by_page.get(page_no, [])
+        previous = None
+        for line in ocr_reading_order(lines):
+            center = ((line.bbox[0] + line.bbox[2]) / 2, (line.bbox[1] + line.bbox[3]) / 2)
+            if any(center_in(region, *center) for region in regions):
+                continue
+            # WHY: 줄마다 top으로 위치를 찾으면 같은 행의 줄이 먼저 넣은 줄 바로 뒤로 들어가 순서가 뒤집힌다(04596fcf p1).
+            # 첫 줄만 page 안 위치를 찾고 이후 줄은 직전 줄 뒤에 둔다.
+            sibling, after = (previous, True) if previous is not None else anchor(document, page_no, line.bbox[1], [])
+            item = insert_text(document, sibling, after, page_no, line.bbox, line.text)
+            previous = item
+            # OCR text는 모델 파생 text다. 원본 SHA·page·bbox·confidence·engine identity를 item에 남긴다.
+            item.meta = bizaid_meta("ocr", {"source_sha256": source_sha256, "page": page_no, "bbox_pt": line.bbox,
+                                            "confidence": round(line.confidence, 4), "engine": identity})
+
+
+def remove_native_content_on_ocr_pages(document, page_numbers):
+    """OCR이 page text layer를 대체하므로 그 page의 기존 native content item을 제거한다. picture layout은 유지한다."""
+    pages = set(page_numbers)
+    # WHY: iterate_items 기본값은 본문 layer만 순회해 furniture의 쪽 번호가 남고 OCR이 같은 글자를 다시 넣었다(3-B.13 HWP p13).
+    removing = [item for item, _ in document.iterate_items(traverse_pictures=True, included_content_layers=ALL_LAYERS)
+                if getattr(item, "prov", None) and item.prov[0].page_no in pages
+                and item.label != DocItemLabel.PICTURE and not has_bizaid(item)]
+    if removing:
+        # WHY: low-text page의 남은 native 글자를 그대로 두면 full-page OCR이 같은 글자를 다시 넣어 중복된다.
+        document.delete_items(node_items=removing)
+
+
+def assemble(document, pdf, tables, source_sha256, contract, result, layers=None, ocr_lines=None, ocr_engine=None):
+    """Docling 문서에 PP 표(와 OCR page의 text 줄)를 넣는다. pdf는 같은 byte로 연 pypdfium2 문서이며 호출자가 닫는다."""
+    assembler = _Assembler(document, pdf, source_sha256, contract, result, layers)
     regions_by_page = {}
     for table in tables:
         regions_by_page.setdefault(table.page, []).append(table.bbox)
+    if ocr_lines:
+        remove_native_content_on_ocr_pages(document, ocr_lines)
+        add_ocr_lines(document, ocr_lines, regions_by_page, source_sha256, ocr_engine)
     for table, members in resolve_overlaps(tables):
         assembler.place(table, members, regions_by_page[table.page])
     assembler.keep_docling_tables(regions_by_page)

@@ -98,6 +98,29 @@ class DocumentRepository:
                     self.sources.c.candidate_key.in_(keys[offset:offset + 500]))).mappings().all())
         return rows
 
+    def verified_source(self, content_sha256):
+        """같은 content SHA를 가진 relation을 하나의 검증된 parser 입력 descriptor로 수렴한다."""
+        with self.engine.connect() as connection:
+            rows = connection.execute(select(
+                self.sources.c.content_sha256, self.sources.c.detected_format,
+                self.sources.c.byte_size, self.sources.c.s3_region,
+                self.sources.c.s3_bucket_name, self.sources.c.s3_object_key,
+                self.sources.c.s3_verified_at,
+            ).where(
+                self.sources.c.content_sha256 == content_sha256,
+                self.sources.c.download_status == "ACQUIRED",
+            )).mappings().all()
+        if not rows or any(row[name] is None for row in rows for name in (
+                "byte_size", "s3_region", "s3_bucket_name", "s3_object_key", "s3_verified_at")):
+            raise PipelineError("verified_document_source_required")
+        identity_names = ("content_sha256", "detected_format", "byte_size", "s3_region",
+                          "s3_bucket_name", "s3_object_key")
+        identities = {tuple(row[name] for name in identity_names) for row in rows}
+        # RISK: 같은 byte가 relation마다 다른 format이나 S3 위치를 가리키면 임의의 한 row를 골라 parsing하지 않는다.
+        if len(identities) != 1:
+            raise PipelineError("document_source_metadata_conflict")
+        return dict(zip(identity_names, identities.pop()), relation_count=len(rows))
+
     def finish_run(self, run_id, report, failed=False):
         with self.engine.begin() as connection:
             result = connection.execute(update(self.runs).where(

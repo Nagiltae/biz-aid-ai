@@ -194,17 +194,25 @@ def assess_table(cell_boxes, td_count, table_words, engine):
     return (TABLE_QUALITY_FAILED, reasons, None) if reasons else (TABLE_VALID, [], filled)
 
 
-@lru_cache(maxsize=1)
-def _pipeline(engine_json, artifacts_path):
-    # 모델 적재 비용이 커서 같은 설정·경로의 pipeline만 재사용한다.
-    engine = json.loads(engine_json)
+def paddlex_create_pipeline(runtime_environment):
+    """PaddleX를 import하기 전에 runtime flag를 적용하고 실제로 적용됐는지 확인한다. 표 engine과 OCR이 같이 쓴다."""
     # BOUNDARY: 실행 중 모델 원격 확인·다운로드를 막는다. 모델은 준비된 artifact 경로에서만 읽는다.
-    os.environ.update(engine["runtime_environment"])
+    os.environ.update(runtime_environment)
     from paddlex import create_pipeline
     from paddlex.utils import flags
     # RISK: Linux x86 wheel은 oneDNN을 포함해 PaddleX가 기본으로 켜고, Paddle 3.3.1 PIR oneDNN 실행기는 layout 모델에서
     # NotImplementedError를 낸다(macOS arm64 wheel에는 oneDNN이 없어 드러나지 않았다). paddlex가 먼저 import돼 flag가 이미 켜졌다면 멈춘다.
     if flags.ENABLE_MKLDNN_BYDEFAULT or not flags.DISABLE_MODEL_SOURCE_CHECK:
+        return None
+    return create_pipeline
+
+
+@lru_cache(maxsize=1)
+def _pipeline(engine_json, artifacts_path):
+    # 모델 적재 비용이 커서 같은 설정·경로의 pipeline만 재사용한다.
+    engine = json.loads(engine_json)
+    create_pipeline = paddlex_create_pipeline(engine["runtime_environment"])
+    if create_pipeline is None:
         raise PdfTableError("pp_table_engine_error:RuntimeFlagsNotApplied")
     submodules = {name: {"module_name": module, "model_name": folder.split("--", 1)[1],
                          "model_dir": os.path.join(artifacts_path, folder)}
@@ -228,18 +236,31 @@ def flat_box(values):
     return [min(xs), min(ys), max(xs), max(ys)]
 
 
-def page_tables(model, page, page_no, engine):
-    """한 page를 PP로 추론해 표 영역마다 판정한다. 좌표는 render px로 계산하고 point로 돌려준다."""
+def scaled(words, scale):
+    return [([v * scale for v in box], text) for box, text in words]
+
+
+def page_tables(model, page, page_no, engine, layer=None):
+    """한 page를 PP로 추론해 표 영역마다 판정한다. 좌표는 render px로 계산하고 point로 돌려준다.
+
+    layer는 OCR page의 (text 줄, 단어) point 좌표다. 없으면 PDF native text layer를 쓴다.
+    """
     import numpy
     scale = engine["render_scale"]
     height = page.get_size()[1]
     image = numpy.ascontiguousarray(page.render(scale=scale).to_numpy()[:, :, :3])
-    boxes, texts = native_rects(page, scale, height)
+    if layer is None:
+        boxes, texts = native_rects(page, scale, height)
+        words = native_words(page, scale, height)
+    else:
+        # OCR 줄은 native 사각형과 같은 자리(PP 입력)에, OCR 단어는 native 단어와 같은 자리(cell text)에 들어간다.
+        lines = scaled(layer[0], scale)
+        boxes, texts = [box for box, _ in lines], [text for _, text in lines]
+        words = scaled(layer[1], scale)
     ocr = {"rec_boxes": numpy.array(boxes, dtype=float).reshape(-1, 4), "rec_texts": texts,
            "rec_scores": [1.0] * len(texts), "doc_preprocessor_res": {"output_img": image},
            "rec_polys": [numpy.array([[x1, y1], [x2, y1], [x2, y2], [x1, y2]], dtype=float) for x1, y1, x2, y2 in boxes]}
     ocr["dt_polys"] = ocr["rec_polys"]
-    words = native_words(page, scale, height)
     tables = []
     for output in model.predict(image, use_ocr_model=False, overall_ocr_res=ocr,
                                 use_table_orientation_classify=engine["use_table_orientation_classify"],
@@ -258,8 +279,11 @@ def page_tables(model, page, page_no, engine):
     return tables
 
 
-def detect_tables(pdf_bytes, contract):
-    """모든 page의 PP 표 영역. 실패는 PdfTableError로 올리며 다른 표 parser로 넘어가지 않는다."""
+def detect_tables(pdf_bytes, contract, layers=None):
+    """모든 page의 PP 표 영역. 실패는 PdfTableError로 올리며 다른 표 parser로 넘어가지 않는다.
+
+    layers는 OCR한 page 번호별 (줄, 단어) text layer다. 없는 page는 native text layer를 쓴다.
+    """
     import pypdfium2
     engine = contract["routes"]["PDF"]["table_engine"]
     with _PP_LOCK:
@@ -273,7 +297,7 @@ def detect_tables(pdf_bytes, contract):
         try:
             tables = []
             for index in range(len(document)):
-                tables.extend(page_tables(model, document[index], index + 1, engine))
+                tables.extend(page_tables(model, document[index], index + 1, engine, (layers or {}).get(index + 1)))
             return tables, len(document)
         except PdfTableError:
             raise
