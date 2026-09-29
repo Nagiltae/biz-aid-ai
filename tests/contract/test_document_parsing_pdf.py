@@ -1,7 +1,6 @@
 import copy
 import hashlib
 import io
-import logging
 import tempfile
 import sys
 import unittest
@@ -14,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "data-pipeline/src"))
 
 from docling.datamodel.base_models import InputFormat
-from docling_core.types.doc import DoclingDocument, Size
+from docling_core.types.doc import DoclingDocument
 
 from biz_aid_pipeline.config.settings import PipelineError
 from biz_aid_pipeline.parsing import parse_document
@@ -165,44 +164,54 @@ class DoclingPdfRouteContractTests(unittest.TestCase):
         moved["routes"]["PDF"]["layout_model_revision"] = "0" * 40
         self.assertNotEqual(parse_key("c" * 64, "DOCLING_PDF", self.contract), parse_key("c" * 64, "DOCLING_PDF", moved))
 
-    def test_table_cell_drop_is_exposed_without_changing_logging(self):
-        logger = logging.getLogger(pdf_route.TABLE_DROP_LOGGER)
-        before = (list(logger.handlers), list(logger.filters), logger.level, logger.propagate)
-        document = DoclingDocument(name="drop")
-        document.add_page(page_no=1, size=Size(width=612, height=792))
-        document.add_text(label="text", text="지원금액과 자부담 비율은 아래 표를 따른다. " * 5)
+    def test_pp_table_becomes_structured_table_with_provenance(self):
+        tables = self.text.document.tables
+        self.assertEqual(len(tables), 1)
+        quality = tables[0].meta.get_custom_part()["bizaid__table_quality"]
+        self.assertEqual((quality["verdict"], quality["reasons"], quality["page"]), ("TABLE_VALID", [], 1))
+        self.assertEqual(quality["source_sha256"], self.text.source_sha256)
+        self.assertIn("table_recognition_v2", quality["parser_identity"])
+        self.assertEqual((tables[0].data.num_rows, tables[0].data.num_cols), (3, 3))
+        # cell text는 PDF native text layer에서 온다.
+        self.assertEqual([cell.text for cell in tables[0].data.table_cells][3:6], ["Consulting", "80 percent", "20 percent"])
 
-        def convert(*args, **kwargs):
-            logger.warning("3 of 40 pdf cells matched neither a row nor a column band of the 5x4 grid "
-                           "and were dropped from the table")
-            logger.warning("2 of 12 pdf cells matched neither a row nor a column band of the 3x2 grid "
-                           "and were dropped from the table")
-            return mock.Mock(status=pdf_route.ConversionStatus.SUCCESS, document=document)
+    def test_failed_table_keeps_native_text_without_structure(self):
+        from biz_aid_pipeline.parsing import pdf_tables
 
-        with mock.patch.object(pdf_route, "converter") as factory:
-            factory.return_value.convert.side_effect = convert
+        def failing(cell_boxes, td_count, words, engine):
+            return pdf_tables.TABLE_QUALITY_FAILED, ["grid_unproven"], None
+        with mock.patch.object(pdf_tables, "assess_table", side_effect=failing):
             result = parse(TEXT_PDF)
-        # BOUNDARY: 표 cell 탈락은 새 status가 아니라 PARSED 결과의 warning evidence다.
-        self.assertEqual(result.status, "PARSED")
-        self.assertEqual((result.warnings["TABLE_CELL_DROP_DETECTED"], result.warnings["TABLE_CELLS_DROPPED"]), (2, 5))
-        self.assertEqual((list(logger.handlers), list(logger.filters), logger.level, logger.propagate), before)
-        for code in ("TABLE_CELL_DROP_DETECTED", "TABLE_CELLS_DROPPED", "TABLE_CELL_DROP_COUNT_UNPARSED"):
+        # BOUNDARY: 증명되지 않은 표는 행·열 구조 없이 bbox native text와 provenance로만 남는다.
+        self.assertEqual((result.status, result.document.tables), ("PARSED", []))
+        self.assertEqual(result.warnings["PDF_TABLE_QUALITY_FAILED"], 1)
+        failed = [item for item in result.document.texts if item.meta
+                  and item.meta.get_custom_part().get("bizaid__table_quality", {}).get("verdict") == "TABLE_QUALITY_FAILED"]
+        self.assertEqual(len(failed), 1)
+        for value in ("Item", "Government", "Consulting", "80 percent", "Training", "30 percent"):
+            self.assertIn(value, failed[0].text)
+        self.assertEqual(failed[0].meta.get_custom_part()["bizaid__table_quality"]["reasons"], ["grid_unproven"])
+
+    def test_table_engine_failure_is_parse_failed_without_fallback(self):
+        from biz_aid_pipeline.parsing import pdf_tables
+        with mock.patch.object(pdf_tables, "pipeline", side_effect=RuntimeError("boom")):
+            result = parse(TEXT_PDF)
+        self.assertEqual((result.status, result.failure_code, result.document), ("PARSE_FAILED", "pp_table_engine_error:RuntimeError", None))
+        self.assertIn("pp_table_engine_error:<ExceptionClass>", self.contract["failure_codes"]["PARSE_FAILED"])
+        for code in ("PDF_TABLE_QUALITY_FAILED", "PDF_TABLE_OVERLAP_PRESERVED_AS_TEXT", "PDF_DOCLING_TABLE_PRESERVED_AS_TEXT",
+                     "PDF_TABLE_PICTURE_OVERLAP"):
             self.assertIn(code, self.contract["warning_codes"])
-        self.assertIn("does not guarantee", self.contract["parse_status_semantics"]["PARSED"])
 
-    def test_upstream_drop_message_still_matches_capture(self):
-        # 설치된 docling-ibm-models가 문구를 바꾸면 탈락이 조용히 누락되므로 pin 변경 때 이 테스트가 먼저 실패해야 한다.
-        from docling_ibm_models.tableformer.data_management import matching_post_processor
-        source = Path(matching_post_processor.__file__).read_text(encoding="utf-8")
-        self.assertIn('"{} of {} pdf cells matched neither a row nor a column band of "', source)
-        self.assertIn("MatchingPostProcessor", source)
-        self.assertRegex("7 of 90 pdf cells matched neither a row nor a column band of the 9x3 grid", pdf_route.TABLE_DROP_MESSAGE)
-
-    def test_table_baseline_is_explicit_accurate_with_cell_matching(self):
+    def test_docling_table_structure_is_off_and_pp_engine_is_ocr_free(self):
         options = pdf_route.converter(self.contract).format_to_options[InputFormat.PDF].pipeline_options
-        self.assertEqual((options.table_structure_options.mode.value, options.table_structure_options.do_cell_matching),
-                         ("accurate", True))
-        self.assertEqual(self.contract["routes"]["PDF"]["table_structure_options"], {"mode": "accurate", "do_cell_matching": True})
+        self.assertIs(options.do_table_structure, False)
+        engine = self.contract["routes"]["PDF"]["table_engine"]
+        self.assertEqual((engine["engine"], engine["use_ocr_model"], engine["adapter"]), ("pp_tablemagic", False, "detection_edge_grid"))
+        self.assertEqual(self.contract["table_engine"]["primary"], "pp_tablemagic")
+        with_ocr = copy.deepcopy(self.contract)
+        with_ocr["routes"]["PDF"]["table_engine"]["use_ocr_model"] = True
+        with self.assertRaisesRegex(ValueError, "pdf_table_engine_ocr_must_be_disabled"):
+            parse_key("c" * 64, "DOCLING_PDF", with_ocr)
 
     def test_model_artifacts_are_explicit_offline_and_identity_bearing(self):
         spec = self.contract["dependencies"]["docling"]["model_artifacts"]
@@ -234,12 +243,13 @@ class DoclingPdfRouteContractTests(unittest.TestCase):
         self.assertEqual(key, parse_key(sha, "DOCLING_PDF", self.contract))
         self.assertEqual(self.text.parse_key, parse_key(self.text.source_sha256, "DOCLING_PDF", self.contract))
         changed = copy.deepcopy(self.contract)
-        changed["routes"]["PDF"]["docling_options"]["do_table_structure"] = False
+        changed["routes"]["PDF"]["table_engine"]["edge_tolerance_px"] = 9
         self.assertNotEqual(key, parse_key(sha, "DOCLING_PDF", changed))
         with mock.patch("biz_aid_pipeline.parsing.models.installed_version", return_value="0.0.0"):
             self.assertNotEqual(key, parse_key(sha, "DOCLING_PDF", self.contract))
         self.assertNotEqual(key, parse_key(sha, "HWPX_DOCLING_ADAPTER", self.contract))
-        for name in ("docling_version", "docling_parse_version", "docling_ibm_models_version", "pipeline_config_sha256"):
+        for name in ("docling_version", "docling_parse_version", "docling_ibm_models_version", "pipeline_config_sha256",
+                     "paddlepaddle_version", "paddlex_version"):
             self.assertIn(name, self.contract["versioning"]["parse_key_inputs"])
 
 

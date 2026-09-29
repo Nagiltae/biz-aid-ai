@@ -47,15 +47,75 @@
             ]
           },
           {
-            "repo_id": "docling-project/docling-models",
-            "folder": "docling-project--docling-models",
-            "requested_revision": "v2.3.0",
-            "resolved_snapshot": "fc0f2d45e2218ea24bce5045f58a389aed16dc23",
+            "repo_id": "PaddlePaddle/PP-DocLayout-L",
+            "folder": "PaddlePaddle--PP-DocLayout-L",
+            "requested_revision": "ca760c3336d922ee63cdbff85003181222e3911c",
+            "resolved_snapshot": "ca760c3336d922ee63cdbff85003181222e3911c",
             "files": [
-              "model_artifacts/tableformer/accurate/tableformer_accurate.safetensors",
-              "model_artifacts/tableformer/accurate/tm_config.json",
-              "model_artifacts/tableformer/fast/tableformer_fast.safetensors",
-              "model_artifacts/tableformer/fast/tm_config.json"
+              "config.json",
+              "inference.json",
+              "inference.pdiparams",
+              "inference.yml"
+            ]
+          },
+          {
+            "repo_id": "PaddlePaddle/PP-LCNet_x1_0_table_cls",
+            "folder": "PaddlePaddle--PP-LCNet_x1_0_table_cls",
+            "requested_revision": "2fa6323e7dab88fa883081db1460995f46af2922",
+            "resolved_snapshot": "2fa6323e7dab88fa883081db1460995f46af2922",
+            "files": [
+              "config.json",
+              "inference.json",
+              "inference.pdiparams",
+              "inference.yml"
+            ]
+          },
+          {
+            "repo_id": "PaddlePaddle/SLANeXt_wired",
+            "folder": "PaddlePaddle--SLANeXt_wired",
+            "requested_revision": "763069fcda6a065f2171753205a32bf899a88d15",
+            "resolved_snapshot": "763069fcda6a065f2171753205a32bf899a88d15",
+            "files": [
+              "config.json",
+              "inference.json",
+              "inference.pdiparams",
+              "inference.yml"
+            ]
+          },
+          {
+            "repo_id": "PaddlePaddle/SLANeXt_wireless",
+            "folder": "PaddlePaddle--SLANeXt_wireless",
+            "requested_revision": "1b73e05c752d2e0763b5d205846dec23122e5808",
+            "resolved_snapshot": "1b73e05c752d2e0763b5d205846dec23122e5808",
+            "files": [
+              "config.json",
+              "inference.json",
+              "inference.pdiparams",
+              "inference.yml"
+            ]
+          },
+          {
+            "repo_id": "PaddlePaddle/RT-DETR-L_wired_table_cell_det",
+            "folder": "PaddlePaddle--RT-DETR-L_wired_table_cell_det",
+            "requested_revision": "e2bd53c06b3a815d86acbf5c6779dada58819cfe",
+            "resolved_snapshot": "e2bd53c06b3a815d86acbf5c6779dada58819cfe",
+            "files": [
+              "config.json",
+              "inference.json",
+              "inference.pdiparams",
+              "inference.yml"
+            ]
+          },
+          {
+            "repo_id": "PaddlePaddle/RT-DETR-L_wireless_table_cell_det",
+            "folder": "PaddlePaddle--RT-DETR-L_wireless_table_cell_det",
+            "requested_revision": "25ca86356a601c877476bb0dcc5fd09153d9d64d",
+            "resolved_snapshot": "25ca86356a601c877476bb0dcc5fd09153d9d64d",
+            "files": [
+              "config.json",
+              "inference.json",
+              "inference.pdiparams",
+              "inference.yml"
             ]
           }
         ],
@@ -63,9 +123,25 @@
         "runtime_download": "forbidden in parsing and test runtime; a missing path or folder fails before conversion",
         "provisioning": "explicit step outside test runtime: scripts/provision_docling_artifacts.py provision --allow-network downloads models[].files at resolved_snapshot into a staging folder and moves it only after identity verification; CI restores it from the GitHub Actions cache keyed by artifacts_cache_key",
         "cache_key_schema": 1,
-        "expected_manifest_sha256": "282d8871a673ae5b50bd5935b764b7b3c2af9349058302470ae1b339fa772da2"
+        "expected_manifest_sha256": "ee82196d0651f54c9bb417e22fe289c9cf1d3cdb0e076278d1eee66631523d00",
+        "scope": "Docling layout model and the six PP-TableMagic table models share one pinned artifacts directory, identity and CI cache; TableFormer weights are no longer used by the production route and are not listed"
       },
-      "companion_pin": "docling-ibm-models[opencv-python-headless]==4.0.3 because TableFormer imports cv2 and models-local does not declare it; opencv is not an OCR engine"
+      "companion_pin": "docling-ibm-models[opencv-python-headless]==4.0.3 declares opencv for layout post-processing; opencv-python-headless is pinned to 4.10.0.84 to equal the opencv-contrib-python version required by paddlex so both distributions ship the same cv2 build; opencv is not an OCR engine"
+    },
+    "paddle": {
+      "pins": [
+        "paddlepaddle==3.3.1",
+        "paddlex[ocr]==3.7.2",
+        "opencv-python-headless==4.10.0.84"
+      ],
+      "status": "installed",
+      "reason": "PP-TableMagic is the production PDF table engine (user decision 2026-09-29 after 3-B.1 to 3-B.4 evidence)",
+      "ocr_extra": "table_recognition_v2 is declared with pipeline_requires_extra('ocr') and checks the extra's installed distributions; the extra is installed only to satisfy that check and no OCR model is configured or loaded",
+      "resolver_effect": "numpy 2.4.6 -> 2.3.5 and PyYAML 6.0.3 -> 6.0.2 within docling ranges; paddleocr is not installed",
+      "runtime_environment": {
+        "PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK": "True"
+      },
+      "metadata_rule": "parse_key records installed paddlepaddle and paddlex versions"
     }
   },
   "input": {
@@ -136,21 +212,60 @@
     "PDF": {
       "route": "DOCLING_PDF",
       "enabled": true,
-      "flow": "source bytes -> integrity check -> DocumentStream (no temp file) -> Docling DocumentConverter (do_ocr=false) -> DoclingDocument -> normalize_document -> apply_gate",
+      "flow": "source bytes -> integrity check -> DocumentStream (no temp file) -> Docling DocumentConverter (do_ocr=false, do_table_structure=false) -> PP-TableMagic table detection and structure on each page with native PDF text rectangles injected -> detection-edge grid adapter with native PDF words -> table quality gate -> assembly into the same DoclingDocument -> normalize_document -> apply_gate",
       "docling_options": {
         "do_ocr": false,
-        "do_table_structure": true,
+        "do_table_structure": false,
         "enable_remote_services": false,
         "generate_page_images": false,
         "generate_picture_images": false
       },
       "layout_model_revision": "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8",
-      "table_structure_options": {
-        "mode": "accurate",
-        "do_cell_matching": true
-      },
-      "reuse": "HWP_PDF_DOCLING calls the same convert_pdf boundary after conversion; PDF logic is not duplicated",
-      "table_baseline_rationale": "explicit copy of the Docling default; changing mode or cell matching requires corpus A/B evidence and a new pipeline_config_sha256"
+      "reuse": "HWP_PDF_DOCLING calls the same PDF boundary after conversion; PDF logic is not duplicated",
+      "table_engine": {
+        "engine": "pp_tablemagic",
+        "pipeline": "table_recognition_v2",
+        "device": "cpu",
+        "render_scale": 2.0,
+        "use_layout_detection": true,
+        "use_ocr_model": false,
+        "use_doc_preprocessor": false,
+        "use_table_orientation_classify": false,
+        "use_ocr_results_with_table_cells": false,
+        "submodules": {
+          "LayoutDetection": [
+            "layout_detection",
+            "PaddlePaddle--PP-DocLayout-L"
+          ],
+          "TableClassification": [
+            "table_classification",
+            "PaddlePaddle--PP-LCNet_x1_0_table_cls"
+          ],
+          "WiredTableStructureRecognition": [
+            "table_structure_recognition",
+            "PaddlePaddle--SLANeXt_wired"
+          ],
+          "WirelessTableStructureRecognition": [
+            "table_structure_recognition",
+            "PaddlePaddle--SLANeXt_wireless"
+          ],
+          "WiredTableCellsDetection": [
+            "table_cells_detection",
+            "PaddlePaddle--RT-DETR-L_wired_table_cell_det"
+          ],
+          "WirelessTableCellsDetection": [
+            "table_cells_detection",
+            "PaddlePaddle--RT-DETR-L_wireless_table_cell_det"
+          ]
+        },
+        "text_injection": "native PDF text rectangles as overall_ocr_res (3-B.3 A/B: rectangle kept, native_words injection rejected)",
+        "cell_text_source": "native PDF words assigned to grid cells by word center",
+        "adapter": "detection_edge_grid",
+        "adapter_version": 1,
+        "edge_tolerance_px": 8,
+        "empty_structure_max_chars": 200,
+        "ocr_rule": "no OCR submodule is configured or loaded; the pipeline fails rather than running OCR"
+      }
     },
     "HWP": {
       "route": "HWP_PDF_DOCLING",
@@ -216,6 +331,99 @@
       "approved_direction": "UNSUPPORTED_FORMAT; not implemented"
     }
   },
+  "table_engine": {
+    "primary": "pp_tablemagic",
+    "primary_configuration": "routes.PDF.table_engine",
+    "change_policy": "primary table engine changes only after a BizAid corpus benchmark and a user decision",
+    "document_parser": "Docling remains the PDF document parser regardless of the table engine",
+    "representation": "any table engine converges to DoclingDocument TableItem through a table-only adapter; no own canonical document",
+    "routing_rule": "deterministic rules on features known before conversion; failure-triggered retry with another engine is not a primary fix",
+    "evaluation": {
+      "task": "3-B.1 PDF Table Engine Evaluation",
+      "status": "decided_replace_with_pp_tablemagic",
+      "candidates": [
+        "docling_tableformer",
+        "paddleocr_pp_tablemagic",
+        "camelot"
+      ],
+      "decision_options": [
+        "keep_tableformer",
+        "replace_with_pp_tablemagic",
+        "replace_with_camelot",
+        "deterministic_routing"
+      ],
+      "phase4_gate": "Chunking, Embedding and Qdrant stay blocked until this evaluation is decided"
+    },
+    "suitability_gate": {
+      "task": "3-B.2 PP-TableMagic Production Suitability Gate; 3-B.3 PDF Hybrid Parsing Validation",
+      "status": "closed_by_user_decision",
+      "candidate_architecture": {
+        "document_owner": "Docling",
+        "table_owner": "PP-TableMagic table detection and table structure",
+        "cell_text_source": "PDF native text layer",
+        "output": "DoclingDocument TableItem"
+      },
+      "docling_bbox_gate": "Docling table bbox -> PP structure is attribution-only and not the default candidate; Docling missed 4 of 19 GT tables in 3-B.1",
+      "decision_options": [
+        "approve_pp_full_ownership_candidate",
+        "needs_more_evaluation",
+        "pp_unsuitable"
+      ],
+      "no_automatic_regression": "an unsuitable verdict does not revert to TableFormer or Camelot; alternatives are decided in a separate Task",
+      "production_route_change": true
+    },
+    "table_quality": {
+      "evidence_states": [
+        "TABLE_VALID",
+        "TABLE_QUALITY_FAILED"
+      ],
+      "parse_status_change": false,
+      "mapping_rule": "structure cells map to logical TableCell only through a proven rule; an unproven mapping is TABLE_QUALITY_FAILED, never a silent fallback",
+      "downstream_rule": "TABLE_QUALITY_FAILED tables must not enter Chunking or indexing",
+      "failed_table_policy": {
+        "structure": "no TableItem, row, column or span structure is created",
+        "text": "all native PDF text inside the table bbox is preserved without loss as non-table text",
+        "provenance": [
+          "source_sha256",
+          "page",
+          "bbox",
+          "failure_reasons",
+          "parser_identity"
+        ],
+        "downstream": "not a structured table; the Chunking and indexing block of downstream_rule still applies",
+        "automatic_fallback": "no other table parser is tried",
+        "overlapping_regions": "overlapping PP regions (container or duplicate candidates) are not resolved by choosing one; their union bbox is preserved as TABLE_QUALITY_FAILED native text until a verified rule exists"
+      }
+    },
+    "assembly_rule": "assembly into DoclingDocument never drops native text: a replaced Docling item keeps its non-replaced children (caption, footnote) as items, TABLE_VALID words outside every cell stay as text with provenance, text items only partly inside a PP region are kept, Docling table text outside the PP region stays as text, picture child text inside a PP region is owned by that region, a PP region overlapping a Docling picture is recorded for human review, and silent loss is judged per page against the Docling baseline, not by document totals",
+    "decision": "2026-09-29 user decision: replace_with_pp_tablemagic; Docling stays the document backbone; TableFormer is not run",
+    "docling_table_rule": "a Docling table region that no PP region owns becomes non-table native text of its bbox (TableFormer is disabled, so no structure is invented)",
+    "uncertain_regions": "overlapping, container or duplicate PP regions are preserved as TABLE_QUALITY_FAILED native text; no region is chosen until a verified rule exists"
+  },
+  "visual_pilot": {
+    "task": "3-B.3 PDF Hybrid Parsing Validation",
+    "status": "evaluation_only",
+    "production_route_change": false,
+    "region_source": "Docling picture items (document backbone)",
+    "engine": "PaddleOCR-VL in the separate benchmark environment only",
+    "scope": "informative visual candidates only (chart, diagram, flowchart, screenshot, other informative); not every picture and not an OCR fallback for scanned pages",
+    "supported_tasks": "model task prompts only (OCR, Spotting, Chart Recognition, Table Recognition); unsupported schemas such as free captions or entities are not forced",
+    "provenance": [
+      "source_sha256",
+      "page",
+      "bbox",
+      "visual_type",
+      "model_identity",
+      "extraction_method"
+    ],
+    "evidence_semantics": "visual outputs are model-derived evidence, never native source text, and stay distinguishable in DoclingDocument",
+    "quality_states": [
+      "VISUAL_VALID",
+      "VISUAL_QUALITY_FAILED"
+    ],
+    "quality_rule": "execution success is not content quality; execution error, empty output, confirmed repetitive degeneration or Han script absent from the page native text in a Korean source (evaluation candidate) is VISUAL_QUALITY_FAILED; no unevidenced output schema or semantic threshold is forced and unverifiable content remains human-review pending",
+    "production_status": "deferred: PaddleOCR-VL is not part of the production PDF route and is not imported by production code; Docling picture items are kept as-is without VLM parsing"
+  },
   "parse_statuses": [
     "PARSED",
     "EMPTY_TEXT",
@@ -229,8 +437,8 @@
   ],
   "parse_status_semantics": {
     "PARSED": "parser execution succeeded, the DoclingDocument reloads from JSON and passes the text-quantity gate; it does not guarantee semantic or table fidelity",
-    "consumer_rule": "downstream consumers must read warnings; TABLE_CELL_DROP_DETECTED means table text was dropped by Docling TableFormer cell matching",
-    "warning_counts": "TABLE_CELL_DROP_DETECTED counts drop events (tables); TABLE_CELLS_DROPPED counts dropped PDF cells"
+    "consumer_rule": "downstream consumers must read warnings and table item metadata; bizaid__table_quality verdict TABLE_QUALITY_FAILED marks non-structured table text that must not be treated as a table",
+    "warning_counts": "PDF_TABLE_* warnings count table regions of each kind in one document"
   },
   "warning_codes": [
     "CONTROL_CHARACTERS_REMOVED",
@@ -239,9 +447,10 @@
     "TABLE_CELL_OUT_OF_RANGE",
     "EMBEDDED_OBJECT_SKIPPED",
     "SECTION_ORDER_FROM_FILENAME",
-    "TABLE_CELL_DROP_DETECTED",
-    "TABLE_CELLS_DROPPED",
-    "TABLE_CELL_DROP_COUNT_UNPARSED"
+    "PDF_TABLE_QUALITY_FAILED",
+    "PDF_TABLE_OVERLAP_PRESERVED_AS_TEXT",
+    "PDF_DOCLING_TABLE_PRESERVED_AS_TEXT",
+    "PDF_TABLE_PICTURE_OVERLAP"
   ],
   "failure_codes": {
     "rule": "status names the outcome class; failure_code names the concrete cause and is null for PARSED, EMPTY_TEXT and OCR_REQUIRED",
@@ -261,7 +470,9 @@
       "docling_conversion_failed",
       "docling_partial_conversion",
       "pdf_no_pages",
-      "docling_conversion_error:<ExceptionClass>"
+      "docling_conversion_error:<ExceptionClass>",
+      "pp_table_engine_error:<ExceptionClass>",
+      "pdf_page_count_mismatch"
     ],
     "REJECTED_UNSAFE": [
       "container_entries_rejected",
@@ -288,7 +499,9 @@
       "docling_ibm_models_version",
       "pipeline_config_sha256",
       "model_artifacts_sha256",
-      "converter_version"
+      "converter_version",
+      "paddlepaddle_version",
+      "paddlex_version"
     ],
     "parse_key": "SHA-256 of sorted compact UTF-8 JSON of parse_key_inputs; absent components are null; docling_version is the installed docling-slim version",
     "adapter_version": 1,

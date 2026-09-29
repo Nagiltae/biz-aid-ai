@@ -23,6 +23,10 @@ check-all은 모든 적용 검사를 실행한 후 하나라도 실패하면 1�
 새 실행 코드·제품 module·service가 생기면 Registry와 검증을 함께 갱신해야 한다.
 현재 Registry 밖의 실행 코드·workflow·module은 Harness drift로 실패한다.
 
+개발 중 검증은 결함을 재현·확인할 수 있는 가장 작은 충분 범위(smallest sufficient scope)로 한다.
+전체 corpus / full evaluation은 production 최종 승인 직전 명시적으로 필요할 때만 실행한다.
+검증만을 위한 별도 기능 개발은 기존 Harness로 해결할 수 없을 때만 한다.
+
 ## 테스트 단계와 DoD
 
 지금은 로컬 도구 Unit / Contract / Integration을 실행한다.
@@ -129,3 +133,38 @@ CI는 모델 identity 기반 key의 Actions cache를 복원하고 miss일 때만
 cache hit·miss와 무관하게 manifest identity를 verify한 뒤 setup·check-all을 HF_HUB_OFFLINE=1로 실행한다. PDF test skip은 없다.
 `test_docling_provisioning.py`는 cache key의 identity 한정 변화, resolved commit 다운로드, staging 원자성, 손상·중단 거부, CI step 순서·network 경계를 검증한다.
 프로젝트 인터프리터 요구사항은 stdlib `lzma`를 포함한 Python 3.11이다. setup은 lzma 부재를 Docling PDF prerequisite 미충족으로 보고한다.
+
+## Phase 3-B.1 표 engine 평가
+
+`test_table_engine_eval.py`는 critical token 분류, HTML span grid, 1:1 표 매칭, GT 비교(완전·미검출·cell 탈락·병합 cell),
+두 engine family 이상의 consensus, Camelot lattice span 복원, corpus SHA·provenance 고정과 Contract의 table_engine 규칙을 합성 데이터로 검증한다.
+실제 benchmark 실행은 저장소 밖 benchmark venv·모델에서 명시적으로 하며 CI와 check-all은 engine·모델을 실행하지 않는다.
+
+## Phase 3-B.2 PP-TableMagic 적합성
+
+`test_table_engine_eval.py`는 PP 행 규칙·HTML 행별 cell 수, 검출 경계 grid의 span 증명과 충돌 보고, 구조 bbox 긴 변 정규화 보정,
+Contract의 suitability_gate·table_quality 규칙을 검증한다. `test_harness_policy.py`는 IntelliJ introspection cache
+`.idea/dataSources/**/storage_v2/**/*.meta`만 허용하고 다른 확장자·위치·실행 파일은 계속 FAIL임을 검증한다.
+PP 진단(`pp_diagnostics.py`)은 benchmark venv에서 명시적으로 실행하며 check-all은 engine·모델을 실행하지 않는다.
+
+## Phase 3-B.3 PDF Hybrid Parsing 검증
+
+평가 테스트(`test_table_engine_eval.py`)와 production 테스트(`test_document_parsing*.py`)를 파일로 구분한다.
+평가 테스트는 겹친 검출 box 정규화, 실패 표 text의 읽기 순서 재조립, 겹친 PP 영역을 고르지 않고 합친 FAILED 영역으로 보존하는 조립 규칙,
+visual 품질 Gate(빈 출력·반복·원문에 없는 한자 출력·native grounding·human pending)를 검증한다.
+PaddleOCR-VL pilot의 호출별 120초 상한은 무기한 평가 실행을 막는 local safety boundary이며 production threshold가 아니다.
+Chart·Spotting 출력 schema와 의미 정확성은 evidence 없이 강제하지 않고 review bundle에서 사람이 원본 crop과 대조한다.
+`test_production_route_is_unchanged_by_evaluation`은 Contract primary·표 설정·PDF route가 그대로이고
+제품 parsing 코드가 evals·paddle·camelot을 import하지 않음을 확인한다. PaddleOCR-VL과 조립 pilot은 check-all에서 실행하지 않는다.
+
+## Phase 3-B.4 Hybrid Review Closure
+
+조립 회귀는 손실·겹침·footnote·표/그림 충돌 사례와 정상 표 문서를 포함한 최대 5문서 targeted 범위에서 쪽 단위로 baseline Docling 대비 잃은 글자(`lost_vs_baseline`)를 센다. 문서 합계는 한 쪽의 손실을 다른 쪽의 개선이 가릴 수 있어 판정에 쓰지 않는다.
+평가 테스트는 교체된 표의 footnote 자식 보존, VALID 표 cell 밖 단어 보존, 부분 겹침 판정, 쪽 단위 손실 계산, review flag가 판정을 대신하지 않음을 검증한다.
+`evals/table_engine/review.py`는 기존 산출물로 사람 검토 entry point를 만들며 모델·parser를 다시 실행하지 않고 어떤 항목도 PASS로 기록하지 않는다.
+
+## Phase 3-B.5 PP Production Integration
+
+PDF route Contract test는 합성 PDF로 PP 표가 TABLE_VALID TableItem과 provenance로 조립되는지, 실패 표가 구조 없이 native text로 남는지,
+표 engine 오류가 fallback 없이 PARSE_FAILED인지, Docling 표 구조가 꺼지고 PP 설정에 OCR이 없는지 확인한다. PP 모델은 Docling layout과 같은 고정 artifact 경로에서만 읽는다.
+실제 문서 확인은 check-all 밖의 targeted regression(최대 5문서)으로만 하며 결과는 ignored `data/parsed/`에 둔다.

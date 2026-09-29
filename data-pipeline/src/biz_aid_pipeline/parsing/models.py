@@ -77,8 +77,11 @@ def pipeline_identity(contract):
     # RISK: Docling 기본 layout 모델 revision은 "main"이라 새 환경에서 다른 가중치를 받을 수 있으므로 commit hash만 허용한다.
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise ValueError("layout_model_revision_must_be_commit")
-    return {"docling_options": pipeline_config(contract), "layout_model_revision": revision,
-            "table_structure_options": dict(contract["routes"]["PDF"]["table_structure_options"])}
+    engine = dict(contract["routes"]["PDF"]["table_engine"])
+    # BOUNDARY: 표 engine 설정도 parser identity라서 바뀌면 PDF 문서만 새 parse_key를 받는다. OCR 모델은 허용하지 않는다.
+    if engine.get("use_ocr_model") is not False or any(module == "text_recognition" for module, _ in engine["submodules"].values()):
+        raise ValueError("pdf_table_engine_ocr_must_be_disabled")
+    return {"docling_options": pipeline_config(contract), "layout_model_revision": revision, "table_engine": engine}
 
 
 def artifact_files(contract):
@@ -149,15 +152,19 @@ def parse_key(source_sha256, route, contract, converter_version=None):
         "pipeline_config_sha256": None,
         "model_artifacts_sha256": None,
         "converter_version": converter_version,
+        "paddlepaddle_version": None,
+        "paddlex_version": None,
     }
     # HWP route의 Docling identity는 변환기 버전이 정해져 route가 활성화될 때 함께 채운다.
     if route == "DOCLING_PDF" or (route == "HWP_PDF_DOCLING" and converter_version is not None):
-        # Docling 배포는 docling-slim이며 layout/table 모델 revision은 docling-slim과 docling-ibm-models 버전이 고정한다.
+        # Docling 배포는 docling-slim이고 표는 PP-TableMagic이 맡으므로 두 쪽의 설치 버전과 모델 identity를 모두 넣는다.
         identity.update(docling_version=installed_version("docling-slim"),
                         docling_parse_version=installed_version("docling-parse"),
                         docling_ibm_models_version=installed_version("docling-ibm-models"),
                         pipeline_config_sha256=pipeline_config_sha256(contract),
-                        model_artifacts_sha256=model_artifacts_sha256(contract))
+                        model_artifacts_sha256=model_artifacts_sha256(contract),
+                        paddlepaddle_version=installed_version("paddlepaddle"),
+                        paddlex_version=installed_version("paddlex"))
     if sorted(identity) != sorted(versioning["parse_key_inputs"]):
         raise PipelineError("parse_key_contract_drift")
     return hashlib.sha256(json.dumps(identity, sort_keys=True, ensure_ascii=False,

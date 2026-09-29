@@ -65,12 +65,15 @@ class DoclingProvisioningContractTests(unittest.TestCase):
             self.assertRegex(model["resolved_snapshot"], r"^[0-9a-f]{40}$")
             self.assertTrue(model["files"])
         self.assertRegex(spec["expected_manifest_sha256"], r"^[0-9a-f]{64}$")
-        tableformer = next(model for model in spec["models"] if model["repo_id"] == "docling-project/docling-models")
-        self.assertEqual(tableformer["requested_revision"], "v2.3.0")
+        # production 표 engine은 PP-TableMagic이므로 TableFormer 가중치는 artifact identity에 없다.
+        repos = {model["repo_id"] for model in spec["models"]}
+        self.assertNotIn("docling-project/docling-models", repos)
+        self.assertIn("docling-project/docling-layout-heron", repos)
+        self.assertEqual(sum(repo.startswith("PaddlePaddle/") for repo in repos), 6)
 
     def test_cache_key_changes_only_with_model_identity(self):
         key = artifacts_cache_key(self.contract)
-        self.assertRegex(key, r"^docling-artifacts-v1-[0-9a-f]{12}-[0-9a-f]{12}-[0-9a-f]{16}$")
+        self.assertRegex(key, r"^docling-artifacts-v1(-[0-9a-f]{12})+-[0-9a-f]{16}$")
         unrelated = copy.deepcopy(self.contract)
         unrelated["routes"]["XLSX"]["approved_direction"] = "문서 수정"
         unrelated["versioning"]["normalizer_version"] += 1

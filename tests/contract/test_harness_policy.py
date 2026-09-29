@@ -490,6 +490,30 @@ class HarnessPolicyTests(unittest.TestCase):
                 self.assertIn("ignored project result", result.stderr)
                 path.unlink()
 
+    def test_only_intellij_introspection_meta_cache_is_allowed(self):
+        cache = self.directory / ".idea/dataSources/84cac05d/storage_v2/_src_/schema"
+        cache.mkdir(parents=True)
+        allowed = cache / "information_schema.FNRwLQ.meta"
+        allowed.write_text("#n:information_schema\n", encoding="utf-8")
+        result = self.check("git-tracked")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rejected = [cache / f"information_schema{suffix}" for suffix in (".txt", ".db", ".json", ".md", ".py", ".sh")]
+        rejected += [self.directory / ".idea/dataSources/84cac05d/other.meta", self.directory / ".idea/cache.meta",
+                     self.directory / ".idea/dataSources/storage_v2.meta"]
+        for path in rejected:
+            with self.subTest(path=str(path.relative_to(self.directory))):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("hidden\n", encoding="utf-8")
+                result = self.check("git-tracked")
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("ignored project result", result.stderr)
+                path.unlink()
+        # 실행 권한이 있으면 같은 이름 규칙이라도 IDE cache로 보지 않는다.
+        allowed.chmod(0o755)
+        result = self.check("git-tracked")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("ignored project result", result.stderr)
+
     def test_broken_context_link_is_detected(self):
         path = self.directory / "AGENTS.md"
         path.write_text(path.read_text(encoding="utf-8") + "\n[실패 링크](harness/docs/missing.md)\n", encoding="utf-8")

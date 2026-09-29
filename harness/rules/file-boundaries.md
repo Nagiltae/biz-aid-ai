@@ -11,5 +11,6 @@ S3는 검증된 문서 binary의 영구 저장소다. ignored `data/downloaded/`
 AGY와 사용자 승인 전 삭제하지 않는다. 실패 응답은 ignored `data/failed/`, 실행 Report/Artifact는 non-gating workspace에 둔다.
 Phase 3 Parser는 `data-pipeline/src/biz_aid_pipeline/parsing/`에 둔다. S3 원본 read와 DoclingDocument 생성까지가 경계다.
 PDF 변환은 `parsing/pdf.py`의 `convert_pdf` 하나이며 HWP 경로도 이를 재사용한다. 모델 artifact·torch 임시 cache는 저장소 밖에 둔다.
+3-B.1 표 engine benchmark 코드는 `evals/table_engine/`에 두며 제품 parsing route를 대신하지 않는다. 결과는 ignored `data/parsed/table-engine-eval/`에 둔다.
 frontend/ backend/ ai/ OCR/Chunking/Embedding/Qdrant/RAG module 생성은 현재 범위 밖이다.
 Phase 0 도구를 제품 Pipeline 또는 FastAPI 모듈로 문서화하지 않는다.

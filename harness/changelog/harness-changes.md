@@ -186,3 +186,45 @@ setup은 lzma와 artifact 부재를 fail-fast로 보고한다. CI artifact 공�
 AGY 3-B Review(CONDITIONAL PASS)의 B-1을 해결한다. 모델은 Git에 넣지 않고 모델 identity만으로 만든 key의 Actions cache로 공급한다.
 cache miss일 때만 `provision --allow-network`가 Contract의 resolved commit으로 staging에 받고 manifest 검증 후 이동한다.
 hit·miss 모두 verify한 뒤 setup·check-all을 HF_HUB_OFFLINE=1로 실행한다. manifest는 Contract 파일 목록 기준이며 기대값과 달라도 변환 전 실패한다.
+
+## 2026-09-29 — Phase 3-B DONE / 3-B.1 등록
+
+3-B는 Human Review PASS로 DONE이다. AGY B-1은 remote CI cache-miss 경로 SUCCESS로 closed됐다.
+TableFormer 표 cell 손실은 warning으로 관찰 가능해졌을 뿐 해결되지 않았다. 다음 작업은 HWP가 아니라
+3-B.1 Table Engine Evaluation / Replacement이며 current-task와 Registry report를 새 Task로 교체한다. 구현은 시작하지 않았다.
+
+## 2026-09-29 — Phase 3-B.1 PDF Table Engine Evaluation 착수
+
+TableFormer 표 cell 손실의 근본 해결을 위해 primary table engine을 corpus evidence로 다시 결정하는 평가 Task를 시작한다.
+Source 규칙에 PDF Table Engine 절(Docling 문서 parser 유지, DoclingDocument 수렴, evidence 없는 교체 금지, 재시도 fallback 불인정,
+Phase 4 gate, 분리된 benchmark 환경·명시 모델, 산출물 ignored 경로)을 추가하고 Contract에 table_engine 절을 둔다.
+benchmark 코드는 `evals/table_engine/`, corpus는 SHA 고정 manifest로 추적한다. production route는 바꾸지 않는다.
+
+## 2026-09-29 — Phase 3-B.2 PP-TableMagic Production Suitability Gate
+
+PP-TableMagic을 표 검출·구조 owner로 쓰는 후보 구조를 Contract table_engine.suitability_gate에 기록하고
+Docling bbox gate는 귀속 측정용으로만 둔다. table_quality(TABLE_VALID / TABLE_QUALITY_FAILED)는 ParseStatus를 늘리지 않으며
+증명되지 않은 cell 매핑은 조용한 fallback이 아닌 품질 실패이고 TABLE_QUALITY_FAILED 표는 Chunking·indexing에 들어가지 않는다.
+IntelliJ DB introspection cache(`.idea/dataSources/**/storage_v2/**/*.meta`, 비실행)만 좁게 ignore 허용하고 regression test를 추가한다.
+
+## 2026-09-29 — Phase 3-B.3 PDF Hybrid Parsing Validation
+
+Contract table_quality에 failed_table_policy(구조 미생성·bbox native text 무손실 보존·provenance·자동 fallback 없음)를,
+visual_pilot(평가 전용 PaddleOCR-VL, informative 후보만, provenance 필드, 모델 파생 evidence, VISUAL_VALID / VISUAL_QUALITY_FAILED)을 추가한다.
+Source 규칙 PDF Table Engine 절에 두 줄을 더하고 production route 불변 테스트를 둔다. visual pilot은 호출별 120초 local safety
+boundary와 재개 가능한 결과 기록을 사용하고, 검증되지 않은 출력 schema·semantic threshold는 강제하지 않는다. production parser와 ParseStatus는 바꾸지 않는다.
+조립 pilot에서 겹친 PP 영역이 먼저 넣은 표를 지우는 손실이 관찰되어 failed_table_policy에 overlapping_regions(선택하지 않고 합친 영역을 FAILED native text로 보존)를,
+visual quality_rule에 한국어 원문에 없는 한자 출력(평가 후보)을 추가한다.
+
+## 2026-09-29 — Phase 3-B.4 Hybrid Review Closure
+
+corpus 32문서 조립에서 쪽 단위 손실을 재자 문서 합계에 가려진 손실이 드러났다(교체된 표의 caption·footnote 삭제, VALID 표 cell 밖 단어, 일부만 겹친 text 삭제).
+Contract table_engine에 assembly_rule을, Source 규칙에 한 줄을 추가하고 regression test를 둔다. 사람 검토 entry point(review.py)를 추가한다. production route와 ParseStatus는 바꾸지 않는다.
+검증 범위 원칙(smallest sufficient scope, full corpus는 최종 승인 직전 명시 요청 시, 검증 전용 기능은 기존 Harness로 불가할 때만)을 Testing 실행 범위에 추가한다.
+
+## 2026-09-29 — Phase 3-B.5 PP Production Integration
+
+사용자 결정으로 PDF production 표 engine을 PP-TableMagic으로 전환한다. Contract routes.PDF에 table_engine 설정을 두고 Docling 표 구조(TableFormer)를 끈다.
+PP 모델 6개를 Docling layout과 같은 artifact identity·CI cache에 넣고 TableFormer 가중치는 목록에서 뺀다. parse_key에 paddlepaddle·paddlex 버전을 넣는다.
+TableFormer cell drop warning을 PDF_TABLE_* warning으로 바꾸고 pp_table_engine_error 실패 코드를 등록한다. visual_pilot에 production 보류 상태를 적는다.
+Source 규칙·Pipeline 문서·setup 검사(PP 설치 확인, paddleocr 미설치)를 맞춘다.

@@ -57,12 +57,12 @@ parse_key는 source SHA·route·adapter/normalizer/docling-core/docling/converte
 같은 parse_key와 무결성이 재확인된 artifact만 재사용하고, 버전 변경은 해당 route 문서만 새 key로 재처리한다. 과거 결과는 덮어쓰지 않는다.
 parser 호출이 예외 없이 끝났다는 사실만으로 PARSED가 아니다. DoclingDocument 재적재와 text 양 Gate를 통과해야 한다.
 native text가 부족한 PDF는 OCR_REQUIRED로 분리한다. OCR 도입은 실제 분포 근거로 별도 Task에서 결정한다.
-PDF route는 Docling DocumentConverter를 `do_ocr=false`로만 만들고 OCR engine을 설치하지 않는다. 입력은 DocumentStream으로 메모리에서 넘긴다.
+PDF route는 Docling DocumentConverter를 `do_ocr=false`, `do_table_structure=false`로만 만들고 OCR engine을 설치하지 않는다. 입력은 DocumentStream으로 메모리에서 넘긴다.
 Docling 부분 성공(PARTIAL_SUCCESS)은 page 누락 위험이 있으므로 PARSE_FAILED다. status는 결과 분류, failure_code는 Contract에 등록한 구체 원인이다.
 PARSED는 실행·재적재·text 양 Gate 통과이며 본문·표의 의미상 완전성을 보장하지 않는다. 소비자는 warning을 함께 읽는다.
-Docling 표 cell 탈락은 conversion 범위의 logger filter로 TABLE_CELL_DROP_DETECTED / TABLE_CELLS_DROPPED warning에 남기고 전역 logging을 바꾸지 않는다.
-표 설정(ACCURATE + cell matching) 변경은 corpus A/B evidence와 새 pipeline_config_sha256 없이 하지 않는다.
-Docling 모델은 저장소 밖 명시적 `BIZAID_DOCLING_ARTIFACTS_PATH`의 고정 snapshot만 사용한다. Contract 파일 목록의 manifest가 기대값과 같아야 변환하며 parse_key에 넣는다.
+PDF 표 engine은 PP-TableMagic(2026-09-29 사용자 결정)이며 Docling은 layout·읽기 순서 backbone으로 남는다. TableFormer는 실행하지 않는다.
+PP는 OCR 모델 없이 native text 사각형을 주입해 실행하고 cell text는 native 단어로 채운다. 표 engine 설정 변경은 evidence와 새 pipeline_config_sha256 없이 하지 않는다.
+Docling layout·PP 표 모델은 저장소 밖 명시적 `BIZAID_DOCLING_ARTIFACTS_PATH`의 고정 snapshot만 사용한다. Contract 파일 목록의 manifest가 기대값과 같아야 변환하며 parse_key에 넣는다.
 네트워크 provisioning은 `provision --allow-network` 명령과 CI cache miss step에서만 허용하고 resolved commit으로 받는다.
 parsing·test runtime의 모델 네트워크 다운로드는 금지하며 artifact가 없으면 변환 전에 실패한다. 모델·cache를 저장소·data/에 두지 않는다.
 
@@ -71,6 +71,25 @@ entry 수·전체 해제 크기·압축비·XML 크기 한도 초과는 REJECTED
 detected ZIP은 DOCX·PPTX·ODT·Generic ZIP을 구분해 다룬다. Generic ZIP은 archive source SHA·member path·member SHA·
 member detected format·archive depth·parent/member provenance를 표현하는 Contract 전까지 전개하지 않고 POLICY_PENDING으로 보존한다.
 Parsed artifact의 영구 저장소는 S3이며 로컬 filesystem은 fixture·scratch·임시 처리만 허용한다.
+### PDF Table Engine 규칙 (3-B.1부터)
+
+PDF 문서 parser는 Docling이며 표 engine이 바뀌어도 최종 구조화 표현은 DoclingDocument다. 별도 CanonicalDocument·문서 tree를 만들지 않는다.
+다른 표 engine은 표 변환만 책임지는 adapter로 DoclingDocument의 TableItem에 수렴한다.
+실제 BizAid corpus benchmark evidence와 사용자 결정 없이 primary table engine을 바꾸지 않는다. 현재 primary는 PP-TableMagic이다.
+engine routing은 변환 전에 알 수 있는 source·표 특성의 결정적 규칙이어야 하며 "실패하면 다른 engine으로 재시도"는 primary 해결책으로 인정하지 않는다.
+Table Engine Evaluation이 끝나기 전에는 Phase 4 Chunking·Embedding·Qdrant에 진입하지 않는다.
+PP-TableMagic 후보는 표 검출과 구조를 함께 소유하는 구조로 검증한다. Docling 표 bbox를 PP 입력 gate로 쓰는 방식은 귀속 측정용이며 기본안이 아니다.
+구조 cell을 논리 TableCell로 옮기는 매핑은 증명된 규칙으로만 하며 증명되지 않으면 조용한 fallback이 아니라 TABLE_QUALITY_FAILED다.
+TABLE_QUALITY_FAILED 표는 Chunking·indexing에 들어가지 않는다. 이 표 품질 evidence는 기존 ParseStatus를 늘리지 않는다.
+TABLE_QUALITY_FAILED 표는 행·열·span 구조를 만들지 않고 bbox 안 native text를 손실 없이 보존하며 page·bbox·source SHA·실패 사유·parser identity를 남긴다.
+서로 겹친 PP 표 영역(container·duplicate 후보)은 검증된 규칙 전까지 하나를 고르지 않고 합친 영역을 TABLE_QUALITY_FAILED native text로 보존한다.
+DoclingDocument 조립은 교체한 item의 caption·footnote 자식, VALID 표의 cell 밖 단어, 영역에 일부만 걸친 text, PP 영역 밖 Docling 표 text를 버리지 않는다.
+손실은 쪽 단위로 baseline과 비교하며 PP 표와 Docling picture가 겹친 영역은 사람 검토 대상으로 기록한다.
+PDF visual 해석(PaddleOCR-VL)은 production에서 보류다. 제품 코드는 이를 import하지 않고 Docling picture item을 그대로 둔다. 평가 출력은 native source text가 아니다.
+benchmark 후보 engine은 제품 manifest·`.venv`와 분리된 저장소 밖 환경에서 명시 버전·명시 모델 경로로 실행하고 실행 중 모델 자동 다운로드를 하지 않는다.
+benchmark 산출물·GT·렌더링 evidence는 공고 첨부에서 파생된 내용이므로 ignored `data/parsed/`에만 두고 Git에 넣지 않는다.
+GT는 source SHA·page·bbox와 사람이 검토할 수 있는 crop evidence를 함께 남기며 검토 주체와 상태를 기록한다. 추정 결과를 정답으로 가정하지 않는다.
+
 Phase 3는 원본 재다운로드·재업로드·S3/로컬 원본 삭제를 하지 않는다. Pilot·Full Parse의 대량 S3 GET/PUT은 실행 전 보고한다.
 
 승인된 Phase 0 API 품질 Batch는 dev만 선택하며 5 Page × 20건으로 제한한다. 재시도·prod 요청·다운로드는 없다.

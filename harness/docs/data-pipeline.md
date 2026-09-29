@@ -149,10 +149,10 @@ S3 object key는 `biz-aid/documents/sha256/<2>/<2>/<sha256>`이며 확장자를 
 
 [Parsing 계약](../../contracts/schemas/document-parsing.contract.json)과 [Source 규칙](../rules/data-source-rules.md)의 Phase 3 절을 따른다.
 `parsing/router.py`가 `detected_format`으로 route를 고르고 입력 byte의 크기·SHA를 재확인한다.
-PDF: S3 byte → Docling DocumentConverter(do_ocr=false) → DoclingDocument. HWP: S3 byte → HWP→PDF 변환 경계 → 같은 Docling 경로.
+PDF: S3 byte → Docling DocumentConverter(do_ocr=false, 표 구조 off) → PP-TableMagic 표(native text 주입·grid adapter·품질 Gate) → 같은 DoclingDocument로 조립(`parsing/pdf_tables.py`, `parsing/pdf_assembly.py`). HWP: S3 byte → HWP→PDF 변환 경계 → 같은 Docling 경로.
 HWPX: S3 byte → 제한된 container read → section XML → `HwpxDoclingAdapter` → DoclingDocument. 세 경로의 결과는 모두 DoclingDocument다.
 공통 후처리 `quality.normalize_document`가 text를 정규화하고 원문을 orig에 두며 `apply_gate`가 JSON 재적재·text 양으로 상태를 정한다.
 현재 구현은 HWPX route, Docling PDF route(`parsing/pdf.py`, do_ocr=false)와 공통 router/Gate다. HWP는 ROUTE_NOT_ENABLED, XLSX/ZIP/OTHER/UNKNOWN은 POLICY_PENDING이다.
-Docling 배포는 PDF 전용 extras의 docling-slim이다. layout(heron)·TableFormer 모델은 `BIZAID_DOCLING_ARTIFACTS_PATH`에 미리 준비한 고정 snapshot만 읽고 실행 중 다운로드하지 않는다.
-표 cell 탈락은 warning evidence이며 PARSED는 표 완전성을 뜻하지 않는다. 전체 실행 전 동시성·메모리(PDF 표본 peak RSS 약 3.55 GB) 정책이 필요하다.
+Docling 배포는 PDF 전용 extras의 docling-slim이다. layout(heron)·PP 표 모델 6개는 `BIZAID_DOCLING_ARTIFACTS_PATH`에 미리 준비한 고정 snapshot만 읽고 실행 중 다운로드하지 않는다.
+TABLE_QUALITY_FAILED·겹친 PP 영역·PP 밖 Docling 표는 구조 없는 native text와 `bizaid__table_quality` provenance로 남고 PARSED는 표 완전성을 뜻하지 않는다. 전체 실행 전 동시성·메모리(PDF 표본 peak RSS 약 3.55 GB) 정책이 필요하다.
 저장 정책은 S3 artifact + MySQL metadata로 정해졌고 구현·Pilot·Full Parse는 후속 sub-step이다. HWP 변환기는 UNDECIDED다. Chunking은 이 산출물을 HybridChunker로 직접 소비하는 후속 Task다.

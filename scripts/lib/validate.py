@@ -235,7 +235,13 @@ def setup_check():
         present = [name for name in ("rapidocr", "easyocr", "tesserocr", "ocrmac") if importlib.util.find_spec(name)]
         if present:
             raise ValueError(f"OCR engine must not be installed in Phase 3 PDF baseline: {present}")
-        print(f"PASS: docling-core, Docling PDF converter, lzma and pinned model artifacts ({artifacts.name}) identity verified; OCR engines absent; HF offline")
+        # BOUNDARY: PP 표 engine은 설치 여부만 확인하고 모델 적재·추론은 Contract test에서 한다. paddleocr 배포는 쓰지 않는다.
+        if importlib.util.find_spec("paddlex") is None or importlib.util.find_spec("paddle") is None:
+            raise ValueError("PP-TableMagic table engine (paddlepaddle, paddlex[ocr]) missing; install data-pipeline/requirements.txt")
+        if importlib.util.find_spec("paddleocr"):
+            raise ValueError("paddleocr must not be installed; the PDF table engine uses paddlex without OCR models")
+        print(f"PASS: docling-core, Docling PDF converter, PP-TableMagic engine, lzma and pinned model artifacts ({artifacts.name}) "
+              "identity verified; OCR engines absent; HF offline")
     print("N/A: Java/Node/Qdrant/product APIs/AI; live upstream calls are separate")
 
 
@@ -348,6 +354,10 @@ def allowed_ignored(name):
         return True
     # IDE가 생성한 로컬 설정은 제외하되 같은 경로의 코드·보고서까지 숨기는 예외로 확장하지 않는다.
     if len(parts) >= 2 and parts[0] == ".idea":
+        # EXCEPTION: IntelliJ DB introspection cache만 좁게 허용하며 실행 가능한 파일은 cache로 인정하지 않는다.
+        if (len(parts) >= 5 and parts[1] == "dataSources" and "storage_v2" in parts[2:-1]
+                and path.suffix == ".meta" and not os.access(ROOT / name, os.X_OK)):
+            return True
         return path.suffix in {".xml", ".iml"} or path.name == ".gitignore"
     # 실제 credential은 제외하지만 변수 계약을 보여주는 example은 사용자가 Diff로 검토해야 한다.
     if len(parts) == 1 and (name == ".env" or name.startswith(".env.")) and name != ".env.example":
