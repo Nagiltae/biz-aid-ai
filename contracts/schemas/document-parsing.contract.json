@@ -273,14 +273,38 @@
     },
     "HWP": {
       "route": "HWP_PDF_DOCLING",
-      "enabled": false,
-      "flow": "S3 HWP bytes -> HWP to PDF conversion boundary -> convert_pdf (same Docling PDF route) -> DoclingDocument",
+      "enabled": true,
+      "scope": "HWP (HWP5 binary) only; HWPX keeps the native HwpxDoclingAdapter route",
+      "flow": "S3 HWP bytes -> integrity check -> temporary directory -> dedicated Docker converter (LibreOffice headless + H2Orestart, no network) -> intermediate PDF bytes -> parse_pdf (the production PDF route: Docling backbone + PP-TableMagic) -> DoclingDocument; temporary files are removed",
       "converter": {
-        "candidate": "LibreOffice + H2Orestart",
-        "decision": "UNDECIDED",
-        "decision_gate": "real HWP 15-document conversion Pilot",
-        "installed": false
-      }
+        "decision": "LibreOffice headless + H2Orestart in a dedicated Docker image (user approval 2026-09-29); no host installation",
+        "image": "biz-aid/hwp-pdf-converter",
+        "dockerfile": "infra/hwp-converter/Dockerfile",
+        "dockerfile_sha256": "24d3871298907f0fe43efc98b3b9dbdad95603c344230babe6c3412cf4d186e6",
+        "image_label": "org.bizaid.dockerfile_sha256",
+        "build": "docker build -t biz-aid/hwp-pdf-converter:<dockerfile_sha256[:12]> --label org.bizaid.dockerfile_sha256=<dockerfile_sha256> infra/hwp-converter",
+        "base_image": "debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a",
+        "h2orestart": {
+          "version": "v0.7.14",
+          "sha256": "cbea23bc37861361bbc534bc0675e5bc67b36f712072490f82a9bf410d7c04d8"
+        },
+        "libreoffice": "Debian package version at build time, written to /opt/bizaid/libreoffice-version (observed 25.2.3.2)",
+        "licenses": {
+          "LibreOffice": "MPL-2.0",
+          "H2Orestart": "GPL-3.0, run as a separate process and not linked"
+        },
+        "run": {
+          "network": "none",
+          "user": "caller",
+          "tmpfs": "/tmp",
+          "timeout_seconds": 180
+        },
+        "identity": "converter_version = LibreOffice version + H2Orestart version + dockerfile_sha256 prefix read from the verified image; part of parse_key",
+        "image_rule": "the image must carry image_label equal to dockerfile_sha256; a missing or different image is CONVERSION_FAILED, never a host fallback",
+        "validation": "contract tests replace the docker call; real conversion is checked by a targeted run of at most 3 HWP documents, not in check-all"
+      },
+      "provenance": "source_sha256 in parse_key and bizaid item provenance stays the original HWP SHA; the intermediate PDF SHA-256, size and converter_version are recorded in ParseResult.derivation only; the intermediate PDF is not persisted",
+      "image_only_rule": "a converted PDF without native text follows the PDF OCR_REQUIRED rule unchanged"
     },
     "HWPX": {
       "route": "HWPX_DOCLING_ADAPTER",
@@ -442,7 +466,8 @@
   "parse_status_semantics": {
     "PARSED": "parser execution succeeded, the DoclingDocument reloads from JSON and passes the text-quantity gate; it does not guarantee semantic or table fidelity",
     "consumer_rule": "downstream consumers must read warnings and table item metadata; bizaid__table_quality verdict TABLE_QUALITY_FAILED marks non-structured table text that must not be treated as a table",
-    "warning_counts": "PDF_TABLE_* warnings count table regions of each kind in one document"
+    "warning_counts": "PDF_TABLE_* warnings count table regions of each kind in one document",
+    "CONVERSION_FAILED": "the source-to-PDF conversion did not produce a PDF; no document is produced and no other parser is tried"
   },
   "warning_codes": [
     "CONTROL_CHARACTERS_REMOVED",
@@ -489,6 +514,13 @@
     ],
     "ENCRYPTED": [
       "encrypted_entry"
+    ],
+    "CONVERSION_FAILED": [
+      "hwp_converter_unavailable",
+      "hwp_converter_identity_mismatch",
+      "hwp_conversion_timeout",
+      "hwp_conversion_failed",
+      "hwp_conversion_no_output"
     ]
   },
   "versioning": {
@@ -553,7 +585,6 @@
     "LLM"
   ],
   "pending_decisions": [
-    "HWP to PDF converter engine (UNDECIDED until HWP 15-document Pilot)",
     "parsed artifact storage implementation (S3 + MySQL policy fixed, implementation deferred)",
     "DOCX / PPTX / ODT routes and Generic ZIP member provenance contract",
     "HwpxDoclingAdapter quality validation"

@@ -243,7 +243,7 @@ class TableEngineEvaluationContractTests(unittest.TestCase):
         self.assertIs(contract["visual_pilot"]["production_route_change"], False)
         self.assertIn("deferred", contract["visual_pilot"]["production_status"])
         router = (ROOT / "data-pipeline/src/biz_aid_pipeline/parsing/router.py").read_text(encoding="utf-8")
-        self.assertIn("parse_pdf(raw, request.source_sha256, contract, result)", router)
+        self.assertIn("parse_pdf(pdf_bytes, request.source_sha256, contract, result)", router)
         # BOUNDARY: 평가 도구·VLM·후보 engine은 제품 parsing 코드로 들어오지 않는다. PP는 표 engine으로만 들어온다.
         for path in (ROOT / "data-pipeline/src/biz_aid_pipeline").rglob("*.py"):
             source = path.read_text(encoding="utf-8")

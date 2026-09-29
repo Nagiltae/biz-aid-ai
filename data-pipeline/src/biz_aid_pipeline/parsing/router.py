@@ -35,11 +35,25 @@ def parse_document(request, raw, contract=None):
         except HwpxError as error:
             result.status, result.failure_code = error.status, error.code
             return result
-    elif route == "DOCLING_PDF":
-        # BOUNDARY: torch·paddle을 포함한 Docling·PP 본체는 PDF route에서만 적재해 HWPX 경로가 모델 환경에 의존하지 않게 한다.
+    elif route in ("DOCLING_PDF", "HWP_PDF_DOCLING"):
+        # BOUNDARY: torch·paddle을 포함한 Docling·PP 본체는 PDF 계열 route에서만 적재해 HWPX 경로가 모델 환경에 의존하지 않게 한다.
         from biz_aid_pipeline.parsing.pdf import PdfConversionError, parse_pdf
+        pdf_bytes = raw
+        if route == "HWP_PDF_DOCLING":
+            # HWP는 PDF로 변환한 뒤 같은 production PDF parser를 쓴다. HWP 전용 문서·표 parser는 없다.
+            from biz_aid_pipeline.parsing.hwp_pdf import HwpConversionError, convert_hwp, converter_version
+            try:
+                version = converter_version(contract)
+                result.parse_key = parse_key(request.source_sha256, route, contract, version)
+                pdf_bytes = convert_hwp(raw, contract)
+            except HwpConversionError as error:
+                result.status, result.failure_code = "CONVERSION_FAILED", error.code
+                return result
+            result.derivation = {"intermediate_format": "PDF", "intermediate_sha256": hashlib.sha256(pdf_bytes).hexdigest(),
+                                 "intermediate_bytes": len(pdf_bytes), "converter_version": version, "persisted": False}
         try:
-            document, page_count = parse_pdf(raw, request.source_sha256, contract, result)
+            # provenance의 source는 항상 원본 byte의 SHA다. 변환 PDF의 SHA는 derivation에만 남는다.
+            document, page_count = parse_pdf(pdf_bytes, request.source_sha256, contract, result)
         except PdfConversionError as error:
             result.status, result.failure_code = "PARSE_FAILED", error.code
             return result

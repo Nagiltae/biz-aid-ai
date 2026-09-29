@@ -168,3 +168,9 @@ Chart·Spotting 출력 schema와 의미 정확성은 evidence 없이 강제하�
 PDF route Contract test는 합성 PDF로 PP 표가 TABLE_VALID TableItem과 provenance로 조립되는지, 실패 표가 구조 없이 native text로 남는지,
 표 engine 오류가 fallback 없이 PARSE_FAILED인지, Docling 표 구조가 꺼지고 PP 설정에 OCR이 없는지 확인한다. PP 모델은 Docling layout과 같은 고정 artifact 경로에서만 읽는다.
 실제 문서 확인은 check-all 밖의 targeted regression(최대 5문서)으로만 하며 결과는 ignored `data/parsed/`에 둔다.
+
+## Phase 3-B.6 HWP → PDF Route
+
+HWP route Contract test는 docker 호출을 대체해 변환 성공 시 `parse_pdf` 재사용·원본 SHA provenance·derivation·임시 디렉터리 삭제를,
+변환 실패·timeout·이미지 identity 불일치가 fallback 없이 CONVERSION_FAILED인지, Dockerfile이 Contract의 hash·base digest·H2Orestart SHA와 같은지 확인한다.
+실제 변환은 check-all 밖에서 HWP 최대 3개의 targeted 확인으로만 하며 check-all은 변환 이미지를 요구하지 않는다.

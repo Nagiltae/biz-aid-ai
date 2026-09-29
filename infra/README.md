@@ -31,3 +31,11 @@ MySQL volume은 보존하며 Flyway clean / DB reset / prod / deployment는 제�
 [Flyway Docker](https://documentation.red-gate.com/fd/flyway-docker-321585710.html).
 
 CI는 사용자 파일 없이 Process Environment에 공개 합성 test DB 설정을 주입한다. 실제 API / prod Secret은 사용하지 않는다.
+
+HWP → PDF 변환 이미지(`infra/hwp-converter/Dockerfile`, LibreOffice headless + H2Orestart)는 host에 설치하지 않고 이 이미지로만 쓴다.
+tag와 label은 Contract `routes.HWP.converter.dockerfile_sha256`와 같아야 하며 parser는 다른 이미지를 거부한다.
+
+```sh
+SHA=$(shasum -a 256 infra/hwp-converter/Dockerfile | cut -d' ' -f1)
+docker build -t biz-aid/hwp-pdf-converter:${SHA:0:12} --label org.bizaid.dockerfile_sha256=$SHA infra/hwp-converter
+```

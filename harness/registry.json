@@ -77,6 +77,7 @@
     "data-pipeline/src/biz_aid_pipeline/ingestion/sample.py",
     "data-pipeline/src/biz_aid_pipeline/ingestion/service.py",
     "data-pipeline/src/biz_aid_pipeline/parsing/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/hwp_pdf.py",
     "data-pipeline/src/biz_aid_pipeline/parsing/hwpx.py",
     "data-pipeline/src/biz_aid_pipeline/parsing/models.py",
     "data-pipeline/src/biz_aid_pipeline/parsing/pdf.py",
@@ -145,7 +146,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-09-29-phase3-3b5-pp-production.md",
+  "report": "harness/workspace/reports/development/2026-09-29-phase3-3b6-hwp-pdf-route.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -197,6 +198,7 @@
     "data-pipeline/src/biz_aid_pipeline/ingestion/sample.py",
     "data-pipeline/src/biz_aid_pipeline/ingestion/service.py",
     "data-pipeline/src/biz_aid_pipeline/parsing/__init__.py",
+    "data-pipeline/src/biz_aid_pipeline/parsing/hwp_pdf.py",
     "data-pipeline/src/biz_aid_pipeline/parsing/hwpx.py",
     "data-pipeline/src/biz_aid_pipeline/parsing/models.py",
     "data-pipeline/src/biz_aid_pipeline/parsing/pdf.py",
@@ -261,6 +263,7 @@
     "harness/workspace/checkpoints/README.md",
     "harness/workspace/current-task.md",
     "infra/README.md",
+    "infra/hwp-converter/Dockerfile",
     "infra/dev_mysql.py",
     "infra/mysql/init-dev.sql",
     "migrations/README.md",

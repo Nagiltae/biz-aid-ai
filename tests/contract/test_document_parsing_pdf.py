@@ -1,6 +1,8 @@
 import copy
 import hashlib
 import io
+import json
+import subprocess
 import tempfile
 import sys
 import unittest
@@ -224,6 +226,89 @@ class DoclingPdfRouteContractTests(unittest.TestCase):
         with_ocr["routes"]["PDF"]["table_engine"]["use_ocr_model"] = True
         with self.assertRaisesRegex(ValueError, "pdf_table_engine_ocr_must_be_disabled"):
             parse_key("c" * 64, "DOCLING_PDF", with_ocr)
+
+    def fake_docker(self, output=TEXT_PDF, label=None, returncode=0, seen=None):
+        from biz_aid_pipeline.parsing import hwp_pdf
+        spec = self.contract["routes"]["HWP"]["converter"]
+
+        def run(*args, timeout):
+            if seen is not None:
+                seen.append(args)
+            if args[:2] == ("image", "inspect"):
+                labels = {spec["image_label"]: label or spec["dockerfile_sha256"]}
+                return mock.Mock(returncode=0, stdout=json.dumps(labels).encode())
+            if "--entrypoint" in args:
+                return mock.Mock(returncode=0, stdout=b"LibreOffice 25.2.3.2\nv0.7.14 abc\n")
+            work = Path(args[args.index("-v") + 1].split(":")[0])
+            if output is not None:
+                (work / "out/source.pdf").write_bytes(output)
+            return mock.Mock(returncode=returncode, stdout=b"")
+        hwp_pdf._identity.cache_clear()
+        self.addCleanup(hwp_pdf._identity.cache_clear)
+        return mock.patch.multiple(hwp_pdf, _docker=run, shutil=mock.Mock(which=mock.Mock(return_value="/usr/bin/docker")))
+
+    def test_hwp_converts_to_pdf_and_reuses_the_pdf_parser(self):
+        from biz_aid_pipeline.parsing import hwp_pdf
+        raw, seen = b"HWP Document File synthetic", []
+        with self.fake_docker(seen=seen), mock.patch.object(pdf_route, "parse_pdf", wraps=pdf_route.parse_pdf) as reused:
+            result = parse(raw, "HWP")
+        sha = hashlib.sha256(raw).hexdigest()
+        self.assertEqual((result.route, result.status), ("HWP_PDF_DOCLING", "PARSED"))
+        reused.assert_called_once()
+        # provenance는 원본 HWP SHA이고 변환 PDF는 derivation에만 남는다.
+        quality = result.document.tables[0].meta.get_custom_part()["bizaid__table_quality"]
+        self.assertEqual(quality["source_sha256"], sha)
+        self.assertEqual(result.derivation["intermediate_sha256"], hashlib.sha256(TEXT_PDF).hexdigest())
+        self.assertIs(result.derivation["persisted"], False)
+        version = result.derivation["converter_version"]
+        self.assertEqual(result.parse_key, parse_key(sha, "HWP_PDF_DOCLING", self.contract, version))
+        convert = next(args for args in seen if args[0] == "run" and "--entrypoint" not in args)
+        self.assertEqual(convert[convert.index("--network") + 1], "none")
+        self.assertEqual(convert[convert.index("-v") + 1].split(":")[1], "/work")
+        # BOUNDARY: 임시 작업 디렉터리는 변환이 끝나면 남지 않는다.
+        self.assertFalse(Path(convert[convert.index("-v") + 1].split(":")[0]).exists())
+        self.assertEqual(hwp_pdf.image_ref(self.contract).split(":")[1], self.contract["routes"]["HWP"]["converter"]["dockerfile_sha256"][:12])
+
+    def test_hwp_conversion_failures_are_conversion_failed_without_fallback(self):
+        cases = ((dict(output=None), "hwp_conversion_no_output"), (dict(output=b"not a pdf"), "hwp_conversion_no_output"),
+                 (dict(returncode=1), "hwp_conversion_failed"), (dict(label="0" * 64), "hwp_converter_identity_mismatch"))
+        for kwargs, code in cases:
+            with self.subTest(code=code), self.fake_docker(**kwargs), mock.patch.object(pdf_route, "parse_pdf") as reused:
+                result = parse(b"HWP Document File synthetic", "HWP")
+                self.assertEqual((result.status, result.failure_code, result.document), ("CONVERSION_FAILED", code, None))
+                reused.assert_not_called()
+                self.assertIn(code, self.contract["failure_codes"]["CONVERSION_FAILED"])
+
+    def test_hwp_conversion_timeout_removes_the_container(self):
+        from biz_aid_pipeline.parsing import hwp_pdf
+        seen = []
+
+        def run(*args, timeout):
+            seen.append(args)
+            if args[:2] == ("image", "inspect"):
+                spec = self.contract["routes"]["HWP"]["converter"]
+                return mock.Mock(returncode=0, stdout=json.dumps({spec["image_label"]: spec["dockerfile_sha256"]}).encode())
+            if "--entrypoint" in args or args[0] == "rm":
+                return mock.Mock(returncode=0, stdout=b"LibreOffice 25.2.3.2\nv0.7.14 abc\n")
+            raise subprocess.TimeoutExpired("docker", timeout)
+        hwp_pdf._identity.cache_clear()
+        self.addCleanup(hwp_pdf._identity.cache_clear)
+        with mock.patch.multiple(hwp_pdf, _docker=run, shutil=mock.Mock(which=mock.Mock(return_value="/usr/bin/docker"))):
+            result = parse(b"HWP Document File synthetic", "HWP")
+        self.assertEqual((result.status, result.failure_code), ("CONVERSION_FAILED", "hwp_conversion_timeout"))
+        name = next(args for args in seen if args[0] == "run" and "--name" in args)
+        self.assertIn(("rm", "-f", name[name.index("--name") + 1]), seen)
+
+    def test_converter_image_is_pinned_by_contract(self):
+        spec = self.contract["routes"]["HWP"]["converter"]
+        dockerfile = (ROOT / spec["dockerfile"]).read_bytes()
+        self.assertEqual(hashlib.sha256(dockerfile).hexdigest(), spec["dockerfile_sha256"])
+        text = dockerfile.decode()
+        self.assertIn(f"FROM {spec['base_image']}", text)
+        self.assertIn(f"H2ORESTART_VERSION={spec['h2orestart']['version']}", text)
+        self.assertIn(f"H2ORESTART_SHA256={spec['h2orestart']['sha256']}", text)
+        self.assertIn("sha256sum -c", text)
+        self.assertEqual(spec["run"]["network"], "none")
 
     def test_model_artifacts_are_explicit_offline_and_identity_bearing(self):
         spec = self.contract["dependencies"]["docling"]["model_artifacts"]

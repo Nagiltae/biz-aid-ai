@@ -46,6 +46,8 @@ class ParseResult:
     failure_code: str | None = None
     text_chars: int = 0
     unit_count: int = 0
+    # 변환 경로(HWP→PDF)에서만 채운다. 중간 PDF는 저장하지 않고 SHA·크기·변환기 identity만 남긴다.
+    derivation: dict | None = None
 
     def warn(self, code, count=1):
         self.warnings[code] = self.warnings.get(code, 0) + count
@@ -54,7 +56,8 @@ class ParseResult:
         return {"source_sha256": self.source_sha256, "detected_format": self.detected_format,
                 "route": self.route, "parse_key": self.parse_key, "status": self.status,
                 "failure_code": self.failure_code, "text_chars": self.text_chars,
-                "unit_count": self.unit_count, "warnings": dict(sorted(self.warnings.items()))}
+                "unit_count": self.unit_count, "warnings": dict(sorted(self.warnings.items())),
+                "derivation": self.derivation}
 
 
 def installed_version(package):

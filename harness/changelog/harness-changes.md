@@ -230,3 +230,8 @@ TableFormer cell drop warning을 PDF_TABLE_* warning으로 바꾸고 pp_table_en
 Source 규칙·Pipeline 문서·setup 검사(PP 설치 확인, paddleocr 미설치)를 맞춘다.
 CI(Linux x86_64)에서 PaddleX 기본 oneDNN 경로가 Paddle 3.3.1 PIR NotImplementedError를 내 routes.PDF.table_engine에 runtime_environment(oneDNN off)와 cpu_kernel_rule을 추가하고,
 native text가 부족한 PDF는 PP 없이 OCR_REQUIRED로 남기는 ocr_required_rule을 둔다.
+
+## 2026-09-29 — Phase 3-B.6 HWP → PDF Route
+
+사용자 승인으로 HWP 변환기를 LibreOffice headless + H2Orestart 전용 Docker 이미지로 정하고(host 설치 없음) HWP route를 활성화한다.
+Contract routes.HWP에 이미지 identity·실행 조건·provenance 규칙, CONVERSION_FAILED 실패 코드를 두고 Source 규칙·Pipeline·infra README·Testing을 맞춘다. HWPX route는 바꾸지 않는다.

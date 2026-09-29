@@ -4,6 +4,7 @@ import io
 import json
 import sys
 import unittest
+from unittest import mock
 import warnings
 import zipfile
 from pathlib import Path
@@ -91,9 +92,10 @@ class DocumentParsingContractTests(unittest.TestCase):
 
     def test_pending_policies_stay_disabled_until_decided(self):
         routes = self.contract["routes"]
-        converter = routes["HWP"]["converter"]
-        self.assertEqual((converter["decision"], converter["installed"]), ("UNDECIDED", False))
-        self.assertFalse(routes["HWP"]["enabled"])
+        # HWP는 전용 Docker 변환기로 PDF를 만든 뒤 PDF route를 재사용하고, HWPX는 native adapter를 유지한다.
+        self.assertTrue(routes["HWP"]["enabled"])
+        self.assertIn("Docker", routes["HWP"]["converter"]["decision"])
+        self.assertEqual(routes["HWPX"]["route"], "HWPX_DOCLING_ADAPTER")
         zip_route = routes["ZIP"]
         self.assertEqual((zip_route["route"], zip_route["enabled"], zip_route["extraction_enabled"]),
                          ("POLICY_PENDING", False, False))
@@ -119,8 +121,12 @@ class DocumentParsingContractTests(unittest.TestCase):
         raw = b"%PDF-1.7 synthetic"
         self.assertEqual(route_for("PDF", self.contract), ("DOCLING_PDF", True))
         # HWPX byte라도 detected_format이 HWP이면 HWP 변환 경계로만 보낸다.
-        hwp = parse(hwpx({"Contents/section0.xml": section(paragraph("<hp:t>본문</hp:t>"))}), "HWP")
-        self.assertEqual((hwp.route, hwp.status), ("HWP_PDF_DOCLING", "ROUTE_NOT_ENABLED"))
+        from biz_aid_pipeline.parsing import hwp_pdf
+        hwp_pdf._identity.cache_clear()
+        with mock.patch.object(hwp_pdf.shutil, "which", return_value=None):
+            hwp = parse(hwpx({"Contents/section0.xml": section(paragraph("<hp:t>본문</hp:t>"))}), "HWP")
+        hwp_pdf._identity.cache_clear()
+        self.assertEqual((hwp.route, hwp.status, hwp.failure_code), ("HWP_PDF_DOCLING", "CONVERSION_FAILED", "hwp_converter_unavailable"))
         for detected in ("ZIP", "XLSX", "OTHER", "UNKNOWN"):
             result = parse(raw, detected)
             self.assertEqual((result.route, result.status, result.failure_code),

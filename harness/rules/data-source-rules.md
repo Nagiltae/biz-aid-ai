@@ -58,6 +58,8 @@ parse_key는 source SHA·route·adapter/normalizer/docling-core/docling/converte
 parser 호출이 예외 없이 끝났다는 사실만으로 PARSED가 아니다. DoclingDocument 재적재와 text 양 Gate를 통과해야 한다.
 native text가 부족한 PDF는 OCR_REQUIRED로 분리한다. OCR 도입은 실제 분포 근거로 별도 Task에서 결정한다.
 PDF route는 Docling DocumentConverter를 `do_ocr=false`, `do_table_structure=false`로만 만들고 OCR engine을 설치하지 않는다. 입력은 DocumentStream으로 메모리에서 넘긴다.
+HWP는 전용 Docker 변환 이미지(host 설치 없음, 네트워크 없음)로 PDF를 만든 뒤 production PDF parser를 그대로 재사용한다. HWP 전용 문서·표 parser를 두지 않고 HWPX는 native adapter를 유지한다.
+변환 실패는 CONVERSION_FAILED이며 다른 변환기·parser로 넘어가지 않는다. provenance의 source는 원본 HWP SHA이고 중간 PDF는 저장하지 않는다.
 Docling 부분 성공(PARTIAL_SUCCESS)은 page 누락 위험이 있으므로 PARSE_FAILED다. status는 결과 분류, failure_code는 Contract에 등록한 구체 원인이다.
 PARSED는 실행·재적재·text 양 Gate 통과이며 본문·표의 의미상 완전성을 보장하지 않는다. 소비자는 warning을 함께 읽는다.
 PDF 표 engine은 PP-TableMagic(2026-09-29 사용자 결정)이며 Docling은 layout·읽기 순서 backbone으로 남는다. TableFormer는 실행하지 않는다.
