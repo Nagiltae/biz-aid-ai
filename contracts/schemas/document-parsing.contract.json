@@ -138,10 +138,8 @@
       "reason": "PP-TableMagic is the production PDF table engine (user decision 2026-09-29 after 3-B.1 to 3-B.4 evidence)",
       "ocr_extra": "table_recognition_v2 is declared with pipeline_requires_extra('ocr') and checks the extra's installed distributions; the extra is installed only to satisfy that check and no OCR model is configured or loaded",
       "resolver_effect": "numpy 2.4.6 -> 2.3.5 and PyYAML 6.0.3 -> 6.0.2 within docling ranges; paddleocr is not installed",
-      "runtime_environment": {
-        "PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK": "True"
-      },
-      "metadata_rule": "parse_key records installed paddlepaddle and paddlex versions"
+      "metadata_rule": "parse_key records installed paddlepaddle and paddlex versions",
+      "runtime_rule": "runtime flags are routes.PDF.table_engine.runtime_environment"
     }
   },
   "input": {
@@ -264,7 +262,13 @@
         "adapter_version": 1,
         "edge_tolerance_px": 8,
         "empty_structure_max_chars": 200,
-        "ocr_rule": "no OCR submodule is configured or loaded; the pipeline fails rather than running OCR"
+        "ocr_rule": "no OCR submodule is configured or loaded; the pipeline fails rather than running OCR",
+        "runtime_environment": {
+          "PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK": "True",
+          "PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT": "False"
+        },
+        "cpu_kernel_rule": "oneDNN (MKLDNN) is disabled on every platform so macOS arm64 (wheel without oneDNN) and Linux x86_64 (wheel with oneDNN) run the same Paddle CPU path; paddlepaddle 3.3.1 PIR oneDNN raises NotImplementedError for the layout model on Linux; flags are set before paddlex import and verified, otherwise the engine fails",
+        "ocr_required_rule": "the table engine runs only when Docling native text exceeds document_gate.pdf_ocr_required_max_chars_per_page; image-only PDFs stay OCR_REQUIRED without PP"
       }
     },
     "HWP": {

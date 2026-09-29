@@ -199,8 +199,13 @@ def _pipeline(engine_json, artifacts_path):
     # 모델 적재 비용이 커서 같은 설정·경로의 pipeline만 재사용한다.
     engine = json.loads(engine_json)
     # BOUNDARY: 실행 중 모델 원격 확인·다운로드를 막는다. 모델은 준비된 artifact 경로에서만 읽는다.
-    os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
+    os.environ.update(engine["runtime_environment"])
     from paddlex import create_pipeline
+    from paddlex.utils import flags
+    # RISK: Linux x86 wheel은 oneDNN을 포함해 PaddleX가 기본으로 켜고, Paddle 3.3.1 PIR oneDNN 실행기는 layout 모델에서
+    # NotImplementedError를 낸다(macOS arm64 wheel에는 oneDNN이 없어 드러나지 않았다). paddlex가 먼저 import돼 flag가 이미 켜졌다면 멈춘다.
+    if flags.ENABLE_MKLDNN_BYDEFAULT or not flags.DISABLE_MODEL_SOURCE_CHECK:
+        raise PdfTableError("pp_table_engine_error:RuntimeFlagsNotApplied")
     submodules = {name: {"module_name": module, "model_name": folder.split("--", 1)[1],
                          "model_dir": os.path.join(artifacts_path, folder)}
                   for name, (module, folder) in engine["submodules"].items()}

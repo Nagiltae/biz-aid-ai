@@ -228,3 +228,5 @@ Contract table_engine에 assembly_rule을, Source 규칙에 한 줄을 추가하
 PP 모델 6개를 Docling layout과 같은 artifact identity·CI cache에 넣고 TableFormer 가중치는 목록에서 뺀다. parse_key에 paddlepaddle·paddlex 버전을 넣는다.
 TableFormer cell drop warning을 PDF_TABLE_* warning으로 바꾸고 pp_table_engine_error 실패 코드를 등록한다. visual_pilot에 production 보류 상태를 적는다.
 Source 규칙·Pipeline 문서·setup 검사(PP 설치 확인, paddleocr 미설치)를 맞춘다.
+CI(Linux x86_64)에서 PaddleX 기본 oneDNN 경로가 Paddle 3.3.1 PIR NotImplementedError를 내 routes.PDF.table_engine에 runtime_environment(oneDNN off)와 cpu_kernel_rule을 추가하고,
+native text가 부족한 PDF는 PP 없이 OCR_REQUIRED로 남기는 ocr_required_rule을 둔다.

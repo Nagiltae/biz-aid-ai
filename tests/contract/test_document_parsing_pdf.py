@@ -103,7 +103,11 @@ class DoclingPdfRouteContractTests(unittest.TestCase):
         self.assertGreater(result.text_chars, 200)
 
     def test_image_only_pdf_is_ocr_required_not_failure(self):
-        result = parse(IMAGE_PDF)
+        from biz_aid_pipeline.parsing import pdf_tables
+        with mock.patch.object(pdf_tables, "detect_tables", wraps=pdf_tables.detect_tables) as tables:
+            result = parse(IMAGE_PDF)
+        # BOUNDARY: native text가 없는 문서는 표 cell text의 출처가 없으므로 PP를 실행하지 않고 OCR_REQUIRED로 남는다.
+        tables.assert_not_called()
         self.assertEqual((result.status, result.failure_code, result.text_chars), ("OCR_REQUIRED", None, 0))
         self.assertIsInstance(result.document, DoclingDocument)
 
@@ -201,6 +205,14 @@ class DoclingPdfRouteContractTests(unittest.TestCase):
         for code in ("PDF_TABLE_QUALITY_FAILED", "PDF_TABLE_OVERLAP_PRESERVED_AS_TEXT", "PDF_DOCLING_TABLE_PRESERVED_AS_TEXT",
                      "PDF_TABLE_PICTURE_OVERLAP"):
             self.assertIn(code, self.contract["warning_codes"])
+
+    def test_pp_cpu_path_is_the_same_on_every_platform(self):
+        from paddlex.utils import flags
+        from biz_aid_pipeline.parsing import pdf_tables
+        pdf_tables.pipeline(self.contract)
+        # RISK: Linux x86 wheel의 oneDNN 경로는 Paddle 3.3.1 PIR에서 NotImplementedError를 낸다. 모든 플랫폼에서 끈다.
+        self.assertEqual(self.contract["routes"]["PDF"]["table_engine"]["runtime_environment"]["PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT"], "False")
+        self.assertIs(flags.ENABLE_MKLDNN_BYDEFAULT, False)
 
     def test_docling_table_structure_is_off_and_pp_engine_is_ocr_free(self):
         options = pdf_route.converter(self.contract).format_to_options[InputFormat.PDF].pipeline_options

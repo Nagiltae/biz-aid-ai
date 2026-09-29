@@ -65,7 +65,11 @@ def parse_pdf(pdf_bytes, source_sha256, contract, result):
     import pypdfium2
     from biz_aid_pipeline.parsing.pdf_assembly import assemble
     from biz_aid_pipeline.parsing.pdf_tables import PdfTableError, detect_tables
+    from biz_aid_pipeline.parsing.quality import text_chars
     document, page_count = convert_pdf(pdf_bytes, source_sha256, contract)
+    if text_chars(document) / page_count <= contract["document_gate"]["pdf_ocr_required_max_chars_per_page"]:
+        # BOUNDARY: native text가 부족한 문서는 apply_gate가 OCR_REQUIRED로 분리한다. 표 cell text의 출처가 없으므로 PP를 실행하지 않는다.
+        return document, page_count
     try:
         tables, table_pages = detect_tables(pdf_bytes, contract)
     except PdfTableError as error:
