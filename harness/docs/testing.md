@@ -10,7 +10,7 @@
 | setup.sh | Bash·Git·Python >=3.11·Docker Compose >=2, Compose config와 mounts | Java·Node·DB·서비스 health, daemon 접근 |
 | check-format.sh | Control/Input의 UTF-8·LF·newline·공백·JSON indent·Git whitespace | 제품 언어 formatter |
 | check-lint.sh | Python AST·Bash syntax·JSON key 중복·Shell 실행 권한 | 제품 lint, 정적 타입 검사 |
-| check-contract.sh | 로컬 snapshot / report, 실제 sanitized API Fixture·mock HTTP·Raw / secret 보존 Contract tests | Live API 측정·공급자 전체 명세·제품 API·Qdrant 계약 |
+| check-contract.sh | 로컬 snapshot / report, 실제 sanitized API Fixture·mock HTTP·Raw / secret 보존 Contract tests | Live API 측정·공급자 전체 명세·제품 API·Qdrant 검색 계약 |
 | check-integration.sh | CLI snapshot → hash 확인 → 보고서 생성·검증, 실패 종료와 credential 없는 Probe CLI | Live HTTP·문서 본문 Parser·서비스 DB 경계 |
 | check-git-tracked.sh | dev / CI ref·미추적 파일·금지 ignore·Profile Secret ignore / 추적 금지·example 추적·index 동기화·최종 status | Push·Merge 권한 강제 |
 | check-comments.sh | Python tokenize / AST docstring·Bash comment의 한글 여부 | 주석 WHY의 적절성·누락은 AGY / 사용자 검토 |
@@ -215,3 +215,14 @@ PDF test는 PP 영역에 걸친 native item의 영역 밖 단어 보존과 중�
 corpus runner test는 enabled format unique SHA 선택·SHA 순서, 현재 parse_key 결과 skip, source 실패 격리와 연속 환경 실패 시 중단을 확인한다.
 실제 통합 검증은 dev corpus 실행 자체이며 check-all에 넣지 않는다.
 OCR page 선택 test는 native 글자만 있는 low-text page를 OCR하지 않고, 글자 없는 page와 raster image가 있는 page만 OCR하는지 확인한다.
+
+## Phase 4-A Document Chunking
+
+Chunking test는 합성 DoclingDocument로 meta 비노출, VALID 표·보존된 FAILED 표 text 포함, heading 문맥, 공고 relation별 FinalChunk와 content_key 공유,
+여러 page provenance, chunk_id 결정성, tokenizer·max_tokens·정책·parse_key에 따른 identity 변화, parse identity의 artifact scope 분리를 확인한다. 실제 문서 확인은 check-all 밖에서 format별 1개로만 한다.
+
+## Phase 4-B Document Indexing
+
+Indexing test는 embedding 모델·tokenizer 정렬, embedding 가중치의 artifact scope 분리, embedding_key 변화, sparse 집계 규칙을 확인하고
+in-memory Qdrant와 가짜 embedder로 point id·payload 보존, content_key 재사용, 재실행 idempotency, stale 정리, schema·모델 불일치 실패를 확인한다.
+실제 BGE-M3 추론과 dev Qdrant 적재는 check-all 밖에서 format별 1개로만 확인한다.

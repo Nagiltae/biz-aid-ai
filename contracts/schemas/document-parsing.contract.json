@@ -141,14 +141,41 @@
               "inference.pdiparams",
               "inference.yml"
             ]
+          },
+          {
+            "repo_id": "BAAI/bge-m3",
+            "folder": "BAAI--bge-m3",
+            "requested_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+            "resolved_snapshot": "5617a9f61b028005a4858fdac845db406aefb181",
+            "scope": "chunking",
+            "files": [
+              "config.json",
+              "tokenizer.json",
+              "tokenizer_config.json",
+              "special_tokens_map.json",
+              "sentencepiece.bpe.model"
+            ]
+          },
+          {
+            "repo_id": "BAAI/bge-m3",
+            "folder": "BAAI--bge-m3-embedding",
+            "requested_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+            "resolved_snapshot": "5617a9f61b028005a4858fdac845db406aefb181",
+            "scope": "embedding",
+            "files": [
+              "config.json",
+              "pytorch_model.bin",
+              "sparse_linear.pt"
+            ]
           }
         ],
         "identity": "model_artifacts_sha256 = SHA-256 over folder/file path and file SHA-256 of every file listed in models[].files; files outside the list are ignored; must equal expected_manifest_sha256 before conversion; part of parse_key",
         "runtime_download": "forbidden in parsing and test runtime; a missing path or folder fails before conversion",
         "provisioning": "explicit step outside test runtime: scripts/provision_docling_artifacts.py provision --allow-network downloads models[].files at resolved_snapshot into a staging folder and moves it only after identity verification; CI restores it from the GitHub Actions cache keyed by artifacts_cache_key",
         "cache_key_schema": 1,
-        "expected_manifest_sha256": "5b35f8ca044cdab9e691f17d07ae2635cb6c650e479e7deb569e8a90943316d2",
-        "scope": "Docling layout model, the six PP-TableMagic table models and the two PP-OCRv5 OCR models share one pinned artifacts directory, identity and CI cache; TableFormer weights are not listed"
+        "expected_manifest_sha256": "280e9f578e2f3a93a4b04b6914c2583a87911a83529aa80176b3321bf4713c88",
+        "scope": "Docling layout model, the six PP-TableMagic table models and the two PP-OCRv5 OCR models share one pinned artifacts directory, identity and CI cache; TableFormer weights are not listed",
+        "scope_rule": "models without scope are parsing models; parse_key uses the manifest of parsing-scope files only, chunk identity uses the chunking-scope files and embedding identity uses the embedding-scope files, while provisioning, verification and the CI cache cover every listed file"
       },
       "companion_pin": "docling-ibm-models[opencv-python-headless]==4.0.3 declares opencv for layout post-processing; opencv-python-headless is pinned to 4.10.0.84 to equal the opencv-contrib-python version required by paddlex so both distributions ship the same cv2 build; opencv is not an OCR engine"
     },

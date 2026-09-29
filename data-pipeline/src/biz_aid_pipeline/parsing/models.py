@@ -90,9 +90,11 @@ def pipeline_identity(contract):
             "ocr": dict(contract["routes"]["PDF"]["ocr"])}
 
 
-def artifact_files(contract):
+def artifact_files(contract, scope=None):
+    """Contract의 모델 파일 목록. scope를 주면 그 단계(parsing / chunking)가 쓰는 모델만 고른다."""
     spec = contract["dependencies"]["docling"]["model_artifacts"]
-    return tuple((model["folder"], name) for model in spec["models"] for name in model["files"])
+    return tuple((model["folder"], name) for model in spec["models"]
+                 if scope is None or model.get("scope", "parsing") == scope for name in model["files"])
 
 
 def docling_artifacts_path(contract, environ=None):
@@ -125,6 +127,13 @@ def model_artifacts_sha256(contract, environ=None):
     if actual != contract["dependencies"]["docling"]["model_artifacts"]["expected_manifest_sha256"]:
         raise PipelineError("docling_artifacts_identity_mismatch")
     return actual
+
+
+def scoped_artifacts_sha256(contract, scope):
+    """전체 artifact identity를 검증한 뒤 한 단계가 쓰는 모델 파일만의 manifest SHA를 돌려준다."""
+    # WHY: 같은 artifact 경로에 chunking tokenizer를 추가해도 parse_key가 바뀌지 않게 identity를 단계별로 나눈다.
+    model_artifacts_sha256(contract)
+    return artifacts_manifest_sha256(str(docling_artifacts_path(contract)), artifact_files(contract, scope))
 
 
 def artifacts_cache_key(contract):
@@ -168,7 +177,7 @@ def parse_identity(source_sha256, route, contract, converter_version=None):
                         docling_parse_version=installed_version("docling-parse"),
                         docling_ibm_models_version=installed_version("docling-ibm-models"),
                         pipeline_config_sha256=pipeline_config_sha256(contract),
-                        model_artifacts_sha256=model_artifacts_sha256(contract),
+                        model_artifacts_sha256=scoped_artifacts_sha256(contract, "parsing"),
                         paddlepaddle_version=installed_version("paddlepaddle"),
                         paddlex_version=installed_version("paddlex"))
     if route == "HWP_PDF_DOCLING":

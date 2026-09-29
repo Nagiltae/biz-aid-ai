@@ -1,5 +1,12 @@
 # Harness 변경 이력
 
+## 2026-09-30 — Phase 4-B Document Indexing
+
+FinalChunk → BGE-M3 dense·sparse → dev Qdrant 적재를 추가한다. 가중치는 기존 모델 artifact 체계에 scope embedding으로 등록해 parse_key·chunk identity가 바뀌지 않는다.
+Indexing 계약, Source 규칙 3줄, Compose dev-vector Qdrant(loopback 검증)를 추가한다.
+규칙 변경: AI 경계의 'Qdrant Indexing 금지'와 파일 경계의 'Embedding/Qdrant module 범위 밖'을 승인된 dev Indexing 범위로 좁혔다. Retriever·RAG·LLM·LangGraph 금지는 유지한다.
+결과: [Phase 4-B Report](../workspace/reports/development/2026-09-30-phase4b-document-indexing.md). AGY 검토 pending.
+
 ## 2026-09-28 — Phase 1B dev FULL Structured Sync
 
 사용자 승인으로 첫 페이지의 실행 시점 totalCount 기반 전체 pagination과 페이지별 Raw snapshot / hash 재검증을 추가한다.
@@ -276,3 +283,8 @@ OCR page furniture 제거, 같은 행 anchor, OCR 부족 page의 status 규칙�
 기존 orchestrate_source를 재사용하는 dev 전용 corpus runner(`parsing/corpus.py`, `scripts/run_corpus_parsing.py`)를 추가한다. 자식 process 하나로 순차 실행하고
 source별 timeout·실패 격리·현재 parse_key skip·연속 환경 실패 중단·progress 파일을 둔다. Contract `corpus_execution`과 Source 규칙에 corpus 실행 규칙을 둔다.
 corpus 100건 실행에서 native text만 있는 low-text page의 native가 OCR로 교체되는 반복 문제(27건, 77쪽)를 확인해 OCR page 선택에 raster image 조건을 두고, runner에 --max-completed·source 경계 종료·--sources-file 재처리를 둔다.
+
+## 2026-09-30 — Phase 4-A Document Chunking
+
+DoclingDocument → HybridChunker(BGE-M3 tokenizer) → BizAidChunkEnricher → FinalChunk를 추가하고 `document-chunking.contract.json`을 둔다. docling-core를 `[chunking]` extra로 고정하고
+BGE-M3 tokenizer 파일을 기존 모델 artifact에 `scope=chunking`으로 등록한다. parse identity는 parsing scope 파일로만 계산해 기존 parse_key를 유지한다. Source 규칙·Pipeline·Testing을 맞춘다.

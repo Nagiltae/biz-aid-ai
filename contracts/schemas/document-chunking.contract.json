@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "phase": "phase4-document-chunking",
+  "representation": {
+    "input": "the canonical DoclingDocument JSON persisted by parsing for the source's current parse_key (S3 artifact verified by size and SHA-256)",
+    "markdown_input": "forbidden; Markdown is never an intermediate representation for chunking",
+    "format_neutral": "PDF, HWP and HWPX artifacts go through the same chunking path; chunking never re-parses or branches on the source format",
+    "output": "FinalChunk collection consumed by the embedding stage"
+  },
+  "chunker": {
+    "implementation": "docling-core HybridChunker (no own structure-aware chunker, no semantic chunking)",
+    "chunker_version": 1,
+    "max_tokens": 512,
+    "merge_peers": true,
+    "repeat_table_header": true,
+    "omit_header_on_overflow": false,
+    "always_emit_headings": true,
+    "serializer": {
+      "base": "docling-core ChunkingDocSerializer (triplet table serializer)",
+      "allowed_meta_names": [],
+      "reason": "item meta (bizaid__* provenance) must never enter chunk or embedding text; provenance travels as FinalChunk metadata",
+      "image_placeholder": "",
+      "escape_underscores": false,
+      "escape_html": false,
+      "traverse_pictures": true
+    },
+    "embedding_text": "HybridChunker.contextualize(chunk): heading path lines followed by the chunk text",
+    "size_rule": "max_tokens is the HybridChunker target counted with the embedding tokenizer; a table row that HybridChunker cannot split may exceed it and is kept whole with exceeds_max_tokens=true (never truncated)",
+    "heading_rule": "heading_path comes only from the parser's DoclingDocument headings; chunking does not infer headings",
+    "table_rule": "TABLE_VALID TableItems are chunked by HybridChunker's table handling; TABLE_QUALITY_FAILED regions are parser text items and are chunked as ordinary text",
+    "heading_only_rule": "always_emit_headings keeps headings whose section has no body; such a chunk has text = heading path and heading_only=true"
+  },
+  "tokenizer": {
+    "repo_id": "BAAI/bge-m3",
+    "revision": "5617a9f61b028005a4858fdac845db406aefb181",
+    "artifact_folder": "BAAI--bge-m3",
+    "artifact_scope": "chunking",
+    "location": "dependencies.docling.model_artifacts in document-parsing.contract.json under BIZAID_DOCLING_ARTIFACTS_PATH; offline only, never downloaded at runtime",
+    "embedding_alignment": "the chunker tokenizer and the embedding model are the same repo and revision; changing either changes the chunk identity"
+  },
+  "identity": {
+    "chunk_set_key": "SHA-256 of compact sorted JSON of chunk_set_key_inputs",
+    "chunk_set_key_inputs": [
+      "source_sha256",
+      "parse_key",
+      "chunker_version",
+      "chunking_config_sha256",
+      "docling_core_version",
+      "tokenizer_repo_id",
+      "tokenizer_revision",
+      "tokenizer_artifacts_sha256"
+    ],
+    "chunking_config_sha256": "SHA-256 of the chunker section of this contract plus the tokenizer repo and revision",
+    "content_key": "SHA-256 of chunk_set_key and chunk_index; equal for every announcement that shares the source",
+    "chunk_id": "UUIDv5 (namespace in chunking code) of chunk_set_key, pblanc_id and chunk_index; a valid Qdrant point id",
+    "rule": "same source, same parser result and same chunker configuration give the same chunk ids; any change to tokenizer, max_tokens or chunking policy yields a new chunk_set_key"
+  },
+  "relations": {
+    "unit": "one FinalChunk per (announcement relation, chunk); a source attached to several announcements yields the same content_key under each pblanc_id",
+    "pblanc_id": "required on every FinalChunk; it is the MySQL-to-Qdrant join key",
+    "title": "support_programs.name of the pblanc_id"
+  },
+  "final_chunk_fields": [
+    "chunk_id",
+    "content_key",
+    "chunk_set_key",
+    "chunk_index",
+    "chunk_count",
+    "pblanc_id",
+    "title",
+    "heading_path",
+    "text",
+    "embedding_text",
+    "token_count",
+    "exceeds_max_tokens",
+    "heading_only",
+    "item_labels",
+    "source_format",
+    "source_sha256",
+    "route",
+    "parse_key",
+    "parser_identity",
+    "pages",
+    "provenance",
+    "chunker_identity",
+    "embedding_model"
+  ],
+  "provenance": {
+    "item": "each DocItem of the chunk contributes item_ref, label, page and top-left bbox when the parser gave a ProvenanceItem, and HWPX section and XML path, table quality verdict and OCR confidence from bizaid__* meta",
+    "multi_location": "provenance is a list and pages is the sorted set of pages, so a chunk spanning several pages or sections keeps every location",
+    "no_location": "HWPX has no page or coordinates; pages stay empty and section / XML path identify the source location"
+  },
+  "embedding_handoff": {
+    "input_field": "embedding_text",
+    "point_id": "chunk_id",
+    "payload": "every FinalChunk field except embedding_text may be stored as vector payload",
+    "not_in_scope": "dense and sparse vector generation and Qdrant upsert belong to the embedding / indexing stage",
+    "model_repo_id": "BAAI/bge-m3",
+    "model_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+    "alignment_rule": "model_repo_id and model_revision must equal tokenizer.repo_id and tokenizer.revision"
+  }
+}

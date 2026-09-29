@@ -61,6 +61,12 @@ parse identity는 route 의존 범위와 같다. HWPX adapter는 HWPX만, PDF pa
 corpus 실행 단위는 검증된 unique content SHA이고 enabled route format만 자동 대상이다. 비활성 format은 집계만 하며 성공으로 기록하지 않는다.
 corpus 실행은 dev 전용·순차이며 현재 parse_key 결과가 있으면 재처리하지 않고, source별 실패를 격리하고, progress·result 파일로 관찰·재개할 수 있어야 한다. 기존 artifact·row는 지우거나 덮어쓰지 않는다.
 corpus runner는 명시적 상한(--max-completed)과 종료 요청을 source 경계에서만 반영한다. 실행 중 source를 강제 종료해 반쯤 기록된 artifact·row를 만들지 않는다.
+Chunking 입력은 source의 현재 parse_key로 저장된 canonical DoclingDocument이며 Markdown은 입력이 아니다. format별로 다시 분기하거나 parsing하지 않는다.
+Chunk 크기는 embedding 모델과 같은 tokenizer(repo·revision)로 센다. tokenizer·max_tokens·chunking 정책 변경은 chunk identity를 바꾼다.
+FinalChunk는 pblanc_id·source SHA·parse_key·page 또는 HWPX 위치 provenance를 잃지 않는다. item meta는 metadata로만 옮기고 chunk text에 넣지 않는다.
+Embedding 모델은 chunk tokenizer와 같은 repo·revision이며 가중치는 고정 artifact(scope embedding)에서만 읽는다. 실행 중 Hub 다운로드와 입력 truncation은 없다.
+Qdrant point id는 chunk_id, payload는 FinalChunk.payload()다. collection은 embedding_key마다 따로 두고 dense·sparse schema나 metadata가 다르면 재생성하지 않고 실패한다.
+모델·설정·artifact·runtime 변경은 embedding_key를 바꾼다. 재실행은 같은 point를 덮어쓰고 같은 source의 현재 chunk가 아닌 point만 지운다.
 조립에서 native 단어 하나는 한 곳에만 속한다. PP 영역 안 단어는 PP 결과가, 영역에 걸친 native item은 영역 밖 단어만 가진다. OCR 부족 page는 warning·metadata로 드러내고 문서 status는 문서 text Gate가 정한다.
 native text가 조금이라도 있고 raster image가 없는 low-text page는 OCR하지 않고 native text를 유지한다(OCR은 같은 글자를 다시 읽을 뿐이다).
 같은 parse_key와 무결성이 재확인된 artifact만 재사용하고, 버전 변경은 해당 route 문서만 새 key로 재처리한다. 과거 결과는 덮어쓰지 않는다.

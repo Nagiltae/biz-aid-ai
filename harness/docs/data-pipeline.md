@@ -163,3 +163,15 @@ MySQL에는 JSON byte를 넣지 않으며 local file은 SDK 전송용 임시 파
 Docling 배포는 PDF 전용 extras의 docling-slim이다. layout(heron)·PP 표 모델 6개는 `BIZAID_DOCLING_ARTIFACTS_PATH`에 미리 준비한 고정 snapshot만 읽고 실행 중 다운로드하지 않는다.
 TABLE_QUALITY_FAILED·겹친 PP 영역·PP 밖 Docling 표는 구조 없는 native text와 `bizaid__table_quality` provenance로 남고 PARSED는 표 완전성을 뜻하지 않는다. 전체 실행 전 동시성·메모리(PDF 표본 peak RSS 약 3.55 GB) 정책이 필요하다.
 저장 정책과 최대 3개 explicit source의 bounded orchestration은 구현됐다. Full Parse는 후속 sub-step이다. HWP 변환기 이미지는 `infra/hwp-converter/Dockerfile`로 빌드한다(infra README). Chunking은 이 산출물을 HybridChunker로 직접 소비하는 후속 Task다.
+
+## Phase 4-A Document Chunking
+
+[Chunking 계약](../../contracts/schemas/document-chunking.contract.json)을 따른다. `chunking/source.py`가 현재 parse_key의 PARSED DoclingDocument를 S3에서 검증해 읽고,
+`chunking/chunker.py`가 docling HybridChunker(BGE-M3 tokenizer, meta 없는 serializer)와 BizAidChunkEnricher로 공고 relation별 FinalChunk를 만든다.
+`scripts/run_document_chunking.py --profile dev --source-sha256 <sha>`는 FinalChunk JSONL을 ignored `data/parsed/chunks/`에 쓴다.
+
+## Phase 4-B Document Indexing
+
+[Indexing 계약](../../contracts/schemas/document-indexing.contract.json)을 따른다. `indexing/pipeline.py`가 `chunk_source`의 FinalChunk를 content_key별로 한 번만
+`indexing/embedder.py`(BGE-M3 dense CLS·L2 1024 + sparse, batch 추론)로 embedding하고 `indexing/qdrant_store.py`가 embedding_key별 collection에 batch upsert한다.
+`docker compose --profile dev-vector up -d qdrant` 후 `scripts/run_document_indexing.py --profile dev --source-sha256 <sha>`로 실행한다. Retriever·query embedding은 구현하지 않는다.

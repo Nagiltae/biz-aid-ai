@@ -49,5 +49,13 @@ services:
     volumes:
       - ./migrations:/flyway/sql:ro
     command: ["validate"]
+  qdrant:
+    image: qdrant/qdrant:v1.19.1
+    profiles: [dev-vector]
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_dev:/qdrant/storage
 volumes:
   mysql_dev:
+  qdrant_dev:

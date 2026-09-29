@@ -196,6 +196,12 @@ def compose():
                 or flyway["environment"].get("FLYWAY_CLEAN_DISABLED") != "true"
                 or flyway["environment"].get("FLYWAY_URL") != "jdbc:mysql://mysql:3306/biz_aid_dev?allowPublicKeyRetrieval=true&useSSL=false"):
             raise ValueError("common Flyway ownership boundary drift")
+        qdrant = result["services"]["qdrant"]
+        ports = qdrant.get("ports", [])
+        # BOUNDARY: 개발 vector index는 dev profile에서 loopback으로만 열고 인증 없는 Qdrant를 외부에 노출하지 않는다.
+        if (qdrant["profiles"] != ["dev-vector"] or len(ports) != 1 or ports[0].get("host_ip") != "127.0.0.1"
+                or str(ports[0]["published"]) != "6333" or ports[0]["target"] != 6333):
+            raise ValueError("dev Qdrant local boundary drift")
 
 
 def setup_check():

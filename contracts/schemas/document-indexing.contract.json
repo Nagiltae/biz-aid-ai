@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "phase": "phase4-document-indexing",
+  "input": {
+    "unit": "FinalChunk collection of one source from the chunking stage (chunk_source); the parser is never re-run",
+    "text": "FinalChunk.embedding_text"
+  },
+  "embedding": {
+    "model_repo_id": "BAAI/bge-m3",
+    "model_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+    "alignment_rule": "model_repo_id and model_revision must equal the chunking contract tokenizer and embedding_handoff values",
+    "weights_artifact_folder": "BAAI--bge-m3-embedding",
+    "weights_artifact_scope": "embedding",
+    "tokenizer_artifact_folder": "BAAI--bge-m3",
+    "runtime_download": "forbidden; weights and tokenizer load from BIZAID_DOCLING_ARTIFACTS_PATH with local_files_only and a missing artifact fails before inference",
+    "embedding_version": 1,
+    "device": "cpu",
+    "dtype": "float32",
+    "batch_size": 8,
+    "max_length": 8192,
+    "truncation": "forbidden; a text longer than max_length tokens fails instead of being cut",
+    "dense": {
+      "pooling": "CLS token of the last hidden state",
+      "normalize": "L2",
+      "dimension": 1024
+    },
+    "sparse": {
+      "weights": "ReLU(sparse_linear(last_hidden_state)) per token from sparse_linear.pt",
+      "aggregation": "maximum weight per token id",
+      "excluded_tokens": [
+        "cls",
+        "eos",
+        "pad",
+        "unk"
+      ],
+      "keep": "weights greater than zero"
+    },
+    "colbert": "not produced",
+    "reuse": "FinalChunks sharing a content_key are embedded once per run"
+  },
+  "identity": {
+    "embedding_key": "SHA-256 of compact sorted JSON of embedding_key_inputs",
+    "embedding_key_inputs": [
+      "model_repo_id",
+      "model_revision",
+      "embedding_version",
+      "embedding_config_sha256",
+      "embedding_artifacts_sha256",
+      "tokenizer_artifacts_sha256",
+      "torch_version",
+      "transformers_version"
+    ],
+    "embedding_config_sha256": "SHA-256 of the embedding section of this contract",
+    "rule": "a model, revision, artifact, inference setting or runtime version change yields a new embedding_key and therefore a new collection; vectors of different embedding keys never share a collection"
+  },
+  "qdrant": {
+    "server": "dev Compose service qdrant (qdrant/qdrant:v1.19.1) on 127.0.0.1:6333; QDRANT_URL may override but only a loopback host is accepted",
+    "client": "qdrant-client==1.19.1",
+    "profile": "dev only",
+    "schema_version": 1,
+    "collection_name": "bizaid_chunks_v{schema_version}_{embedding_key[:12]}",
+    "vectors": {
+      "dense": {
+        "size": 1024,
+        "distance": "Cosine"
+      }
+    },
+    "sparse_vectors": {
+      "sparse": {
+        "modifier": "none"
+      }
+    },
+    "payload_indexes": {
+      "pblanc_id": "keyword",
+      "source_sha256": "keyword",
+      "chunk_set_key": "keyword"
+    },
+    "schema_rule": "an existing collection is reused only when its dense and sparse vector configuration, payload index types and collection metadata (schema_version, embedding_key, embedding_model) equal this contract; a mismatch fails and the collection is never recreated or altered implicitly; missing payload indexes are added",
+    "point_id": "FinalChunk.chunk_id",
+    "payload": "FinalChunk.payload() (includes embedding_model, pblanc_id, source, parse_key, chunk identity and provenance) plus embedding_key",
+    "upsert_batch_size": 64,
+    "idempotency": "upserting the same chunk_id overwrites the same point; re-running a source never duplicates points",
+    "stale_rule": "after the current chunks of a source are upserted, points of that source whose id is not a current chunk_id are deleted (older parse or chunk results, removed announcement relations); the index is derived data and S3 artifacts and MySQL rows are untouched",
+    "collection_metadata": [
+      "schema_version",
+      "embedding_key",
+      "embedding_model"
+    ]
+  }
+}
