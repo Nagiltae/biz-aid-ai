@@ -278,7 +278,7 @@ State에 사용한다.
 -   Java 21
 -   Spring Boot
 -   Spring Security
--   MyBatis
+-   Spring Data JPA + QueryDSL (2026-10-01 사용자 결정으로 MyBatis에서 변경. 이유는 PROJECT_MASTER_GUIDE 의사결정 기록)
 -   MySQL
 -   Flyway
 -   WebClient

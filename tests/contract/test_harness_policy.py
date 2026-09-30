@@ -585,7 +585,7 @@ class HarnessPolicyTests(unittest.TestCase):
         self.assertIn("profile secret files must be ignored", result.stderr)
 
     def test_unimplemented_module_cannot_be_silently_added(self):
-        (self.directory / "frontend").mkdir()
+        (self.directory / "ai").mkdir()
         result = self.check("harness")
         self.assertEqual(result.returncode, 1)
         self.assertIn("product module added", result.stderr)
@@ -600,6 +600,17 @@ class HarnessPolicyTests(unittest.TestCase):
     def test_english_explanatory_comment_is_rejected(self):
         path = self.directory / "scripts/phase0.py"
         path.write_text(path.read_text(encoding="utf-8") + "\n# explanatory English comment\n", encoding="utf-8")
+        result = self.check("comments")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("requires Korean", result.stderr)
+
+    def test_english_comment_in_service_code_is_rejected_but_strings_are_not_comments(self):
+        path = self.directory / "frontend/src/shared/api/client.ts"
+        source = path.read_text(encoding="utf-8")
+        # 문자열 안의 // 는 주석이 아니므로 통과해야 한다.
+        path.write_text(source + '\nexport const sample = "http://localhost/*not-comment*/";\n', encoding="utf-8")
+        self.assertEqual(self.check("comments").returncode, 0)
+        path.write_text(source + "\n// explanatory English comment\n", encoding="utf-8")
         result = self.check("comments")
         self.assertEqual(result.returncode, 1)
         self.assertIn("requires Korean", result.stderr)

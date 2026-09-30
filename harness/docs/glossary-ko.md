@@ -40,3 +40,9 @@
 | Fallback | 실패 시 대체 처리 | 원칙적으로 조용한 대체를 하지 않음 |
 | parse_key / chunk_set_key / embedding_key | 파싱 / 조각 / 임베딩 결과 식별값 | 설정이 바뀌면 새 값 → 재처리 범위 결정 |
 | stale point | 오래된 검색 point | 같은 source의 이전 chunk point, 재적재 뒤 삭제 |
+| JWT / Access Token / Refresh Token | 서명된 로그인 증표 / 짧은 출입증 / 재발급권 | Access 15분(메모리), Refresh 14일(HttpOnly Cookie·DB 해시) |
+| Token Rotation | 재발급권 교체 | 재발급마다 이전 Refresh Token 폐기 |
+| JPA / QueryDSL | 객체로 DB 다루기 / 타입 안전한 동적 쿼리 | 일반 CRUD / 지원사업 다중 조건 검색 |
+| Entity / DTO | DB 매핑 객체 / API 전달 객체 | Entity를 HTTP 응답으로 직접 내보내지 않음 |
+| AiGateway | Spring의 AI 연결 경계 | FastAPI 연결 전에는 ai_service_not_connected |
+| Proxy | 요청 대신 전달 | Vite·nginx가 /api를 Spring으로 넘겨 CORS 없이 호출 |

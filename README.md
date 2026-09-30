@@ -15,7 +15,9 @@ DoclingDocument → HybridChunker(BGE-M3 tokenizer) → FinalChunk              
 FinalChunk → BGE-M3 dense 1024 + sparse → dev Qdrant                        [구현: 3문서 검증]
 query → BGE-M3 → Qdrant dense·sparse·RRF hybrid → SearchResult              [구현: read-only, 3문서 smoke]
 query → Hybrid top5 → Ollama(qwen3.5:9b) → 근거 답변 + citation             [구현: RAG v1, dev CLI]
-Reranker · LangGraph · 자격 판단 · MySQL 조건 결합 · 서비스 API · Frontend    [미구현]
+질문 → MySQL 후보 → 목록(SEARCH_LIST)/문서 QA · 자격 판단 v1 · FastAPI 내부 API  [구현]
+React → Spring Boot(JWT·기업정보·지원사업 조회·대화) → MySQL                 [구현: 서비스 V1]
+Spring Boot ↔ FastAPI 실제 연결 · Reranker · LangGraph                       [미구현]
 ```
 
 - canonical 문서 표현은 docling-core DoclingDocument 하나다. Markdown은 chunking 입력이 아니다.
@@ -29,7 +31,9 @@ Reranker · LangGraph · 자격 판단 · MySQL 조건 결합 · 서비스 API �
 | `data-pipeline/src/biz_aid_pipeline/` | 제품 Pipeline package: `bizinfo`·`ingestion`·`persistence`·`quality`(구조화), `documents`·`storage`(원본 수집·S3), `parsing`, `chunking`, `indexing`, `retrieval`, `rag` |
 | `scripts/` | 얇은 CLI 진입점과 `check-*` 검증 스크립트 |
 | `contracts/` | 단계별 Contract(JSON). [목록](contracts/README.md) |
-| `migrations/` | 공통 Flyway migration(적용된 파일 수정 금지) |
+| `backend/` | Spring Boot 서비스 서버(회원·JWT 인증·기업정보·지원사업 조회·대화·AI 경계) |
+| `frontend/` | React 화면(로그인·기업정보·지원사업·AI 검색·자격 판정 결과·근거 표시) |
+| `migrations/` | 공통 Flyway migration(적용된 파일 수정 금지, Spring도 같은 계보) |
 | `infra/` | dev MySQL 준비, HWP→PDF 변환 Docker 이미지 |
 | `tests/` | contract·integration test |
 | `evals/` | 평가 양식과 Phase 3-B.1 표 engine benchmark(보존용, 제품 경로 아님) |
@@ -48,6 +52,14 @@ export BIZAID_DOCLING_ARTIFACTS_PATH=~/.cache/biz-aid/docling-artifacts
 .venv/bin/python -B infra/dev_mysql.py                    # dev MySQL + Flyway (infra/README.md)
 docker compose --profile dev-vector up -d qdrant          # dev Qdrant 127.0.0.1:6333
 ```
+
+서비스 V1(MySQL + Spring Boot + React)은 한 번에 올린다. `.env.dev`에 `JWT_SECRET`(32byte 이상)을 먼저 넣는다.
+
+```bash
+docker compose --env-file .env.dev --profile app up --build   # 화면 http://127.0.0.1:3000, API 127.0.0.1:8080
+```
+
+IntelliJ에서 backend를 직접 실행할 때는 `.env.dev` 값을 환경변수로 주고(MYSQL_HOST=127.0.0.1) `frontend/`에서 `npm run dev`(5173, /api는 8080으로 proxy)를 쓴다.
 
 S3는 boto3 credential chain으로 고정 dev bucket을 쓴다. HWP 변환 이미지는 [infra](infra/README.md)의 build 명령으로 만든다.
 

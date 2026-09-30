@@ -1,5 +1,14 @@
 # Harness 변경 이력
 
+## 2026-10-01 — React + Spring Boot 서비스 V1
+
+`backend/`(Spring Boot 3.5, Java 21: JWT 인증·기업정보·지원사업 조회·대화·AI 경계)와 `frontend/`(React 19 + Vite + TanStack Query)를 추가했다. Spring ↔ FastAPI 실제 연결은 하지 않았다(AiGateway 미연결 구현).
+사용자 결정: 인증은 JWT(Access 15분 메모리, Refresh 14일 HttpOnly Cookie·DB 해시·rotation), 사용자 1명당 기업 1개, 기업정보는 `companies` 한 테이블(신용점수·체납 등은 판정 요청 때만), Compose `app` profile이 기존 dev MySQL을 재사용, DB 접근은 MyBatis 대신 JPA + QueryDSL.
+공통 Flyway에 V6(users·refresh_tokens·companies·conversations·messages, 한국어 COMMENT)을 추가했고 Spring도 같은 history를 쓴다. support_programs는 조회 전용 매핑이다.
+규칙 변경(보고): 파일 경계(React는 Spring만 호출, Spring은 서비스 데이터 기준 시스템, support_programs 조회 전용, backend/·frontend/ 허용, FastAPI 연결은 명시 승인 후), DB 규칙(JPA/QueryDSL·공통 Flyway 계보), 주석 정책(핵심 로직의 한국어 무엇/왜, Java·TS·CSS 주석 검사), AI 경계(서비스 계층은 AI 결과를 만들거나 고치지 않음).
+validator: check-comments가 Java·TS(TSX)·CSS 주석을 검사하고, Compose 검사가 app profile(mysql 공유·backend/frontend loopback·공통 migrations mount)을 확인하며, backend/frontend build 산출물(build·.gradle·node_modules·dist)만 ignore를 허용한다. Registry의 미구현 module은 `ai`만 남았다.
+IMP-015·IMP-016 추가. 결과: [Report](../workspace/reports/development/2026-10-01-service-v1-react-spring.md). AGY 검토 pending.
+
 ## 2026-10-01 — IMP-014 목록 검색 공고 다양성
 
 SEARCH_LIST 순위 단위를 조각에서 공고로 바꿨다. `Retriever.search_programs`가 의미·단어 검색마다 공고별 최고 조각 하나(Qdrant group 검색)를 받고 기존 RRF로 공고 순위를 합친다.

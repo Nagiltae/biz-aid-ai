@@ -9,8 +9,8 @@
 
 | 대상 | 설계상 책임 | 현재 상태 |
 | --- | --- | --- |
-| React | UI, 서버 상태 캐시, 선택 기업·채팅 UI 상태 | 미구현 |
-| Spring Boot | 인증·기업·사업·대화·즐겨찾기 Source of Truth, 정확한 DB filtering, FastAPI 호출 | 미구현 |
+| React | UI, 서버 상태 캐시(TanStack Query), 로그인 사용자 상태 | 서비스 V1 구현(`frontend/`): 로그인·기업정보·지원사업 목록/상세·AI 검색·자격 판정 결과·근거 표시. Spring만 호출 |
+| Spring Boot | 인증·기업정보·대화 Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | 서비스 V1 구현(`backend/`): JWT 인증·기업정보·지원사업 조회·대화 저장. AiGateway는 FastAPI 미연결(`ai_service_not_connected`) |
 | FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 내부 API v1 구현(`biz_aid_pipeline/api/`: /health, /internal/v1/query, /internal/v1/eligibility). Spring Boot 연동 전 |
 | MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | dev 공고 FULL(V1/V2), 문서 source·S3 위치(V3/V4), parse 상태·identity(V5) 구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | dev dense·sparse 적재(Phase 4-B)와 read-only 검색(Phase 5 Retriever) 구현 |
@@ -19,13 +19,16 @@
 | Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
 
 React는 Spring Boot를 통해 AI를 호출한다. Frontend는 DB에 접근하지 않는다.
+Spring Boot ↔ FastAPI 실제 연결은 다음 승인 단계다. 지금 Spring의 AI API는 요청 검증·기업정보 조립까지 하고 미연결 오류를 돌려준다.
 FastAPI는 서비스 DB의 소유자가 아니다. 정확한 조건은 일반 코드와 MySQL이 결정한다.
 MySQL 후보 pblanc_id로 Qdrant 검색 범위를 제한하는 구조는 향후 계획이다.
 
 ## 현재 실행 구성
 
 `docker-compose.yml`은 `phase0`, 승인된 dev-db Profile의 MySQL / Flyway, dev-vector Profile의 loopback Qdrant를 제공한다.
-frontend / backend / ai 컨테이너는 없다. 제품 Pipeline은 `data-pipeline/`이다.
+`app` Profile은 같은 dev MySQL(volume 재사용) + backend(Spring, 127.0.0.1:8080) + frontend(nginx, 127.0.0.1:3000)를 올린다.
+실행: `docker compose --env-file .env.dev --profile app up --build`. backend 컨테이너만 `MYSQL_HOST=mysql`, `MYSQL_PORT=3306`을 쓴다.
+ai 컨테이너는 없다. FastAPI는 아직 Compose 서비스가 아니다. 제품 Pipeline은 `data-pipeline/`이다.
 Docker Compose는 개발환경 기준이며 운영 인프라는 미결정이다.
 MongoDB·Langfuse는 도입하지 않는다. LangSmith 계획은 [observability.md](observability.md)에 있다.
 Phase 2.5에서 문서 binary의 영구 저장소는 고정 dev S3이고 MySQL은 provenance와 검증 metadata를 소유한다.

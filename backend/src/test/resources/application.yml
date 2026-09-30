@@ -1,0 +1,27 @@
+# 테스트는 격리된 H2(MySQL 호환 모드)에서 실행한다. 실제 dev MySQL 데이터에 쓰지 않는다.
+spring:
+  datasource:
+    url: jdbc:h2:mem:bizaid;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: false
+
+bizaid:
+  jwt:
+    secret: test-only-secret-key-that-is-long-enough-for-hs256-0123456789
+    access-token-ttl: 15m
+    refresh-token-ttl: 14d
+  refresh-cookie:
+    name: bizaid_refresh
+    path: /api/auth
+    secure: false
+  service-zone: Asia/Seoul

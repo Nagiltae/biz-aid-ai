@@ -1,7 +1,7 @@
 # Harness Entry Point
 
 기업 프로필과 공고문 근거로 중소기업 지원사업을 탐색·검토하는 프로젝트다.
-최상위 기준은 [PROJECT_DESIGN.md](PROJECT_DESIGN.md). 현재 **Phase 6 RAG Answer v1(Hybrid top5 → 로컬 Ollama LLM → citation)** 단계다. 자격 판단·MySQL 결합·LangGraph는 착수 전이다.
+최상위 기준은 [PROJECT_DESIGN.md](PROJECT_DESIGN.md). AI 계층(RAG·자격 판단·FastAPI 내부 API)에 이어 **React + Spring Boot 서비스 V1**까지 구현됐다. Spring ↔ FastAPI 실제 연결·LangGraph는 착수 전이다.
 
 ## 먼저 읽기
 
@@ -11,9 +11,9 @@
 
 ## Project Map
 
-예정 경계: React → Spring Boot → FastAPI.
+경계: React(`frontend/`) → Spring Boot(`backend/`) → FastAPI(연결 예정). React는 Spring만 호출한다.
 Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는 AI와 문서 근거를 담당한다.
-제품 데이터 코드는 `data-pipeline/`, 공통 Flyway는 `migrations/`다. Phase 0 도구와 검증 증거는 보존한다.
+제품 데이터 코드는 `data-pipeline/`, 공통 Flyway는 `migrations/`(Spring도 같은 계보)다. Phase 0 도구와 검증 증거는 보존한다.
 [Architecture](harness/docs/architecture.md), [기계 Registry](harness/registry.json)가 실제 구현 상태를 기록한다.
 
 ## 반드시 지킬 것
@@ -36,8 +36,8 @@ Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는
 | DB 변경 요청 | [DB 규칙](harness/rules/database-rules.md) | [database-migration](harness/skills/database-migration/SKILL.md) |
 | RAG 변경 요청 | [RAG](harness/docs/rag.md), [AI 경계](harness/rules/ai-boundary-rules.md), [Observability](harness/docs/observability.md) | [rag-change](harness/skills/rag-change/SKILL.md) |
 
-Skill은 현재 Task의 허용 범위를 늘리지 않는다. 구현: dev 구조화 FULL / 문서 수집 / S3 저장 / PDF·HWP·HWPX Parser(OCR 포함) / Chunking / BGE-M3 dense·sparse dev Indexing / read-only Retriever / RAG Answer v1(dev CLI).
-미구현: Reranker·LangGraph·자격 판단·MySQL 조건 결합·서비스 API(FastAPI). 단계 경계는 [파일 경계](harness/rules/file-boundaries.md)를 따른다.
+Skill은 현재 Task의 허용 범위를 늘리지 않는다. 구현: dev 구조화 FULL / 문서 수집 / S3 저장 / PDF·HWP·HWPX Parser(OCR 포함) / Chunking / BGE-M3 dense·sparse dev Indexing / read-only Retriever / RAG Answer v1 / MySQL 후보 결합 / 자격 판단 v1 / FastAPI 내부 API / React + Spring Boot 서비스 V1(JWT·JPA·QueryDSL).
+미구현: Spring ↔ FastAPI 실제 연결(명시 승인 후)·Reranker·LangGraph. 단계 경계는 [파일 경계](harness/rules/file-boundaries.md)를 따른다.
 역할: [Codex](harness/agents/codex-developer.md), Claude는 [bootstrap](CLAUDE.md), [AGY](harness/agents/agy-reviewer.md).
 
 ## Validation / DoD

@@ -1,7 +1,8 @@
 # Layer와 파일 경계
 
-React → FastAPI 직접 호출 및 Frontend → DB 접근 금지.
-Spring Boot가 회원·기업·사업·대화·즐겨찾기를 소유한다.
+React는 Spring Boot(`/api`)만 호출한다. React → FastAPI 직접 호출 및 Frontend → DB 접근 금지.
+Spring Boot는 회원·인증·기업정보·대화 같은 서비스 데이터의 기준 시스템(Source of Truth)이다.
+support_programs 등 공고·문서 데이터는 데이터 파이프라인이 적재하고 Spring은 조회만 한다(복제·schema 변경 금지).
 FastAPI는 서비스 DB를 임의 변경하지 않는다.
 Data Pipeline은 사용자 인증·채팅 Domain을 수정하지 않는다.
 
@@ -13,7 +14,10 @@ Phase 3 Parser는 `data-pipeline/src/biz_aid_pipeline/parsing/`에 둔다. S3 �
 PDF 변환은 `parsing/pdf.py`의 `convert_pdf` 하나이며 HWP 경로도 이를 재사용한다. 모델 artifact·torch 임시 cache는 저장소 밖에 둔다.
 3-B.1 표 engine benchmark 코드는 `evals/table_engine/`에 두며 제품 parsing route를 대신하지 않는다. 결과는 ignored `data/parsed/table-engine-eval/`에 둔다.
 Chunking은 `data-pipeline/src/biz_aid_pipeline/chunking/`, Embedding·dev Qdrant 적재는 `indexing/`, 검색은 `retrieval/`, 근거 답변은 `rag/`, MySQL 정형 후보 선택은 `candidates/`(support_programs read-only, 자연어 조건 추출은 `candidates/natural.py`, 공고 목록은 `candidates/discovery.py`)에 두고, request_mode 분기는 `rag/router.py`다. 단일 공고 자격 판단은 `eligibility/`(Profile snapshot 입력, DB·schema 없음)에 둔다.
-`rag/`는 `retrieval.Retriever`를 그대로 호출하고 검색·embedding을 다시 구현하지 않는다. frontend/ backend/ ai/ 생성은 현재 범위 밖이다.
+`rag/`는 `retrieval.Retriever`를 그대로 호출하고 검색·embedding을 다시 구현하지 않는다. ai/ 생성은 현재 범위 밖이다.
+서비스 V1은 `backend/`(Spring Boot, 기능별 package: auth·company·program·conversation·ai·common)와 `frontend/`(React, features/·shared/)다.
+Spring의 AI 기능은 `ai.AiGateway` 경계 뒤에 두고 AI 검색·자격 판정 로직을 Java로 다시 구현하지 않는다.
+Spring ↔ FastAPI 실제 HTTP 연결은 사용자가 명시적으로 승인한 다음 단계에서만 한다. 그 전 AiGateway는 가짜 결과 없이 `ai_service_not_connected`를 돌려준다.
 내부 AI HTTP API는 `biz_aid_pipeline/api/`(FastAPI)이고, CLI와 API는 같은 `biz_aid_pipeline/runtime.py`의 ServiceRuntime을 호출한다.
 FastAPI는 서비스 계층(Spring Boot)이 호출하는 내부 AI 인터페이스다. 브라우저 client가 직접 의존하지 않으며 CORS를 열지 않는다.
 HTTP handler는 요청 검증·서비스 호출·직렬화만 하고 판단 로직은 기존 서비스에 위임한다.

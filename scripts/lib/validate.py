@@ -27,6 +27,7 @@ import phase0
 DATABASE_PHASES = ("phase1a-structured-pilot", "phase1b-full-sync", "phase2-document-acquisition",
                    "phase2-5-s3-storage", "phase3-document-parsing", "phase4-document-indexing",
                    "phase5-document-retrieval", "phase6-rag-answer")
+SERVICE_BUILD_OUTPUTS = {("backend", "build"), ("backend", ".gradle"), ("frontend", "node_modules"), ("frontend", "dist")}
 DYNAMIC_WORKSPACE_PATHS = [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -187,7 +188,7 @@ def compose():
         mysql = result["services"]["mysql"]
         flyway = result["services"]["flyway"]
         ports = mysql.get("ports", [])
-        if (mysql["profiles"] != ["dev-db"] or len(ports) != 1
+        if (mysql["profiles"] != ["dev-db", "app"] or len(ports) != 1
                 or ports[0].get("host_ip") != "127.0.0.1" or str(ports[0]["published"]) != "3306"
                 or ports[0]["target"] != 3306 or mysql["environment"]["MYSQL_DATABASE"] != "biz_aid_dev"):
             raise ValueError("dev MySQL local boundary drift")
@@ -203,6 +204,19 @@ def compose():
         if (qdrant["profiles"] != ["dev-vector"] or len(ports) != 1 or ports[0].get("host_ip") != "127.0.0.1"
                 or str(ports[0]["published"]) != "6333" or ports[0]["target"] != 6333):
             raise ValueError("dev Qdrant local boundary drift")
+        # BOUNDARY: 서비스 V1(app profile)은 같은 dev MySQL을 쓰고 loopback으로만 연다. React 컨테이너는 Spring만 proxy한다.
+        for name, target in (("backend", 8080), ("frontend", 80)):
+            service = result["services"].get(name, {})
+            ports = service.get("ports", [])
+            if (service.get("profiles") != ["app"] or len(ports) != 1 or ports[0].get("host_ip") != "127.0.0.1"
+                    or ports[0]["target"] != target):
+                raise ValueError(f"service V1 {name} local boundary drift")
+        backend = result["services"]["backend"]
+        mounts = backend.get("volumes", [])
+        if (backend["environment"].get("MYSQL_HOST") != "mysql" or len(mounts) != 1 or not mounts[0].get("read_only")
+                or Path(mounts[0]["source"]).resolve() != ROOT / "migrations"
+                or backend["environment"].get("FLYWAY_LOCATIONS") != "filesystem:/migrations"):
+            raise ValueError("service V1 backend must use common Flyway migrations and the compose MySQL")
 
 
 def setup_check():
@@ -374,6 +388,9 @@ def allowed_ignored(name):
     # 실제 credential은 제외하지만 변수 계약을 보여주는 example은 사용자가 Diff로 검토해야 한다.
     if len(parts) == 1 and (name == ".env" or name.startswith(".env.")) and name != ".env.example":
         return True
+    # 서비스 V1 build 산출물·의존성 cache는 재생성 가능한 결과라 추적하지 않는다. 소스 디렉터리는 숨기지 않는다.
+    if len(parts) >= 2 and (parts[0], parts[1]) in SERVICE_BUILD_OUTPUTS:
+        return True
     if len(parts) >= 3 and parts[0] == "data" and parts[1] in {"raw", "downloaded", "parsed", "failed"}:
         # 원문 payload와 작업 산출물을 구분해 데이터 디렉터리에서도 규칙·코드·보고서는 숨기지 않는다.
         return path.suffix.lower() not in {".md", ".py", ".sh", ".yml", ".yaml"} and path.name != "README.md"
@@ -429,11 +446,52 @@ def has_korean(text):
     return bool(re.search(r"[가-힣]", text))
 
 
+def c_style_comments(source, line_comments=True):
+    """Java·TS·CSS 소스의 (줄 번호, 주석) 목록. 문자열 literal 안의 // 와 /* 는 주석으로 보지 않는다."""
+    comments, index, line, quote = [], 0, 1, None
+    while index < len(source):
+        char = source[index]
+        if quote:
+            if char == "\\":
+                index += 1
+            elif char == quote:
+                quote = None
+            elif char == "\n" and quote != "`":
+                quote = None
+        elif char in "\"'`" and line_comments:
+            quote = char
+        elif source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            end = len(source) if end < 0 else end + 2
+            comments.append((line, source[index:end]))
+            line += source.count("\n", index, end)
+            index = end
+            continue
+        elif line_comments and source.startswith("//", index):
+            end = source.find("\n", index)
+            end = len(source) if end < 0 else end
+            comments.append((line, source[index:end]))
+            index = end
+            continue
+        if source[index] == "\n":
+            line += 1
+        index += 1
+    return comments
+
+
 def comments_check():
     checked = 0
     for name in project_files():
         path = ROOT / name
-        if name.endswith(".py"):
+        if name.endswith((".java", ".ts", ".tsx", ".css")):
+            for line, text in c_style_comments(path.read_text(encoding="utf-8"), not name.endswith(".css")):
+                # EXCEPTION: TypeScript triple-slash directive(/// <reference ...>)는 도구 지시문이라 설명성 주석이 아니다.
+                if text.startswith("/// <reference"):
+                    continue
+                checked += 1
+                if not has_korean(text):
+                    raise ValueError(f"explanatory comment requires Korean: {name}:{line}")
+        elif name.endswith(".py"):
             source = path.read_text(encoding="utf-8")
             for item in tokenize.generate_tokens(io.StringIO(source).readline):
                 if item.type == tokenize.COMMENT and not item.string.startswith("#!"):

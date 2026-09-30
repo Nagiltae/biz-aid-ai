@@ -17,7 +17,7 @@ services:
       - /tmp
   mysql:
     image: mysql:8.4
-    profiles: [dev-db]
+    profiles: [dev-db, app]
     ports:
       - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     environment:
@@ -56,6 +56,31 @@ services:
       - "127.0.0.1:6333:6333"
     volumes:
       - qdrant_dev:/qdrant/storage
+  backend:
+    build: ./backend
+    profiles: [app]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-biz_aid_dev}
+      MYSQL_USER: ${MYSQL_USER:-biz_aid}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      FLYWAY_LOCATIONS: filesystem:/migrations
+    volumes:
+      - ./migrations:/migrations:ro
+  frontend:
+    build: ./frontend
+    profiles: [app]
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:3000:80"
 volumes:
   mysql_dev:
   qdrant_dev:

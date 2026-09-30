@@ -21,21 +21,22 @@
 11. [특정 공고 질문](#11-특정-공고-질문)
 12. [기업 지원 자격 판정(Eligibility)](#12-기업-지원-자격-판정eligibility)
 13. [FastAPI 내부 API](#13-fastapi-내부-api)
-14. [저장소별 역할 — S3·MySQL·Qdrant](#14-저장소별-역할--s3mysqlqdrant)
-15. [기술 선택과 의사결정](#15-기술-선택과-의사결정)
-16. [실험 결과](#16-실험-결과)
-17. [실패와 문제 해결](#17-실패와-문제-해결)
-18. [개발 타임라인](#18-개발-타임라인)
-19. [현재 완성 기능](#19-현재-완성-기능)
-20. [현재 한계와 Backlog](#20-현재-한계와-backlog)
-21. [LangChain / LangGraph 현재 상태](#21-langchain--langgraph-현재-상태)
-22. [Harness Engineering](#22-harness-engineering)
-23. [프로젝트 용어 사전](#23-프로젝트-용어-사전)
-24. [포트폴리오 핵심 포인트](#24-포트폴리오-핵심-포인트)
-25. [면접 예상 질문과 답변](#25-면접-예상-질문과-답변)
-26. [이 프로젝트를 설명하려면 반드시 이해해야 할 20가지](#26-이-프로젝트를-설명하려면-반드시-이해해야-할-20가지)
-27. [앞으로의 작업](#27-앞으로의-작업)
-28. [근거 문서 위치](#28-근거-문서-위치)
+14. [React + Spring Boot 서비스 V1](#14-react--spring-boot-서비스-v1)
+15. [저장소별 역할 — S3·MySQL·Qdrant](#15-저장소별-역할--s3mysqlqdrant)
+16. [기술 선택과 의사결정](#16-기술-선택과-의사결정)
+17. [실험 결과](#17-실험-결과)
+18. [실패와 문제 해결](#18-실패와-문제-해결)
+19. [개발 타임라인](#19-개발-타임라인)
+20. [현재 완성 기능](#20-현재-완성-기능)
+21. [현재 한계와 Backlog](#21-현재-한계와-backlog)
+22. [LangChain / LangGraph 현재 상태](#22-langchain--langgraph-현재-상태)
+23. [Harness Engineering](#23-harness-engineering)
+24. [프로젝트 용어 사전](#24-프로젝트-용어-사전)
+25. [포트폴리오 핵심 포인트](#25-포트폴리오-핵심-포인트)
+26. [면접 예상 질문과 답변](#26-면접-예상-질문과-답변)
+27. [이 프로젝트를 설명하려면 반드시 이해해야 할 핵심 21가지](#27-이-프로젝트를-설명하려면-반드시-이해해야-할-핵심-21가지)
+28. [앞으로의 작업](#28-앞으로의-작업)
+29. [근거 문서 위치](#29-근거-문서-위치)
 
 ---
 
@@ -72,7 +73,8 @@
 | MySQL 후보 필터, 자연어 조건 해석, 목록 검색 | 완료 |
 | 공고 1개 지원 자격 판정 | 완료 |
 | FastAPI 내부 API | 완료 |
-| Spring Boot·React·로그인·운영 배포 | **예정(미구현)** |
+| React + Spring Boot 서비스 V1(로그인·기업정보·지원사업 목록/상세·대화 저장·AI 화면) | 완료(FastAPI 연결 전) |
+| Spring Boot ↔ FastAPI 실제 연결, 운영 배포 | **예정(다음 작업)** |
 | LangChain·LangGraph | **미적용** |
 
 ### 전체 흐름 한눈에 보기
@@ -110,6 +112,10 @@ Qdrant에서 후보 공고 안에서만 관련 문서 조각 검색(Dense + Spar
 
 [지원 자격 판정]
 공고 1개 + 기업 정보 → 그 공고 근거만 검색 → Qwen이 조건별 판정 → 앱이 최종 상태 계산
+
+[서비스 화면 — 서비스 V1]
+React(로그인·기업정보·지원사업·AI 검색) → Spring Boot(/api, JWT) → MySQL
+Spring Boot → FastAPI(위의 질문 처리·자격 판정)는 다음 단계에서 연결(지금은 "AI 연결 준비 중")
 ```
 
 ### 누가 무엇을 담당하나
@@ -126,7 +132,7 @@ Qdrant에서 후보 공고 안에서만 관련 문서 조각 검색(Dense + Spar
 
 ### 아직 남은 작업
 
-- Spring Boot 연결, React 화면, 로그인·기업 정보 저장, 운영 배포
+- Spring Boot ↔ FastAPI 실제 연결(AI 검색·자격 판정 결과를 화면에 표시), 운영 배포
 - 표를 LLM이 읽기 어려운 문제(IMP-002), 다른 LLM(Gemini)과 비교(IMP-003)
 - 전체 2,926개 문서 처리(현재 100개만 처리)
 
@@ -174,8 +180,8 @@ Qdrant에서 후보 공고 안에서만 관련 문서 조각 검색(Dense + Spar
 
 저장소 규칙("미결정 사항은 기술 도입으로 해결하지 않는다")에 따라, **필요성이 실험으로 확인될 때만** 기술을 넣었다.
 
-- 표 처리 엔진은 3개 엔진을 같은 문서로 비교한 뒤 골랐다(§15).
-- Reranker·Query Rewrite·LangGraph는 평가 결과 아직 필요성이 입증되지 않아 넣지 않았다(§15, §21).
+- 표 처리 엔진은 3개 엔진을 같은 문서로 비교한 뒤 골랐다(§16).
+- Reranker·Query Rewrite·LangGraph는 평가 결과 아직 필요성이 입증되지 않아 넣지 않았다(§16, §22).
 - 순서: 데이터 확보 → 문서 읽기 → 조각 → 검색 → 평가 → 답변 → 후보 필터 → 자연어 조건 → 자격 판정 → API
 
 ---
@@ -185,20 +191,20 @@ Qdrant에서 후보 공고 안에서만 관련 문서 조각 검색(Dense + Spar
 ### 목표 구조와 현재 구현
 
 ```text
-React(화면) ─► Spring Boot(서비스 서버) ─► FastAPI(내부 AI 서버) ─► Python AI 서비스
-   [예정]           [예정]                    [구현]                 [구현]
+React(화면) ─► Spring Boot(서비스 서버) ─✕─► FastAPI(내부 AI 서버) ─► Python AI 서비스
+ [구현 V1]         [구현 V1]      (연결 예정)      [구현]                 [구현]
                                                                       │
                                      MySQL · Qdrant · S3 · Ollama(Qwen) ◄┘  [구현, dev 환경]
 ```
 
 | 구성요소 | 역할 | 왜 필요한가 | 상태 |
 | --- | --- | --- | --- |
-| React | 사용자 화면 | 사용자는 화면으로 쓴다. FastAPI를 직접 부르지 않는다 | 예정 |
-| Spring Boot | 회원·기업 정보·대화·즐겨찾기의 원본 관리(Source of Truth), FastAPI 호출 | 서비스 데이터와 인증은 AI 서버가 아니라 서비스 서버가 책임진다 | 예정 |
+| React | 사용자 화면 | 사용자는 화면으로 쓴다. FastAPI를 직접 부르지 않는다 | 구현(V1, `frontend/`) |
+| Spring Boot | 회원·인증·기업정보·대화의 원본 관리(Source of Truth), 지원사업 조회, FastAPI 호출 경계 | 서비스 데이터와 인증은 AI 서버가 아니라 서비스 서버가 책임진다 | 구현(V1, `backend/`), FastAPI 연결 전 |
 | FastAPI | 내부 AI API의 입구 | Spring Boot가 AI 기능을 HTTP로 부르기 위한 창구 | 구현(v1) |
 | Python AI 서비스 | 후보 필터·검색·답변·자격 판정 | 실제 AI 로직 | 구현 |
 | Python 데이터 파이프라인 | 수집·다운로드·파싱·조각·적재 | 요청 처리와 분리된 배치 작업 | 구현 |
-| MySQL(Docker, dev) | 공고 정형 정보, 문서 출처, 파싱 상태 | 정확한 조건 검색 | 구현 |
+| MySQL(Docker, dev) | 공고 정형 정보, 문서 출처, 파싱 상태, 서비스 데이터(회원·기업·대화) | 정확한 조건 검색 | 구현 |
 | Qdrant(Docker, dev) | 문서 조각 벡터 검색 | 의미 검색 | 구현 |
 | AWS S3(dev) | 원본·파싱 결과 파일 | 큰 파일 영구 보관 | 구현 |
 | Ollama + Qwen | 로컬 LLM 실행 | 조건 추출·답변·자격 비교 | 구현 |
@@ -223,6 +229,7 @@ React(화면) ─► Spring Boot(서비스 서버) ─► FastAPI(내부 AI 서�
 | `api/` | FastAPI 내부 API |
 
 실행 스크립트는 `scripts/`에 있고, 모두 `--profile dev`만 허용한다.
+서비스 코드는 `backend/`(Spring Boot, 기능별 package: auth·company·program·conversation·ai·common)와 `frontend/`(React, features/·shared/)다. 자세한 내용은 §14.
 
 ---
 
@@ -331,7 +338,7 @@ HWPX : ZIP 안전 검사 → XML의 명시 정보만 읽는 자체 어댑터(Hwp
 - 결과 식별값(parse_key)은 원본 SHA + 형식별 파서 버전·설정·모델 hash로 계산한다.
   - 같은 key면 재사용하고, 파서가 바뀌면 **그 형식 문서만** 새 key로 다시 처리한다. 이전 결과는 덮어쓰지 않는다.
 
-### 주요 실험과 수정 (자세한 내용은 §16, §17)
+### 주요 실험과 수정 (자세한 내용은 §17, §18)
 
 - 표 엔진 비교: 32개 PDF(916쪽). 핵심 글자 재현율 PP 0.925 vs Docling TableFormer 0.522 → PP 채택
 - HWP 3개 표본: 3/3 변환·파싱 성공
@@ -753,7 +760,7 @@ prompt에는 조각 ID·공고 ID·파일 hash 같은 식별자를 넣지 않는
 | A | 조건을 모두 갖춘 합성 정보 | 8개 조건 모두 충족 → **지원 가능**, 근거 p.3, 다른 공고 근거 0 |
 | B | A에서 신용점수만 뺌 | 신용점수 조건 판단 불가 → **정보 추가 필요**, 부족 정보 `credit_score` |
 
-첫 실행은 모델이 정보 이름에 공백을 섞어("최근 2 개월 매출") 검증에서 막혔다. 공백만 무시해 원래 이름에 맞추고, 예외 규정을 원 조건에 포함하라는 문장을 prompt에 추가했다(§17).
+첫 실행은 모델이 정보 이름에 공백을 섞어("최근 2 개월 매출") 검증에서 막혔다. 공백만 무시해 원래 이름에 맞추고, 예외 규정을 원 조건에 포함하라는 문장을 prompt에 추가했다(§18).
 
 ---
 
@@ -787,17 +794,165 @@ prompt에는 조각 ID·공고 ID·파일 hash 같은 식별자를 넣지 않는
 ### 아직 없는 것
 
 - 인증, 브라우저 접근 허용(CORS)은 없다. 내부 API라서다.
-- Spring Boot 연결과 배포는 예정이다.
+- Spring Boot는 `AiGateway` 경계까지 준비됐고(§14) 실제 HTTP 연결은 다음 작업이다. 배포도 예정이다.
 - 실행: `scripts/run_api.py`(127.0.0.1:8000), 자동 API 문서 `/docs`
 
 ---
 
-## 14. 저장소별 역할 — S3·MySQL·Qdrant
+## 14. React + Spring Boot 서비스 V1
+
+**사용자가 실제로 쓰는 화면(React)과 서비스 서버(Spring Boot)** 를 만든 단계다. 로그인 → 기업정보 등록 → 지원사업 목록·상세 → AI 검색 → 자격 판정 화면까지 한 흐름으로 동작한다.
+AI 결과는 아직 나오지 않는다. **Spring Boot ↔ FastAPI 실제 연결은 다음 작업**이고, 이번에는 연결 지점(경계)과 결과를 보여 줄 화면까지 준비했다.
+
+### 누가 무엇을 하나
+
+```text
+React(frontend/, 화면)
+   │  /api 만 호출 (Access Token: Authorization: Bearer, Refresh Token: HttpOnly Cookie)
+   ▼
+Spring Boot(backend/, 서비스 서버) ──► MySQL(users·companies·conversations 등 + 기존 support_programs 조회)
+   │
+   └─ ai.AiGateway ─ ✕ (다음 단계에서 FastAPI /internal/v1/query · /internal/v1/eligibility 연결)
+```
+
+| 구성 | 맡는 일 | 맡지 않는 일 |
+| --- | --- | --- |
+| **React** | 화면, 입력 확인 표시, 서버 데이터 cache(TanStack Query), 로그인 상태 | DB 접근, FastAPI 직접 호출, 판정 계산 |
+| **Spring Boot** | 회원·인증, 기업정보·대화의 원본 관리(기준 시스템), 지원사업 일반 조회, AI 요청 조립 | AI 검색·자격 판정 로직(Java로 다시 만들지 않음), 공고 데이터 적재 |
+| **MySQL** | 서비스 테이블(V6) + 파이프라인이 적재한 공고 | — |
+
+- **React → Spring 경계**: React는 `/api`만 부른다. 개발 서버(Vite)와 Compose(nginx)가 `/api`를 Spring으로 넘겨 주기 때문에(proxy) 브라우저 입장에서는 같은 주소라 **CORS 설정이 필요 없다**.
+- **지원사업 데이터의 주인은 데이터 파이프라인**이다. Spring은 기존 `support_programs`를 새 테이블로 복제하지 않고 **조회 전용**으로 매핑했다(`@Immutable`, 저장 메서드 없는 Repository).
+
+### 인증(JWT)
+
+| 토큰 | 수명 | 어디에 두나 | 왜 |
+| --- | --- | --- | --- |
+| Access Token(JWT) | 15분 | React 메모리(변수)에만 | 요청마다 `Authorization: Bearer`로 보냄. localStorage에 두면 XSS 공격 script가 꺼내 갈 수 있다. 짧게 두면 탈취돼도 피해 시간이 짧다 |
+| Refresh Token | 14일 | HttpOnly·SameSite=Strict Cookie(`Path=/api/auth`) | JS가 읽을 수 없다. 새로고침으로 메모리 토큰이 사라져도 이 Cookie로 로그인 상태를 복원한다 |
+
+- DB(`refresh_tokens`)에는 **Refresh Token 원문이 아니라 SHA-256 해시**만 저장한다. DB가 유출돼도 해시로는 재발급을 요청할 수 없다.
+- **교체(rotation)**: 재발급할 때마다 이전 토큰을 폐기하고 새 토큰을 준다. 이미 폐기된 토큰이 다시 오면(복사된 토큰일 가능성) 그 사용자의 유효한 토큰을 모두 폐기한다.
+- 로그아웃은 DB 토큰 폐기 + Cookie 삭제다. 비밀번호는 Spring Security PasswordEncoder(BCrypt) 해시로만 저장한다.
+- React의 API client는 401을 받으면 `/api/auth/refresh`를 **한 번만** 부르고 원 요청을 **한 번** 재시도한다. 동시에 여러 요청이 401이어도 재발급 요청은 하나다(두 번 보내면 두 번째가 "재사용 토큰"으로 거부되기 때문). 재발급이 실패하면 로그인 화면으로 보낸다.
+- JWT 서명 키(`JWT_SECRET`)는 코드·Git에 없고 환경변수로만 받는다. 32byte보다 짧으면 서버가 시작하지 않는다.
+
+### DB 구조(V6, 공통 Flyway)
+
+| 테이블 | 역할 | 주요 column |
+| --- | --- | --- |
+| `users` | 가입한 사용자 | email(소문자, UNIQUE), password_hash, display_name |
+| `refresh_tokens` | Refresh Token 해시와 수명 | user_id, token_hash(SHA-256), expires_at, revoked_at |
+| `companies` | 사용자 1명당 기업 1개의 기본정보 | user_id(UNIQUE), company_name, business_entity_type, company_size, region, industry, business_start_date, business_status, employee_count, annual_revenue_krw, venture_certified, research_institute, exporter |
+| `conversations` | 대화 묶음 | user_id, title, updated_at(최근 순 정렬) |
+| `messages` | 대화의 메시지 | conversation_id, role(USER / ASSISTANT), content |
+
+- 모든 테이블·column에 **한국어 COMMENT**가 있다. 예: `token_hash` = "Refresh Token 원문의 SHA-256 hex. 원문은 브라우저 HttpOnly Cookie에만 있고 DB가 유출돼도 토큰으로 쓸 수 없게 해시만 저장한다."
+- **기업정보는 오래 유지되는 값만 저장**한다. 신용점수·체납 여부·공고별 추가 사실은 민감하거나 자주 바뀌므로 저장하지 않고 **자격 판정 요청 때만** 받는다. 업력(개월)도 저장하지 않고 개업일로 그때 계산한다.
+- 시각은 기존 V1~V5와 같이 `DATETIME(6)` UTC, 날짜만 의미하는 값(개업일·신청기간)은 `DATE`다. API도 날짜는 `YYYY-MM-DD`, 시각은 UTC(`...Z`)로 준다.
+- migration 소유권: 공통 `migrations/`가 원래부터 "향후 Spring도 이 계보를 쓴다"고 정해 두었다. 그래서 **V6을 같은 폴더에 추가**하고 Spring 내장 Flyway도 같은 `flyway_schema_history`를 읽는다. 두 번째 migration 체계를 만들지 않았다.
+
+### JPA와 QueryDSL을 어디에 쓰나
+
+- **JPA(Spring Data JPA)**: 회원·기업정보·대화처럼 "id로 찾기, 저장하기, 사용자별 목록" 같은 일반 CRUD. `findByEmail`, `findByUserId`, `save`처럼 메서드 이름만으로 쓴다.
+- **QueryDSL**: 지원사업 목록처럼 조건이 **여러 개 조합**되는 검색 하나에만 쓴다(`SupportProgramQueryRepositoryImpl`).
+  - 조건: 검색어(공고명·해시태그) · 지원분야(category) · 지원대상(target) · 소관기관(jurisdiction_name) · 모집 상태 · 페이지
+  - 값이 있는 조건만 `where`에 붙는다. 문자열 SQL을 이어 붙이지 않으므로 오타·잘못된 column은 compile 단계에서 잡힌다.
+  - 항상 활성 공고(`source_active=1, source_deleted=0`)만 보고, 같은 조건이면 순서가 같도록 공고 ID 역순으로 정렬한다.
+- **모집 상태**: 신청 시작·종료일과 오늘 날짜(Asia/Seoul)로 접수중·접수 예정·마감·상시·기간 미정을 계산한다. "예산 소진시까지"처럼 날짜가 없는 원문은 마감으로 추측하지 않고 "상시·기간 미정"으로 둔다(AI 후보 필터와 같은 규칙).
+- 계층 규칙: Controller → Service → Repository. Controller는 Repository를 직접 부르지 않고, Entity를 응답으로 내보내지 않고 DTO로 바꾼다. Transaction은 Service에 있고 `open-in-view: false`라 Lazy Loading이 Controller까지 가지 않는다.
+
+### 지원사업 조회 흐름
+
+```text
+/programs 화면(필터 값은 URL query에 보관 → 뒤로 가기·새로고침해도 같은 결과)
+   → GET /api/programs?keyword=&category=&target=&jurisdiction=&status=&page=&size=
+   → ProgramService(오늘 날짜 계산, page 크기 최대 50) → QueryDSL 검색 → ProgramSummary DTO
+/programs/:pblancId → GET /api/programs/{pblancId} → 상세(요약 HTML은 서버에서 일반 텍스트로 변환)
+```
+
+- 요약(`summary_html`)은 기업마당 HTML이다. 그대로 화면에 넣으면 외부 데이터의 script가 실행될 수 있어(XSS) **서버에서 글자만 꺼내 문단·줄바꿈만 남긴 텍스트**로 준다. DB 원문은 바꾸지 않는다.
+- 필터 선택지(지원분야 8·지원대상 9·소관기관 42)는 하드코딩하지 않고 활성 공고의 실제 값을 `/api/programs/filter-options`로 받는다.
+- 지원사업 조회는 공개 공고 데이터라 로그인 없이 볼 수 있다. 기업정보·대화·AI 요청은 로그인이 필요하다.
+
+### 대화 저장 구조
+
+- AI 검색 화면에서 질문하면 **① 대화 생성(첫 질문 앞부분이 제목) → ② 사용자 메시지(USER) 저장 → ③ Spring AI API 호출** 순서다. AI가 아직 연결되지 않아도 질문 기록은 남는다.
+- ASSISTANT 메시지는 AI 응답을 받았을 때 서버가 저장한다(FastAPI 연결 단계). 사용자가 API로 ASSISTANT 메시지를 만들 수는 없다.
+- 다른 사용자의 대화는 "없음"과 같은 오류(404)로 처리해 존재 여부도 알려 주지 않는다.
+- 근거(citation) 같은 AI 부가 정보 column은 지금 만들지 않았다. 실제 FastAPI 응답 형태를 보고 신규 migration으로 추가한다.
+
+### AI 검색·자격 판정 경계 — 왜 아직 FastAPI를 연결하지 않았나
+
+- 사용자가 **서비스 화면·데이터 구조와 AI 연결을 나눠서 진행**하기로 정했다. 연결에는 timeout, 오류 코드 대응, citation 응답 매핑, 서비스 간 인증을 따로 설계해야 해서 한 번에 섞으면 문제 원인을 가리기 어렵다.
+- 지금 Spring은 요청을 끝까지 준비한다.
+  - `POST /api/ai/query`: 로그인 확인 → 질문 검증 → `AiGateway.query`
+  - `POST /api/programs/{pblancId}/eligibility`: 로그인 확인 → 게시 중인 공고인지 확인 → 내 기업정보 조회 → 이번 요청의 일시 정보(신용점수·체납)와 합쳐 **CompanyProfileSnapshot**(FastAPI와 같은 snake_case 이름) 조립 → `AiGateway.evaluateEligibility`
+- `AiGateway`의 현재 구현(`UnconnectedAiGateway`)은 **가짜 결과를 만들지 않고** `503 ai_service_not_connected`를 돌려준다. React는 이 code를 보고 "AI 연결 준비 중" 안내를 보여 준다.
+- 다음 단계에서는 `AiGateway`의 HTTP 구현만 추가하면 된다. Controller·Service·React 화면은 바뀌지 않는다.
+- 결과 화면 부품은 미리 만들었다. 자격 판정 결과는 **한글 우선**(지원 가능 / 지원 불가 / 추가 정보 필요 / 공고 근거 부족 + 작은 영어 상태 코드), 조건별 충족·미충족·판단 불가, 근거 표시(공고명·page 또는 HWPX 구역·문단 제목 경로)다. 실제 근거가 없으므로 화면에 고정 예시 데이터를 넣지 않았다.
+
+### 화면(React)
+
+| 주소 | 화면 | 로그인 |
+| --- | --- | --- |
+| `/login` | 로그인·회원가입(탭 전환, 입력 오류는 칸 아래에 표시) | 불필요 |
+| `/ai` | 첫 화면. "기업에 맞는 지원사업을 찾아보세요" + 질문 입력·예시 + 최근 대화 | 필요 |
+| `/programs` | 카드 목록(공고명·분야·대상·소관기관·신청기간·모집 상태), 필터, 페이지 | 불필요 |
+| `/programs/:pblancId` | 상세(기관·대상·분야·신청기간·지원 내용·신청방법·원문 링크) + "우리 회사 지원 가능 여부 확인" | 판정만 필요 |
+| `/company` | 내 기업정보 등록·수정(모르는 항목은 비워 둠) | 필요 |
+
+- 상태관리: 서버 데이터는 TanStack Query가 cache·loading·error를 맡는다. 여러 화면이 함께 쓰는 client 상태는 "로그인 사용자" 하나뿐이라 **Zustand 없이 React Context**로 충분했다(설계서의 Zustand는 실제 필요가 생기면 도입).
+- 디자인: 무거운 UI 라이브러리 없이 CSS 한 파일. 파란색 한 가지를 강조색으로 쓰고 loading·빈 결과·오류 상태를 모든 화면에서 같은 모양으로 보여 준다. 폭 760px 이하에서는 한 열로 쌓인다.
+
+### API 목록
+
+| Method | Path | 역할 |
+| --- | --- | --- |
+| POST | `/api/auth/signup` · `/login` · `/refresh` · `/logout` | 가입(바로 로그인) · 로그인 · Access Token 재발급 · 로그아웃 |
+| GET | `/api/auth/me` | 현재 사용자 |
+| GET | `/api/programs` · `/api/programs/filter-options` · `/api/programs/{pblancId}` | 목록 · 필터 선택지 · 상세 |
+| GET · POST · PUT | `/api/company` | 내 기업정보 조회 · 등록 · 수정 |
+| POST · GET | `/api/conversations` | 대화 생성 · 목록 |
+| GET · POST | `/api/conversations/{id}/messages` | 메시지 조회 · 사용자 메시지 저장 |
+| POST | `/api/ai/query` | AI 검색·질문(현재 503 미연결) |
+| POST | `/api/programs/{pblancId}/eligibility` | 지원 자격 판정(현재 503 미연결) |
+
+- 정상 응답은 wrapper 없이 DTO 그대로, **오류는 항상** `{"error": {"code", "message", "fieldErrors"?}}` 한 형태다(FastAPI 오류 본문과 같은 모양). React는 code로 분기하고 message를 보여 준다.
+
+### Docker Compose로 한 번에 실행
+
+```bash
+# .env.dev에 JWT_SECRET(32byte 이상)을 먼저 넣는다.
+docker compose --env-file .env.dev --profile app up --build
+```
+
+| 서비스 | 포트(loopback) | 설명 |
+| --- | --- | --- |
+| mysql | 127.0.0.1:3306 | 기존 dev MySQL과 volume(`mysql_dev`)을 그대로 재사용(`dev-db`, `app` 두 profile에 속함) |
+| backend | 127.0.0.1:8080 | Spring Boot. 컨테이너 안에서만 `MYSQL_HOST=mysql`, `MYSQL_PORT=3306`. 공통 `migrations/`를 읽기 전용으로 mount |
+| frontend | 127.0.0.1:3000 | nginx가 React 정적 파일을 주고 `/api`만 backend로 넘김 |
+
+- 기존 `dev-db`(MySQL + flyway)·`dev-vector`(Qdrant) 흐름은 그대로다. `.env.dev`는 수정하지 않았다.
+- `--env-file .env.dev`를 붙이는 이유: 저장소의 기존 Compose 실행 방식(`infra/dev_mysql.py`)이 이 옵션을 쓴다. 같은 값으로 실행해야 이미 떠 있는 mysql 컨테이너를 다시 만들지 않고 그대로 쓴다.
+- IntelliJ로 backend를 직접 실행할 때는 `.env.dev`의 `MYSQL_HOST=127.0.0.1`을 그대로 쓴다. AWS RDS로 옮길 때도 `MYSQL_*` 값만 바꾸면 된다.
+
+### 개발 중 문제와 해결
+
+- **Spring 기본 오류 형식이 섞임**: E2E에서 이상한 URL(`//`)을 보냈더니 Spring 기본 오류 JSON(timestamp·path)이 나왔다. React가 오류 형식을 두 가지로 처리해야 하므로 `/error`와 없는 주소·잘못된 method도 공통 오류 본문으로 바꿨다.
+- **요약 HTML 줄바꿈 중복**: 첫 구현(Jsoup clean)은 `<br>`마다 빈 줄이 두 번 생겼다. 테스트가 잡았고, 글자 노드만 순회해 줄바꿈을 직접 넣는 방식으로 바꿨다.
+- **좁은 화면 메뉴 넘침**: headless 브라우저 캡처에서 좁은 폭일 때 메뉴가 두 줄로 깨졌다. 메뉴를 로고 아래 한 줄로 내리도록 고쳤다.
+- **새 주석 검사가 영어 주석 1건 발견**: Java·TS 주석 검사를 추가하자마자 `AiDtos`의 영어 주석을 찾아 한국어로 고쳤다.
+- **Flyway 버전 경고**: Spring 내장 Flyway가 "MySQL 8.4는 검증 안 됨"을 경고한다. 동작은 정상이라 IMP-015로 미뤘다.
+
+---
+
+## 15. 저장소별 역할 — S3·MySQL·Qdrant
 
 | 저장소 | 담는 것 | 특징 |
 | --- | --- | --- |
 | **AWS S3** | 원본 첨부 파일(3,231개), 파싱 결과 JSON | 파일 내용 hash가 key, 덮어쓰기 금지, checksum 검증 |
-| **MySQL** | 공고 정형 정보(1,554), 공고–문서 관계(3,288), 파싱 상태·식별값·S3 위치 | 정확한 조건 검색, 트랜잭션, Flyway로 schema 관리(V1~V5) |
+| **MySQL** | 공고 정형 정보(1,554), 공고–문서 관계(3,288), 파싱 상태·식별값·S3 위치, 서비스 데이터(회원·Refresh Token 해시·기업정보·대화) | 정확한 조건 검색, 트랜잭션, Flyway로 schema 관리(V1~V6, Spring도 같은 계보) |
 | **Qdrant** | 문서 조각 벡터와 근거 metadata(3,849 point) | 의미·단어 검색. **다시 만들 수 있는 파생 데이터** |
 
 ### 왜 하나의 DB로 다 하지 않았나
@@ -809,31 +964,31 @@ prompt에는 조각 ID·공고 ID·파일 hash 같은 식별자를 넣지 않는
 
 ---
 
-## 15. 기술 선택과 의사결정
+## 16. 기술 선택과 의사결정
 
 형식: **문제 → 후보 → 판단 → 선택 → 결과**
 
-### 15.1 MySQL + Qdrant를 함께 쓴다
+### 16.1 MySQL + Qdrant를 함께 쓴다
 - 문제: 정확한 조건과 문서 의미 검색이 둘 다 필요하다.
 - 후보: MySQL만 / 벡터 DB만 / 둘 다
 - 판단: 조건을 벡터 검색이나 LLM에 맡기면 틀릴 수 있고, 문서 의미는 SQL로 찾기 어렵다.
 - 선택: MySQL이 후보를 정하고 Qdrant는 그 안에서만 검색
 - 결과: 후보 밖 누수 0(smoke·test), 후보 0이면 0.22초에 끝남
 
-### 15.2 원본은 S3에 둔다
+### 16.2 원본은 S3에 둔다
 - 문제: 로컬 1.6GB 문서를 영구·무결하게 보관해야 한다.
 - 판단: DB에 파일을 넣지 않는다. 내용 hash key + 조건부 PUT으로 덮어쓰기를 막는다.
 - 선택: 원본과 파싱 결과는 S3, MySQL은 위치와 검증 정보만
 - 결과: 3,231개 object를 checksum으로 대조해 3,288개 관계에 연결했다. 이전 수동 구현의 문제 6개(자동 업로드 가능 등)를 발견하고 고쳤다.
 
-### 15.3 공통 문서 구조로 Docling을 쓴다
+### 16.3 공통 문서 구조로 Docling을 쓴다
 - 문제: PDF·HWP·HWPX를 한 가지 구조로 다뤄야 한다.
 - 후보: 자체 문서 트리 / 형식별 구조 / DoclingDocument
 - 판단: HybridChunker가 DoclingDocument를 바로 소비한다. 자체 트리는 이후 단계를 모두 다시 만들어야 한다.
 - 선택: DoclingDocument가 유일한 공통 표현
 - 결과: 세 형식이 같은 조각·적재·검색 경로를 탄다.
 
-### 15.4 PDF 표는 PP-TableMagic
+### 16.4 PDF 표는 PP-TableMagic
 - 문제: Docling TableFormer가 표 칸 글자를 잃었다.
 - 후보: Docling TableFormer / PP-TableMagic / Camelot(4 방식)
 - 판단(32개 PDF, 916쪽, 사람 기준표 19개·핵심 글자 226개)
@@ -843,79 +998,114 @@ prompt에는 조각 ID·공고 ID·파일 hash 같은 식별자를 넣지 않는
 - 선택: 사용자 결정으로 PP-TableMagic을 운영 표 엔진으로, Docling은 배치·읽기 순서만
 - 결과: 증명된 표만 표로 저장하고, 나머지는 글자를 보존한다(§5).
 
-### 15.5 HWP는 PDF로 변환한다
+### 16.5 HWP는 PDF로 변환한다
 - 문제: 로컬에 HWP 도구가 없었다.
 - 후보: A LibreOffice + H2Orestart / B pyhwp / C 한컴 도구
 - 판단: B는 PDF를 직접 못 만들고 AGPL beta, C는 유료이거나 외부 업로드가 필요하다.
 - 선택: A를 host 설치 대신 **전용 Docker 이미지**로(사용자 승인)
 - 결과: 표본 3/3 성공. PDF 경로를 그대로 재사용해 HWP 전용 파서가 필요 없다.
 
-### 15.6 형식마다 처리 방식이 다르다
+### 16.6 형식마다 처리 방식이 다르다
 - PDF: 글자 층 + 배치 분석 + 표 엔진
 - HWP: 바이너리라 변환 후 PDF 경로
 - HWPX: XML이라 명시 정보를 직접 읽는 것이 가장 정확하다(변환 손실 없음)
 
-### 15.7 OCR은 필요한 page만
+### 16.7 OCR은 필요한 page만
 - 문제: 처음엔 문서 전체 평균 글자 수로 OCR 여부를 정해, 글자 많은 page가 스캔 page를 가렸다.
 - 선택: page별 판정(3-B.8). 이후 "글자 0 또는 이미지 있는 page만"으로 좁혔다(3-C).
 - 결과: 100개 문서의 OCR page 88 → 11. 불필요한 OCR 덮어쓰기를 제거했다.
 - 모델: mobile_det(5.4초, 1.8GB)을 server_det(13.3초, 약 10GB) 대신 자원 기준으로 선택했다.
 
-### 15.8 BGE-M3, Dense + Sparse, RRF
+### 16.8 BGE-M3, Dense + Sparse, RRF
 - 문제: 의미 검색만으로는 사업명·금액을 놓치고, 단어 검색만으로는 바꿔 말한 질문을 놓친다.
 - 선택: BGE-M3 하나로 dense와 sparse를 모두 만들고, 순위 합산(RRF)으로 결합한다.
 - 결과: Gold 12문항에서 Hybrid가 Dense와 동률(12/12/11), Sparse(11/12/10)보다 우세
 
-### 15.9 자체 근거 검색기(Retriever)
+### 16.9 자체 근거 검색기(Retriever)
 - 문제: 후보 범위 강제, embedding 식별값에 따른 collection 선택, 읽기 전용 보장이 필요했다.
 - 판단: 필요한 코드가 작다. 범용 추상화는 이 규칙들을 흐린다(정리 리뷰 D항목).
 - 선택: `retrieval/retriever.py` 직접 구현(Qdrant client 사용)
 - 결과: 읽기 전용·범위 강제를 test로 고정
 
-### 15.10 Reranker·Query Rewrite는 아직
+### 16.10 Reranker·Query Rewrite는 아직
 - 판단: Hybrid로 정답 문서 1위 12/12, 정답 조각 5위 내 11/12다. 추가 모델의 필요성이 아직 입증되지 않았다.
 - 선택: 문제가 반복되면 검토(IMP-004)
 - 결과: 대신 원인이 명확한 문제(IMP-001)를 검색 입력 개선으로 해결했다.
 
-### 15.11 로컬 Qwen을 먼저, Gemini는 나중
+### 16.11 로컬 Qwen을 먼저, Gemini는 나중
 - 문제: LLM이 필요하다.
 - 판단: 로컬 Ollama에 qwen3.5:9b가 설치돼 있었다. 외부 API 비용이 없고 공고 첨부 내용을 외부로 보내지 않는다.
 - 선택: Qwen으로 V1을 완성하고, LLM 연결 경계(LlmProvider)를 둬 Gemini는 교체로 비교(IMP-003)
 - 결과: provider를 바꿔도 prompt·검색·근거 연결은 그대로 유지된다(규칙).
 
-### 15.12 LangGraph는 아직 안 넣는다
+### 16.12 LangGraph는 아직 안 넣는다
 - 판단: 현재 흐름은 분기가 목록/문서 질문 두 개뿐인 직선 흐름이다. 재질의·검증 반복 같은 그래프 이점이 아직 없다.
-- 선택: 기본 답변 평가 후 필요성이 보이면 도입(§21)
+- 선택: 기본 답변 평가 후 필요성이 보이면 도입(§22)
 
-### 15.13 FastAPI는 판단 로직을 갖지 않는다
+### 16.13 FastAPI는 판단 로직을 갖지 않는다
 - 판단: API와 CLI에 로직이 두 벌 있으면 결과가 달라진다.
 - 선택: API는 입구만, 로직은 서비스, 조립은 ServiceRuntime
 - 결과: CLI와 API가 같은 코드를 부른다.
 
-### 15.14 기업 정보를 AI DB에 저장하지 않는다
+### 16.14 기업 정보를 AI DB에 저장하지 않는다
 - 판단: 회원·기업 정보의 원본은 서비스 계층(Spring Boot)의 책임이다. AI 계층이 저장하면 원본이 두 개가 된다.
 - 선택: 요청마다 스냅샷을 입력으로만 받는다.
 
-### 15.15 지원 자격 최종 판단을 LLM에 맡기지 않는다
+### 16.15 지원 자격 최종 판단을 LLM에 맡기지 않는다
 - 판단: 조건 하나 미충족을 LLM이 종합 판단에서 넘길 위험이 있다. 모르는 정보를 추측할 위험도 있다.
 - 선택: LLM은 조건별 비교만, 최종 상태는 코드 규칙, 값 없는 정보로 낸 판정은 코드가 판단 불가로 되돌림
 - 결과: 합성 정보 smoke에서 지원 가능 / 정보 추가 필요가 기대대로 나왔다.
 
-### 15.16 목록 순위는 공고 단위로 매긴다(IMP-014)
+### 16.16 목록 순위는 공고 단위로 매긴다(IMP-014)
 - 문제: 조각 상위 20개를 자른 뒤 중복을 지우니 공고가 2개만 남았다.
 - 후보: 조각 수 늘리기(50개 → 3개뿐) / 후보마다 검색(69회, 금지) / Qdrant 그룹 검색
 - 판단: 검색 결과 단위(조각)와 출력 단위(공고)가 다른 것이 문제다. 절단 수를 늘려도 한 공고가 계속 독점한다.
 - 선택: 의미·단어 검색마다 공고별 최고 조각 1개를 받고 기존 RRF로 합친다(호출 2회 유지, 사용자 승인).
 - 결과: 2개 → 5개, 중복 0, 범위 밖 0. DOCUMENT_QA·모델·인덱스는 그대로다.
 
-### 15.17 오프라인 모델·결과 식별값
+### 16.17 오프라인 모델·결과 식별값
 - 판단: 실행 중 모델이 바뀌면 같은 설정인데 결과가 달라진다.
 - 선택: 모델은 고정 commit + hash 검증, 결과 식별값(parse_key·chunk_set_key·embedding_key)으로 재처리 범위를 정확히 판단
 - 결과: BGE-M3 가중치 추가·공고명 context 변경 때 필요한 단계만 다시 처리했다.
 
+### 16.18 Backend DB 접근: MyBatis → Spring Data JPA + QueryDSL (사용자 결정)
+- 문제: 설계 초안은 MyBatis였지만 서비스 V1은 회원·기업정보·대화의 단순 CRUD가 대부분이고, 지원사업 목록만 조건이 여러 개 조합된다.
+- 선택지: MyBatis(SQL을 XML에 직접 작성) / JPA만(조건 조합은 Specification 등) / JPA + QueryDSL
+- 선택: JPA + QueryDSL, MyBatis는 쓰지 않는다.
+- 이유: 일반 CRUD는 JPA Repository 메서드로 반복 SQL을 줄인다. 지원사업의 여러 검색 조건은 QueryDSL로 값이 있는 조건만 붙이며, 문자열 SQL 조립보다 타입 안전하게(잘못된 column은 compile 오류) 관리한다.
+- 결과: QueryDSL은 `SupportProgramQueryRepositoryImpl` 한 곳에만 있다. `support_programs`는 조회 전용 Entity로 매핑했다.
+
+### 16.19 인증: 세션 대신 JWT (사용자 결정)
+- 문제: 설계에 확정된 인증 방식이 없었다. 세션 + Cookie(추천안)와 JWT를 비교해 사용자에게 물었다.
+- 선택: JWT. 사용자가 JWT 방식에 익숙해 구현·운영을 직접 설명할 수 있기 때문이다.
+- Access Token은 15분·메모리 보관: 탈취돼도 짧게 끝나고, JS 저장소(localStorage)에 두지 않아 XSS로 꺼내 가기 어렵다.
+- Refresh Token은 14일·HttpOnly Cookie: JS가 읽을 수 없고 새로고침 뒤 로그인 복원에 쓴다. JWT의 약점(발급 후 서버가 취소하기 어려움)을 Refresh Token을 DB로 관리해 보완한다.
+- Refresh Token은 DB에 해시만 저장하고 재발급마다 교체(rotation)한다: DB 유출로 토큰을 쓸 수 없고, 로그아웃이 실제로 효력을 가지며, 복사된 토큰의 재사용을 알아챌 수 있다.
+- 결과: E2E에서 가입·로그인·재발급·로그아웃·로그아웃 후 재발급 거부(401)를 확인했다. OAuth2·소셜 로그인은 범위 밖이다.
+
+### 16.20 사용자 1명당 기업 1개, `companies` 한 테이블 (사용자 결정)
+- 문제: 한 사용자가 여러 회사를 가질 수 있는지, 기업 기본정보와 판정용 정보를 나눌지 정해야 했다.
+- 선택: 1 사용자 = 1 기업(`companies.user_id` UNIQUE), `company_profiles`는 만들지 않음. 신용점수·체납·공고별 추가 사실은 저장하지 않고 판정 요청 때만 받음.
+- 이유: V1 흐름(로그인 → 내 기업정보 → 판정)에 맞고 화면이 단순하다. 민감·변동 정보는 오래 보관하지 않는다. 여러 기업이 필요해지면 UNIQUE만 푸는 신규 migration으로 넓힐 수 있다.
+
+### 16.21 Compose `app` profile로 기존 dev MySQL 재사용 (사용자 결정)
+- 문제: 서비스용 MySQL을 새로 둘지, 파이프라인이 쓰는 dev MySQL을 같이 쓸지.
+- 선택: 기존 mysql 서비스와 volume을 그대로 쓰고 `app` profile만 추가. `.env.dev`는 수정하지 않고 Compose 안에서만 `MYSQL_HOST=mysql`, `MYSQL_PORT=3306`.
+- 이유: 새 DB는 공고 데이터가 비어 목록·상세를 확인할 수 없다. profile을 나누면 기존 `dev-db`·`dev-vector` 흐름이 바뀌지 않는다.
+- 결과: `docker compose --env-file .env.dev --profile app up --build`로 MySQL + Spring + React가 올라오고 실제 공고 1,554건이 화면에 나온다.
+
+### 16.22 FastAPI는 이번에 연결하지 않는다
+- 판단: 화면·서비스 데이터와 AI 연결을 한 번에 하면 오류 원인을 가리기 어렵고, 연결에는 timeout·오류 매핑·citation 형태·서비스 간 인증 설계가 따로 필요하다.
+- 선택: Spring에 `AiGateway` 경계와 요청 조립(기업정보 → CompanyProfileSnapshot)까지 만들고, 현재 구현은 가짜 결과 없이 `ai_service_not_connected`(503)를 돌려준다.
+- 결과: 다음 작업은 `AiGateway`의 HTTP 구현 하나를 추가하는 일로 좁혀졌다.
+
+### 16.23 Zustand를 쓰지 않는다
+- 판단: 여러 화면이 공유하는 client 상태가 "로그인 사용자" 하나뿐이다. 서버 데이터는 TanStack Query가 관리한다.
+- 선택: React Context로 충분해 Zustand를 넣지 않았다. 실제로 공유 상태가 늘어나면 도입한다.
+
 ---
 
-## 16. 실험 결과
+## 17. 실험 결과
 
 모든 값은 report 원문 값이다.
 
@@ -969,89 +1159,110 @@ prompt에는 조각 ID·공고 ID·파일 hash 같은 식별자를 넣지 않는
 
 ### 검사
 
-- 전체 검사(`check-all`) 최신: Contract test 406개, Integration test 64개 통과(exit 0)
+- 전체 검사(`check-all`) 최신(서비스 V1): Contract test 408개, Integration test 64개 통과(exit 0)
 - 원격 CI(GitHub Actions)는 Phase 4-B commit에서 2.3GB 추가 모델을 포함해 통과(6분 28초)
+
+### 서비스 V1 (React + Spring Boot)
+
+| 항목 | 결과 |
+| --- | --- |
+| backend test(H2 격리 DB) | 7/7 통과: 인증 흐름(해시 저장·rotation·재사용 탐지·로그아웃), 기업정보, 대화, AI 미연결, QueryDSL 조건 조합·모집 상태 규칙 일치 |
+| frontend test | 4/4 통과: 비로그인 → 로그인 화면, 목록 렌더링, 기업정보 저장, AI 미연결 안내(+ /api만 호출) |
+| Compose E2E(실제 dev MySQL) | 5개 흐름 확인: 가입·로그인·기업정보 / 목록 1,554건·필터(금융+소상공인+접수중 4건)·상세 / 대화·메시지 / AI 검색 503 / 자격 판정 503 |
+| check-all | exit 0(Contract 408, Integration 64, V6 COMMENT 검사 포함) |
 
 ---
 
-## 17. 실패와 문제 해결
+## 18. 실패와 문제 해결
 
 형식: **문제 → 원인 → 해결 → 결과 → 남은 한계**
 
-### 17.1 첨부 다운로드 크기 초과
+### 18.1 첨부 다운로드 크기 초과
 - 문제: 3,288개 중 2개가 25 MiB 상한을 넘어 실패
 - 원인: Phase 0 표본 기준 상한이 실제 최대 파일보다 작았다.
 - 해결: 무제한을 막으면서 실제 최대를 수용하도록 100 MiB로 변경
 - 결과: 3,288/3,288, 자동 재시도 0
 
-### 17.2 S3 연결 코드의 숨은 위험
+### 18.2 S3 연결 코드의 숨은 위험
 - 문제: 수동 구현이 검증 중 object가 없으면 **자동 업로드**할 수 있었다. 재실행이 실패할 수 있었고, 캐시 재사용이 실제 내용을 확인하지 않았다.
 - 해결: 연결 단계는 HEAD·GET 검증만(PUT 0), 실제 byte SHA 재검증, 단일 트랜잭션
 - 결과: 3,231개 검증 후 연결
 
-### 17.3 표 칸 글자 손실
+### 18.3 표 칸 글자 손실
 - 문제: Docling TableFormer 결과에서 표 칸 글자가 사라졌다.
 - 해결: 3개 엔진 비교 후 PP-TableMagic, 증명 못 한 표는 글자 보존
 - 남은 한계: 62개 문서의 358 영역이 구조 없이 글자만 남음(IMP-002)
 
-### 17.4 HWP 처리
+### 18.4 HWP 처리
 - 문제: HWP를 직접 읽을 도구가 없었다.
 - 해결: Docker LibreOffice + H2Orestart로 PDF 변환(3개 후보 비교)
 - 남은 한계: 운영 배포 방식 미정
 
-### 17.5 OCR 순서·범위 문제
+### 18.5 OCR 순서·범위 문제
 - 문제 1: OCR 줄을 줄마다 넣으니 같은 행의 순서가 뒤집혔다. → 행으로 묶고 x 순서로 정렬
 - 문제 2: 문서 평균 기준이라 스캔 page가 가려졌다. → page별 판정
 - 문제 3(3-C): 원래 글자만 적은 page를 OCR이 덮어써 27개 문서 77쪽에서 반복 → "글자 0 또는 이미지 page만"으로 수정, 27개 재처리, OCR page 88 → 11
 - 남은 한계: OCR 오인식 사례, 서명란 같은 저밀도 page는 경고로 남김
 
-### 17.6 Linux CI의 Paddle 오류
+### 18.6 Linux CI의 Paddle 오류
 - 문제: 원격 CI(Linux x86)에서 Paddle 3.3.1 oneDNN이 NotImplementedError
 - 해결: `PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT=False`, Docker amd64로 재현 후 확인
 
-### 17.7 조각 본문에 내부 정보 누수
+### 18.7 조각 본문에 내부 정보 누수
 - 문제: Docling 기본 조각 직렬화가 `bizaid__*` 근거 위치 정보(dict)를 본문처럼 출력했다.
 - 해결: meta 출력을 끄고 근거 위치는 조각 metadata로만 옮김
 - 추가로 고친 것: 본문 없는 제목이 버려짐, 그림 안 글자 누락
 
-### 17.8 검색에서 근거 조각 누락(IMP-001)
+### 18.8 검색에서 근거 조각 누락(IMP-001)
 - §6 참고. 공고명 context 추가 → G01 5위 밖 → 1위
 
-### 17.9 자연어 조건 과잉 추출(IMP-012)
+### 18.9 자연어 조건 과잉 추출(IMP-012)
 - §9 참고. 질문 원문 근거 검사로 해결
 
-### 17.10 자격 판정의 정보 이름 공백
+### 18.10 자격 판정의 정보 이름 공백
 - 문제: 모델이 "최근 2 개월 매출 (원)"처럼 정보 이름에 공백을 섞어 검증에 막힘
 - 원인: Qwen이 숫자 주변에 공백을 넣는 경향(답변에서도 관찰)
 - 해결: 공백만 무시해 원래 이름과 정확히 하나로 대응될 때만 인정, 나머지는 실패
 - 같은 실행에서: 예외 규정이 별도 조건으로 쪼개짐 → prompt에 "예외·완화 규정은 원 조건에 포함" 한 문장 추가
 - 결과: A 지원 가능, B 정보 추가 필요
 
-### 17.11 목록 다양성 감소(IMP-014)
+### 18.11 목록 다양성 감소(IMP-014)
 - 문제: 목록 5개 → 2개
 - 원인: 검색 결과 단위(조각)와 출력 단위(공고) 불일치. 조각 상위 20개 중 18개가 한 공고였다(상위 50개에서도 39개, 고유 공고 3개).
 - 해결: 공고 단위 그룹 검색(의미·단어 각각 공고별 최고 조각 1개) + 기존 RRF로 공고 순위
 - 결과: 5개, 중복 0, 범위 밖 0, LLM 호출 1회
 - 남은 점: 공고명 context가 원인이라는 가설은 확정하지 않았다(해결에는 불필요)
 
-### 17.12 AWS 로그인 세션 만료
+### 18.12 AWS 로그인 세션 만료
 - 문제: 100개 데이터셋 구축 중 첫 3개 source에서 `LoginRefreshRequired`
 - 원인: 임시 AWS 자격증명 만료
 - 해결: 3회 연속 환경 오류 → 자동 중단(STOPPED_ENVIRONMENT, 쓰기 0), 재로그인 후 재시작
 - 결과: 60/60 파싱, 100/100 적재
 
-### 17.13 결과 식별값과 이전 point
+### 18.13 결과 식별값과 이전 point
 - 문제: 파서 규칙 변경으로 60개 문서가 이전 parse_key에만 결과가 있었다. 조각 규칙을 바꾸면 Qdrant에 이전 조각이 남을 수 있었다.
 - 해결: 형식별 식별값으로 필요한 문서만 재처리, 적재 후 같은 문서의 현재 조각이 아닌 point 삭제
 - 결과: IMP-001 재적재에서 이전 point 3,849개 정리, 중복 0
 
-### 17.14 HWP 변환기가 없을 때 전체 중단
+### 18.14 HWP 변환기가 없을 때 전체 중단
 - 문제: 변환 이미지가 없으면 예외 종류가 달라 여러 문서 실행 전체가 멈출 수 있었다.
 - 해결: 변환기 오류를 문서 단위 실패(`PipelineError`)로 바꿔 그 문서만 실패
 
+### 18.15 Spring 기본 오류 형식이 섞임(서비스 V1)
+- 문제: E2E에서 `//`가 들어간 주소를 보내자 Spring 기본 오류 JSON(timestamp·path)이 나왔다. 없는 주소는 500으로 처리될 수 있었다.
+- 해결: `/error`, 없는 주소(404)·지원하지 않는 method(405)도 공통 오류 본문 `{"error": {code, message}}`로 바꿨다.
+
+### 18.16 요약 HTML 줄바꿈 중복과 XSS
+- 문제: 기업마당 요약은 HTML이라 그대로 화면에 넣으면 script가 실행될 수 있다. 첫 변환(Jsoup clean)은 `<br>`마다 빈 줄이 두 번 생겼다(테스트가 발견).
+- 해결: 서버에서 글자 노드만 순회해 문단·줄바꿈만 넣는 방식으로 바꿨다. React는 텍스트로만 표시한다.
+
+### 18.17 좁은 화면에서 메뉴 넘침
+- 문제: headless 브라우저 캡처에서 좁은 폭일 때 상단 메뉴가 두 줄로 깨지고 오른쪽이 잘렸다.
+- 해결: 760px 이하에서 메뉴를 로고 아래 한 줄로 내렸다. 600px 폭 캡처로 다시 확인했다.
+
 ---
 
-## 18. 개발 타임라인
+## 19. 개발 타임라인
 
 | 단계 | 목표 | 구현 | 핵심 결과 | 다음으로 간 이유 |
 | --- | --- | --- | --- | --- |
@@ -1076,11 +1287,12 @@ prompt에는 조각 ID·공고 ID·파일 hash 같은 식별자를 넣지 않는
 | Eligibility v1 | 공고 1개 판정 | 조건별 판정·코드 계산 | 지원 가능 / 정보 필요 | 서비스화 |
 | FastAPI v1 | 내부 API | 3개 endpoint, ServiceRuntime | HTTP 200 smoke | 목록 품질 |
 | 문서 한국어화 | 이해·포트폴리오 문서 | 마스터 가이드, 용어집 | 문서만 변경 | 목록 개선 |
-| IMP-014(10-01) | 목록 공고 다양성 | 공고 단위 그룹 검색 | 2개 → 5개 | Spring Boot 연동(예정) |
+| IMP-014(10-01) | 목록 공고 다양성 | 공고 단위 그룹 검색 | 2개 → 5개 | 서비스 화면 |
+| 서비스 V1(10-01) | React + Spring Boot | JWT 인증·기업정보·지원사업 조회(QueryDSL)·대화·AI 경계, V6, Compose app | E2E 5개 흐름, AI는 미연결 안내 | Spring ↔ FastAPI 연결(다음) |
 
 ---
 
-## 19. 현재 완성 기능
+## 20. 현재 완성 기능
 
 ### 지금 할 수 있는 것 (dev 환경, CLI·내부 API)
 
@@ -1089,19 +1301,19 @@ prompt에는 조각 ID·공고 ID·파일 hash 같은 식별자를 넣지 않는
 3. **공고 1개 지원 자격 판정**: 기업 정보를 넣으면 조건별 충족·미충족·판단 불가와 최종 상태
 4. **수동 정형 필터 검색**: 분야·대상·소관기관·모집 여부
 5. **내부 HTTP API**: `/health`, `/internal/v1/query`, `/internal/v1/eligibility`
+6. **서비스 화면(React + Spring Boot V1)**: 회원가입·로그인(JWT), 내 기업정보 등록·수정, 지원사업 목록(검색어·분야·대상·모집 상태·소관기관 필터)·상세, 질문 대화 저장, AI 검색·자격 판정 화면(현재 "AI 연결 준비 중" 안내)
 
 ### 아직 할 수 없는 것
 
 - 여러 공고 한꺼번에 자격 판정, 기업 맞춤 추천 순위·점수
-- 로그인한 사용자의 기업 정보 연동(기업 정보 저장 없음)
-- React 화면, Spring Boot ↔ FastAPI 실제 연결, 운영 배포
+- 화면에서 실제 AI 검색·자격 판정 결과 보기(Spring Boot ↔ FastAPI 연결 전), 운영 배포
 - 전체 2,926개 문서 처리(100개만 처리)
 - ZIP·XLSX 등 305개 파일, 그림·차트 내용 해석
 - 대화 이력 기반 질문, LangChain·LangGraph
 
 ---
 
-## 20. 현재 한계와 Backlog
+## 21. 현재 한계와 Backlog
 
 Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으로 미룬 문제만** 기록한다(`harness/docs/improvement-backlog.md`).
 
@@ -1119,6 +1331,8 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | IMP-010 | OCR 오인식, 읽기 순서 역전, 그림 해석 보류 | 일부 문서 품질 | RAG 실패가 반복될 때 |
 | IMP-011 | 신청기간 날짜가 1,554건 중 951건 없음("예산 소진시까지") → "모집 중" 필터가 대부분 판정 불가(67건 중 64건) | "지금 신청 가능" 정확도 | 모집 여부가 제품 요구로 확정될 때 |
 | IMP-013 | 평가 Gold가 조각 ID로 고정돼, 조각 식별값이 바뀌면 평가 스크립트를 그대로 못 씀 | 다음 검색 평가 | 다음 평가 전 |
+| IMP-015 | Spring 내장 Flyway가 "MySQL 8.4는 검증 안 됨"을 경고(동작은 정상) | migration 도구 호환 | RDS 이전·Spring 업그레이드 때 |
+| IMP-016 | refresh_tokens의 폐기·만료 row를 지우는 정책이 없어 로그인마다 row가 쌓임 | 테이블 크기 | 운영 배포 전 |
 
 ### 해결한 문제(RESOLVED)
 
@@ -1131,7 +1345,7 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 
 ---
 
-## 21. LangChain / LangGraph 현재 상태
+## 22. LangChain / LangGraph 현재 상태
 
 **둘 다 현재 미적용이다.** 코드와 의존성(`requirements.txt`)에 없다.
 
@@ -1148,7 +1362,7 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 
 ---
 
-## 22. Harness Engineering
+## 23. Harness Engineering
 
 **AI 코딩 에이전트가 프로젝트 규칙을 벗어나지 않도록, 작업 범위·파일 경계·계약·테스트·완료 조건을 저장소 안에 기록하고 자동으로 검사하는 방식**이다.
 
@@ -1172,10 +1386,11 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 - Contract 문구를 바꿨더니 기존 test가 실패했다. test를 약화하지 않고 문구를 유지하는 방향으로 고쳤다.
 - 새 파일은 Registry에 등록해야 하고, 코드 주석은 한글 WHY/BOUNDARY/RISK 형식이어야 한다.
 - 규칙 완화(예: RAG 금지 해제)는 사용자 승인과 보고가 필요하다.
+- 서비스 V1에서 Java·TS를 도입하자 주석 정책("다른 언어를 도입하면 검사 범위를 함께 넓힌다")에 따라 주석 검사를 확장했고, 바로 영어 주석 1건을 찾았다. `backend/`·`frontend/`도 미구현 module 목록에서 빼고 Registry에 등록한 뒤에야 검사를 통과한다.
 
 ---
 
-## 23. 프로젝트 용어 사전
+## 24. 프로젝트 용어 사전
 
 | 용어 | 쉬운 한국어 뜻 | 이 프로젝트에서 하는 일 |
 | --- | --- | --- |
@@ -1242,7 +1457,18 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | Lifespan | 앱 시작·종료 생명주기 | 시작 때 runtime 생성, 종료 때 정리 |
 | Connection Pool | 연결 재사용 묶음 | MySQL 연결을 매번 새로 열지 않음 |
 | Fallback | 실패 시 대체 처리 | 조용한 대체는 하지 않고 명시적으로 실패 |
-| Flyway | DB schema 변경 관리 도구 | V1~V5 migration, 적용된 파일 수정 금지 |
+| Flyway | DB schema 변경 관리 도구 | V1~V6 migration, 적용된 파일 수정 금지, Spring도 같은 계보 |
+| JWT(JSON Web Token) | 서명된 로그인 증표 | Access Token. 서버가 저장하지 않고 서명·만료만 확인 |
+| Access Token / Refresh Token | 짧은 출입증 / 출입증 재발급권 | 15분·메모리 / 14일·HttpOnly Cookie·DB 해시 |
+| Token Rotation | 재발급권 교체 | 재발급마다 이전 Refresh Token 폐기 |
+| HttpOnly Cookie | JS가 읽을 수 없는 쿠키 | Refresh Token 보관(XSS로 탈취 불가) |
+| XSS | 악성 script 삽입 공격 | 요약 HTML을 텍스트로 바꾸고 토큰을 JS 저장소에 두지 않는 이유 |
+| CORS / Proxy | 다른 주소 호출 허용 규칙 / 요청 대신 전달 | Vite·nginx proxy로 같은 주소처럼 호출해 CORS 불필요 |
+| JPA(Spring Data JPA) | 객체로 DB를 다루는 표준 | 회원·기업정보·대화의 CRUD |
+| QueryDSL | 타입 안전한 동적 쿼리 도구 | 지원사업 다중 조건 검색 |
+| Entity / DTO | DB 매핑 객체 / API 전달 객체 | Entity를 응답으로 직접 내보내지 않음 |
+| AiGateway | Spring의 AI 연결 경계 | 지금은 미연결 오류, 다음 단계에서 FastAPI 호출 |
+| TanStack Query | 서버 데이터 cache 도구 | 목록·상세·기업정보의 loading·error·cache |
 | Idempotency | 반복 실행해도 같은 결과 | 재적재해도 point 중복 없음 |
 | Provenance | 근거 위치·출처 | page·bbox·HWPX 경로·표 판정 |
 | LangChain | LLM 연결 도구 | **미적용** |
@@ -1251,7 +1477,7 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 
 ---
 
-## 24. 포트폴리오 핵심 포인트
+## 25. 포트폴리오 핵심 포인트
 
 과장 없이, 저장소에 구현된 것만이다.
 
@@ -1266,10 +1492,11 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 9. **재현성·재처리 설계**: 결과 식별값 3단계, 오프라인 고정 모델, 이전 point 자동 정리
 10. **Harness Engineering**: 여러 AI 에이전트가 규칙 안에서 개발하도록 Contract·Registry·자동 검사(Contract test 406개)를 운영했다.
 11. **내부 API 서비스화**: FastAPI 얇은 입구 + 공통 실행 환경(모델 1회 적재)
+12. **서비스 V1(React + Spring Boot)**: JWT(Access 메모리·Refresh HttpOnly Cookie·DB 해시·rotation), JPA + QueryDSL 동적 검색, 공통 Flyway V6(한국어 COMMENT), AI 연결 경계(가짜 결과 없음), Compose 한 번 실행
 
 ---
 
-## 25. 면접 예상 질문과 답변
+## 26. 면접 예상 질문과 답변
 
 **Q. 이 프로젝트는 무엇인가요?**
 중소기업 지원사업 공고와 실제 첨부 공고문을 분석해서, 조건에 맞는 사업을 찾고, 공고문 근거로 질문에 답하고, 회사 정보로 지원 자격을 조건별로 판정해 주는 AI 서비스입니다. 기업마당 공공 API에서 공고 1,554건과 첨부 3,288건을 수집했고, PDF·HWP·HWPX를 읽어 벡터 검색과 근거 기반 답변까지 구현했습니다.
@@ -1313,12 +1540,18 @@ Dense는 뜻이 비슷한 문장을, Sparse는 사업명·금액 같은 정확�
 **Q. 본인이 직접 설계했다고 설명할 핵심 의사결정은 무엇인가요?**
 (1) DB·검색·LLM의 역할 분리와 MySQL 후보 → Qdrant 범위 제한, (2) 근거 번호 기반 Citation과 코드가 계산하는 자격 판정, (3) 결과 식별값을 단계별로 나눠 필요한 부분만 재처리하는 구조, (4) 에이전트 개발을 통제하는 Harness입니다. 각 결정은 평가 결과나 실제 실패 사례를 근거로 했습니다.
 
+**Q. 인증은 어떻게 설계했나요?**
+JWT를 썼습니다. Access Token은 15분짜리이고 React 메모리에만 둬서 localStorage 탈취 위험을 피했습니다. Refresh Token은 14일짜리 HttpOnly Cookie로 주고, DB에는 원문 대신 SHA-256 해시만 저장합니다. 재발급할 때마다 새 토큰으로 바꾸고, 이미 폐기된 토큰이 다시 오면 그 사용자의 토큰을 모두 폐기합니다. 그래서 JWT인데도 로그아웃이 실제로 효력을 가집니다.
+
+**Q. JPA와 QueryDSL은 어떻게 나눠 썼나요?**
+회원·기업정보·대화처럼 단순한 저장·조회는 Spring Data JPA 메서드로 했고, 검색어·분야·대상·소관기관·모집 상태가 자유롭게 조합되는 지원사업 목록 하나만 QueryDSL로 만들었습니다. 값이 있는 조건만 붙이고, 문자열 SQL을 조립하지 않아 잘못된 column은 compile 단계에서 잡힙니다. 기존 파이프라인 테이블은 조회 전용 Entity로 매핑해 쓰기 경로를 만들지 않았습니다.
+
 **Q. 이 프로젝트에서 Backend 경험이 어떻게 활용됐나요?**
 DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았습니다. 대량 적재는 단일 트랜잭션과 멱등성(같은 키면 재사용)으로 만들었고, 서비스 원본은 Spring Boot, AI는 내부 API로 역할을 나눴습니다. FastAPI에서는 연결 재사용, 서버 시작 시 자원 생성, 판단 결과와 HTTP 오류 구분 같은 서버 설계를 적용했습니다.
 
 ---
 
-## 26. 이 프로젝트를 설명하려면 반드시 이해해야 할 20가지
+## 27. 이 프로젝트를 설명하려면 반드시 이해해야 할 핵심 21가지
 
 1. **역할 분리 원칙** — 틀리면 안 되는 조건을 AI 추측에 맡기지 않기 위해. DB는 정확한 조건, 검색은 문서, LLM은 판단·설명만 맡긴다.
 2. **정형 데이터 + 공고문** — 자격 조건은 첨부 문서에만 있어서. MySQL(1,554건) + 공고문 검색(Qdrant)을 함께 쓴다.
@@ -1340,30 +1573,32 @@ DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았�
 18. **자격 판정 최종 상태는 코드** — 일관되고 설명 가능하게. 미충족 1개 → 지원 불가, 모르면 판단 불가.
 19. **ServiceRuntime** — 무거운 모델을 요청마다 만들지 않기 위해. 한 번 만들어 CLI와 API가 같이 쓴다.
 20. **Harness Engineering** — 여러 AI 에이전트가 규칙 안에서 개발하게. Contract·Registry·check-all로 자동 검사한다.
+21. **서비스 경계** — React는 Spring만, Spring은 서비스 데이터의 주인이자 AI 호출 창구(AiGateway), 공고 데이터는 파이프라인 소유라 조회만 한다.
 
 ---
 
-## 27. 앞으로의 작업
+## 28. 앞으로의 작업
 
 현재 상태 기준 후보(사용자 결정 필요):
 
-1. **Spring Boot 연동**: 서비스 간 인증, 기업 정보 원본 관리, 배포 구조
+1. **Spring Boot ↔ FastAPI 실제 연결**: `AiGateway` HTTP 구현, timeout·오류 매핑, citation 응답과 ASSISTANT 메시지 저장, 서비스 간 인증
 2. **Gemini 비교(IMP-003)**: 같은 검색·context·prompt로 Qwen과 비교
 3. **표 가독성(IMP-002)**: 표 직렬화 개선(재조각·재적재 필요)
 4. **평가 확장**: 다음 검색 평가 전 IMP-013 해소, 자격 판정 소규모 Gold
 5. **전체 corpus(IMP-007)**: 2,926개 처리 계획(시간·메모리·세션)
 6. **LangGraph 필요성 판단**: 다단계 흐름이 생길 때
-7. **React 화면, 운영 배포**
+7. **운영 배포**(AWS RDS 이전 포함, IMP-015·IMP-016 확인)
 
 ---
 
-## 28. 근거 문서 위치
+## 29. 근거 문서 위치
 
 핵심 내용은 이 문서에 모두 있다. 아래는 원문 확인용이다.
 
 | 내용 | 위치 |
 | --- | --- |
 | 원 설계서 | `PROJECT_DESIGN.md` |
+| 서비스 코드 | `backend/README.md`, `frontend/README.md`, `contracts/frontend-backend/README.md` |
 | 에이전트 진입점 | `AGENTS.md` |
 | 구조·상태 | `harness/docs/architecture.md`, `harness/docs/data-pipeline.md`, `harness/docs/rag.md` |
 | 검사 범위 | `harness/docs/testing.md` |

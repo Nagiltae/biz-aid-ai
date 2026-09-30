@@ -169,3 +169,23 @@
   - 진단: 같은 후보에서 hybrid 상위 20 조각의 고유 공고 2개(한 공고가 18개 차지), 상위 50은 3개(39개 차지). 조각 절단 수를 늘리는 것만으로는 해결되지 않았다.
   - 해결: 목록은 의미·단어 검색마다 공고별 최고 조각 하나(Qdrant `query_points_groups`, group_size 1)로 공고 순위를 만들고 기존 RRF로 합친다. Qdrant 호출은 2회 그대로다.
   - 결과: 같은 질문에서 공고 2개 → 5개, 중복 0, 범위 밖 0, LLM 호출 1회. 원인이 공고명 context라는 가설은 통제 실험으로 확인하지 않았다(해결에는 불필요).
+
+## IMP-015 Spring Boot 기본 Flyway가 MySQL 8.4를 "검증되지 않은 버전"으로 경고
+
+- Area: Service backend / DB migration
+- Issue: Spring Boot 3.5.16이 관리하는 Flyway 버전은 시작할 때 "MySQL 8.4 is newer than this version of Flyway and support has not been tested"를 경고한다. 공통 flyway 컨테이너(redgate/flyway:11)와 Spring 내장 Flyway의 버전이 다르다.
+- Evidence: 서비스 V1 Compose 실행 backend log. 같은 history에서 V6 적용·validate는 정상이었다(`2026-10-01-service-v1-react-spring.md`).
+- Why deferred: 동작 실패는 없고, Flyway 버전을 따로 올리면 Spring Boot가 관리하는 호환 조합을 벗어난다. V1 기능을 막지 않는다.
+- Revisit trigger: AWS RDS 이전, Spring Boot 업그레이드, 또는 새 migration에서 Flyway 오류가 났을 때
+- Side effect: Flyway 버전을 올리면 공통 flyway 컨테이너와 같은 history를 읽는지(checksum·validate) 함께 확인해야 한다.
+- Status: OPEN
+
+## IMP-016 refresh_tokens의 폐기·만료 row 정리 정책 없음
+
+- Area: Service backend / 인증
+- Issue: Refresh Token은 재발급·로그아웃 때 삭제하지 않고 `revoked_at`만 기록한다. 만료되거나 폐기된 row를 지우는 작업이 없어 로그인할 때마다 row가 쌓인다.
+- Evidence: E2E 1회(가입 → 로그인 → 재발급 → 로그아웃)에서 한 사용자의 row가 3개(유효 1, 폐기 2)가 됐다(`2026-10-01-service-v1-react-spring.md`).
+- Why deferred: 폐기 기록은 재사용된 토큰(탈취 신호)을 알아보는 근거라 바로 지우면 안 된다. V1 사용 규모에서는 문제가 없다.
+- Revisit trigger: 운영 배포 전, 또는 refresh_tokens 크기가 조회 성능에 영향을 줄 때
+- Side effect: 정리 주기는 Refresh Token 수명(14일)보다 길게 잡아야 재사용 탐지가 유지된다.
+- Status: OPEN
