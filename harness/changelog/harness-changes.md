@@ -1,5 +1,11 @@
 # Harness 변경 이력
 
+## 2026-09-30 — 문서 한국어화와 PROJECT_MASTER_GUIDE
+
+루트에 `PROJECT_MASTER_GUIDE.md`(시작부터 현재까지 전체 설명·기술 선택·실험·실패·용어 사전·면접 답변)와 `harness/docs/glossary-ko.md`를 추가했다.
+Harness 문서의 영어 제목에 한글 뜻을 덧붙이고, observability의 "RAG 없음" 서술을 현재 상태로 고쳤다. anchor로 쓰이는 제목과 validator가 검사하는 문구는 유지했다.
+주석 정책 규칙에 "사람이 읽는 문서" 절(한국어 우선, 식별자 불변, 검사 문구 유지, 마스터 가이드 갱신)을 추가했다. 코드·Contract·API 동작 변경 없음. Registry에는 새 문서 경로 두 줄만 등록했다.
+
 ## 2026-09-30 — FastAPI Internal API v1
 
 `biz_aid_pipeline/api/`(FastAPI): /health, /internal/v1/query, /internal/v1/eligibility. CLI와 API는 같은 `runtime.ServiceRuntime`을 호출하고, lifespan에서 한 번 만든 자원을 재사용한다.

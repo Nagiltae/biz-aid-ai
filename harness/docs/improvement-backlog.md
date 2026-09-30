@@ -4,6 +4,8 @@
 정상적인 다음 기능, 근거 없는 아이디어, 일반 리팩터링 욕구, 이미 해결된 일은 넣지 않는다. 운영 규칙은 [Workflow](workflow.md#improvement-backlog)에 있다.
 
 - 형식: ID, Area, Issue, Evidence, Why deferred, Revisit trigger, Side effect, Status(OPEN / RESOLVED / DROPPED)
+  - 한글 설명: Area(영역), Issue(문제), Evidence(근거·관찰 사례), Why deferred(지금 미룬 이유), Revisit trigger(다시 볼 시점),
+    Side effect(고칠 때 주의할 영향), Status(상태: OPEN 미해결 · RESOLVED 해결 · DROPPED 가치 없어 폐기)
 - 같은 문제는 새 ID를 만들지 않고 Evidence·Revisit만 갱신한다. 해결·폐기 항목은 지우지 않고 Status와 근거 report를 남긴다.
 - Evidence의 report는 `harness/workspace/reports/development/` 아래 파일이다.
 

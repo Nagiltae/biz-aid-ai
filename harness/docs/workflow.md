@@ -13,7 +13,7 @@
 CI는 dev Push에 현재 적용 검증을 실행한다. 원격 실행 여부는 로컬 실행과 구분한다.
 현재 운영 배포 workflow는 없다. 미래 자동 배포 trigger는 op Merge로 유지한다.
 
-## Workspace Control/Input / Generated Output
+## Workspace Control/Input / Generated Output(관리 문서와 생성 산출물 구분)
 
 실제 Inventory의 고정 입력은 current-task 1개와 artifacts/README.md, checkpoints/README.md 두 문서다.
 Registry.workspace_static_files는 이 anchor의 역할을 선언하고 required_files는 개별 strict 구조를 관리한다.
@@ -91,7 +91,7 @@ Codex ↔ Claude handoff도 같은 복원 절차를 사용하며 제어 파일�
 Task 전환은 현재 사용자의 요청과 저장된 Report로 확인하며 Agent 내부 Memory만으로 결정하지 않는다.
 Task 교체 전 상태는 해당 새 Task의 Final Report에 보존한다.
 
-## AGY Review Lifecycle / Evidence
+## AGY Review Lifecycle / Evidence(독립 검토 절차와 근거)
 
 상태는 `pending`과 `review_complete` 두 가지다.
 `registry.json.agy_review`는 가장 최근에 수신한 독립 Review의 상태,

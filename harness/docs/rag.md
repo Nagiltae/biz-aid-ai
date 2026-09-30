@@ -1,5 +1,7 @@
 # RAG — 검색·근거 답변 v1 구현
 
+처음 보는 용어의 한국어 뜻은 [용어집](glossary-ko.md)을, 프로젝트 전체 흐름은 [PROJECT_MASTER_GUIDE](../../PROJECT_MASTER_GUIDE.md)를 본다.
+
 적재: FinalChunk가 BGE-M3 dense(1024, Cosine)·sparse vector로 dev Qdrant에 있다([Indexing 계약](../../contracts/schemas/document-indexing.contract.json)).
 검색: `retrieval/retriever.py`가 같은 BgeM3Embedder로 query를 만들어 현재 embedding_key collection을 dense·sparse·RRF hybrid로 읽는다([Retrieval 계약](../../contracts/schemas/document-retrieval.contract.json)).
 Retrieval Evaluation(gold-v1, 12문항, top_k 5) 결과 baseline은 Hybrid RRF다(dense와 동률, sparse보다 우세).

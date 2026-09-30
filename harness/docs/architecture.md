@@ -1,5 +1,7 @@
 # Architecture와 현재 상태
 
+처음 보는 용어의 한국어 뜻은 [용어집](glossary-ko.md)을, 프로젝트 전체 흐름은 [PROJECT_MASTER_GUIDE](../../PROJECT_MASTER_GUIDE.md)를 본다.
+
 근거: PROJECT_DESIGN.md §1–9, 19–25, 42–43, 48–58.
 목적은 기업 프로필을 활용해 현재 신청 가능한 사업과 상세 조건을 근거와 함께 제공하는 것이다.
 
@@ -77,7 +79,7 @@ Dev MySQL은 Host 127.0.0.1:3306 → container 3306이며 사용자 계정·비�
 PDF와 HWP(→PDF)는 Docling 변환기, HWPX는 native XML Adapter가 같은 표현을 만든다. 자체 canonical document tree는 없다.
 PARSED DoclingDocument의 결정론적 JSON은 S3, `(source_sha256, parse_key)` 상태·identity·pointer는 V5 MySQL이 소유한다.
 
-## Phase 4 Chunking / Indexing
+## Phase 4 Chunking / Indexing(문서 조각·검색 적재)
 
 ```text
 parsing(S3 원본 → DoclingDocument, S3 + V5 row) ← chunking(현재 parse_key PARSED artifact → FinalChunk) ← indexing(FinalChunk → BGE-M3 → Qdrant)

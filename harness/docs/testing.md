@@ -1,5 +1,7 @@
 # Validation 정책
 
+처음 보는 용어의 한국어 뜻은 [용어집](glossary-ko.md)을, 프로젝트 전체 흐름은 [PROJECT_MASTER_GUIDE](../../PROJECT_MASTER_GUIDE.md)를 본다.
+
 근거: PROJECT_DESIGN.md §37–41, 46 및 이번 요청의 현재 범위.
 실제 검사를 수행한 항목만 PASS로 기록한다. 미구현을 통과로 계산하지 않는다.
 
@@ -157,25 +159,25 @@ Chart·Spotting 출력 schema와 의미 정확성은 evidence 없이 강제하�
 `test_production_route_is_unchanged_by_evaluation`은 Contract primary·표 설정·PDF route가 그대로이고
 제품 parsing 코드가 evals·paddle·camelot을 import하지 않음을 확인한다. PaddleOCR-VL과 조립 pilot은 check-all에서 실행하지 않는다.
 
-## Phase 3-B.4 Hybrid Review Closure
+## Phase 3-B.4 Hybrid Review Closure(표 조립 검토 마무리)
 
 조립 회귀는 손실·겹침·footnote·표/그림 충돌 사례와 정상 표 문서를 포함한 최대 5문서 targeted 범위에서 쪽 단위로 baseline Docling 대비 잃은 글자(`lost_vs_baseline`)를 센다. 문서 합계는 한 쪽의 손실을 다른 쪽의 개선이 가릴 수 있어 판정에 쓰지 않는다.
 평가 테스트는 교체된 표의 footnote 자식 보존, VALID 표 cell 밖 단어 보존, 부분 겹침 판정, 쪽 단위 손실 계산, review flag가 판정을 대신하지 않음을 검증한다.
 `evals/table_engine/review.py`는 기존 산출물로 사람 검토 entry point를 만들며 모델·parser를 다시 실행하지 않고 어떤 항목도 PASS로 기록하지 않는다.
 
-## Phase 3-B.5 PP Production Integration
+## Phase 3-B.5 PP Production Integration(PP 표 엔진 운영 적용)
 
 PDF route Contract test는 합성 PDF로 PP 표가 TABLE_VALID TableItem과 provenance로 조립되는지, 실패 표가 구조 없이 native text로 남는지,
 표 engine 오류가 fallback 없이 PARSE_FAILED인지, Docling 표 구조가 꺼지고 PP 설정에 OCR이 없는지 확인한다. PP 모델은 Docling layout과 같은 고정 artifact 경로에서만 읽는다.
 실제 문서 확인은 check-all 밖의 targeted regression(최대 5문서)으로만 하며 결과는 ignored `data/parsed/`에 둔다.
 
-## Phase 3-B.6 HWP → PDF Route
+## Phase 3-B.6 HWP → PDF Route(HWP를 PDF로 변환해 처리)
 
 HWP route Contract test는 docker 호출을 대체해 변환 성공 시 `parse_pdf` 재사용·원본 SHA provenance·derivation·임시 디렉터리 삭제를,
 변환 실패·timeout·이미지 identity 불일치가 fallback 없이 CONVERSION_FAILED인지, Dockerfile이 Contract의 hash·base digest·H2Orestart SHA와 같은지 확인한다.
 실제 변환은 check-all 밖에서 HWP 최대 3개의 targeted 확인으로만 하며 check-all은 변환 이미지를 요구하지 않는다.
 
-## Phase 3-B.7 OCR_REQUIRED OCR
+## Phase 3-B.7 OCR_REQUIRED OCR(글자 없는 문서의 문자 인식)
 
 PDF Contract test는 합성 image-only PDF 1쪽에 실제 OCR을 돌려 글자가 없으면 OCR_REQUIRED + OCR_TEXT_INSUFFICIENT인지 확인하고,
 OCR 결과를 대체한 test로 PARSED 조립·읽기 순서·`bizaid__ocr` provenance, OCR engine 오류의 PARSE_FAILED, text PDF에서 OCR 미호출을 확인한다.
@@ -184,13 +186,13 @@ OCR 결과를 대체한 test로 PARSED 조립·읽기 순서·`bizaid__ocr` prov
 부분 scan PDF는 text page와 image page를 합친 2-page fixture로 검증한다. OCR mock은 image page만 선택되는지, native page text가 한 번만
 남는지, OCR text·provenance·JSON round-trip과 기존 PP table route가 유지되는지를 확인한다. 일반 text PDF는 계속 OCR 호출 0회다.
 
-## Phase 3 Parse persistence
+## Phase 3 Parse persistence(파싱 결과 저장)
 
 Contract test는 parsed S3 key 결정성, conditional PUT·checksum·full readback 및 verify 실패 시 repository 미호출을 검사한다.
 MySQL integration은 작은 기존 ParseResult fixture로 V5 metadata·JSON reload, 동일 source SHA·parse_key 재사용과 S3 실패 시 row 부재를
 검사한다. 실제 AWS, parser model 반복 실행, 전체 corpus와 Markdown artifact는 사용하지 않는다.
 
-## Phase 3 Parse orchestration
+## Phase 3 Parse orchestration(파싱 실행 흐름)
 
 Contract test는 단일 SHA source lookup → S3 read → parser → persistence 호출 순서와 CLI의 명시적 SHA 입력을 검사한다.
 Bounded batch test는 1~3개 unique SHA 제한, 결정적 순차 순서, source별 실패 격리와 INSERTED/REUSED 집계를 검사한다.
@@ -204,37 +206,37 @@ HWPX Contract test는 합성 header.xml로 OUTLINE·내장 개요 스타일 head
 머리말 furniture·각주, cell 안 heading 무시와 RichTableCell, 중첩 표 구조 보존과 글자 1회 계수, `bizaid__hwpx` provenance, page/bbox 미생성을 확인한다.
 실제 HWPX 확인은 check-all 밖에서 최대 3문서로만 한다.
 
-## Phase 3-B.13 Parser Hardening
+## Phase 3-B.13 Parser Hardening(파서 안정화)
 
 parse_key test는 HWPX adapter·PDF 표 설정·HWP 변환기·normalizer 변경이 각각 의존 route key만 바꾸는지 확인한다.
 PDF test는 PP 영역에 걸친 native item의 영역 밖 단어 보존과 중복 제거, OCR page의 furniture 제거, 같은 행 anchor, OCR 부족 page의 warning 유지와 문서 status를 확인한다.
 실제 문서 점검은 check-all 밖에서 format별 최대 2개, 총 6개로만 한다.
 
-## Phase 3-C Corpus Parsing
+## Phase 3-C Corpus Parsing(100건 일괄 파싱)
 
 corpus runner test는 enabled format unique SHA 선택·SHA 순서, 현재 parse_key 결과 skip, source 실패 격리와 연속 환경 실패 시 중단을 확인한다.
 실제 통합 검증은 dev corpus 실행 자체이며 check-all에 넣지 않는다.
 OCR page 선택 test는 native 글자만 있는 low-text page를 OCR하지 않고, 글자 없는 page와 raster image가 있는 page만 OCR하는지 확인한다.
 
-## Phase 4-A Document Chunking
+## Phase 4-A Document Chunking(문서 조각 생성)
 
 Chunking test는 합성 DoclingDocument로 meta 비노출, VALID 표·보존된 FAILED 표 text 포함, heading 문맥, 공고 relation별 FinalChunk와 content_key 공유,
 여러 page provenance, chunk_id 결정성, tokenizer·max_tokens·정책·parse_key에 따른 identity 변화, parse identity의 artifact scope 분리를 확인한다. 실제 문서 확인은 check-all 밖에서 format별 1개로만 한다.
 
-## Phase 4-B Document Indexing
+## Phase 4-B Document Indexing(검색용 벡터 적재)
 
 Indexing test는 embedding 모델·tokenizer 정렬, embedding 가중치의 artifact scope 분리, embedding_key 변화, sparse 집계 규칙을 확인하고
 in-memory Qdrant와 가짜 embedder로 point id·payload 보존, content_key 재사용, 재실행 idempotency, stale 정리, schema·모델 불일치 실패를 확인한다.
 실제 BGE-M3 추론과 dev Qdrant 적재는 check-all 밖에서 format별 1개로만 확인한다.
 
-## Phase 5 Document Retrieval
+## Phase 5 Document Retrieval(근거 검색)
 
 Retrieval test는 in-memory Qdrant와 가짜 embedder로 collection이 embedding identity에서 정해지는지, 세 mode 결과 field가 payload와 같은지,
 검색 전후 point·collection이 변하지 않는지, 다른 identity의 collection이 없으면 만들지 않고 실패하는지 확인한다.
 RRF 순위·동점 결정성과, `retrieval/` 코드가 적재·변환 경로를 호출하거나 별도 모델을 import하지 않는지를 AST로 확인한다.
 실제 BGE-M3 query와 dev Qdrant 검색은 check-all 밖에서 소수 질문 smoke로만 확인하며 검색 품질 수치를 결론내리지 않는다.
 
-## Phase 6 RAG Answer
+## Phase 6 RAG Answer(근거 기반 답변·후보 제한·자격 판정·내부 API)
 
 RAG test는 가짜 Retriever·가짜 LlmProvider로 hybrid top5 호출, evidence id → SearchResult citation 매핑, prompt에 식별자·provenance가 없는지,
 context에 없는 evidence id가 citation이 되지 않는지, 근거 부족·근거 id 없는 답이 고정 확인 불가 문장으로 바뀌는지 확인한다.

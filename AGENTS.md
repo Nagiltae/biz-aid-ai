@@ -49,4 +49,5 @@ Generated Report / Checkpoint / Artifact 작성은 검증을 무효화하지 않
 Gate 통과나 AGY 검토를 실행하지 않고 통과했다고 기록하지 않는다.
 Review 완료의 Evidence·검토 범위·Task 전환은 [Workflow](harness/docs/workflow.md)를 따른다.
 변경 이유는 [Harness Changelog](harness/changelog/harness-changes.md)에 남긴다.
+프로젝트 전체 설명은 [PROJECT_MASTER_GUIDE](PROJECT_MASTER_GUIDE.md), 한국어 용어 표준은 [용어집](harness/docs/glossary-ko.md)을 따른다.
 blocker가 아니어서 의도적으로 미룬 관찰 문제는 [Improvement Backlog](harness/docs/improvement-backlog.md)에 기록한다([Workflow](harness/docs/workflow.md#improvement-backlog)).

@@ -2,6 +2,7 @@
 
 기업 프로필과 지원사업 공고문 근거를 결합해 중소기업이 신청 가능한 지원사업과 상세 조건을 찾도록 돕는 AI 서비스 프로젝트다.
 최상위 설계는 [PROJECT_DESIGN.md](PROJECT_DESIGN.md), 작업 규칙 진입점은 [AGENTS.md](AGENTS.md)다.
+시작부터 현재까지의 전체 설명·기술 선택 이유·실험 결과는 [PROJECT_MASTER_GUIDE.md](PROJECT_MASTER_GUIDE.md) 한 파일에 정리돼 있다.
 이 README는 길잡이다. 세부 규칙은 아래 링크의 Harness 문서가 기준이다.
 
 ## 현재 상태

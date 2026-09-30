@@ -1,5 +1,7 @@
 # 데이터 파이프라인
 
+처음 보는 용어의 한국어 뜻은 [용어집](glossary-ko.md)을, 프로젝트 전체 흐름은 [PROJECT_MASTER_GUIDE](../../PROJECT_MASTER_GUIDE.md)를 본다.
+
 최종 Pipeline 계획은 API → Raw → Normalize → MySQL Upsert → 변경 판단 →
 Download → Checksum → Parse → Chunk → Embedding → Qdrant다. Qdrant 적재와 read-only 검색(Retriever)까지 dev에서 구현됐고 답변(RAG)은 미구현이다.
 
@@ -85,7 +87,7 @@ Task 종료는 Control/Input index·check-all의 exit 확인 후 Generated 해�
 Supplementary는 @ token count만 비교한다. 의미상 pairing·Primary 본공고 의미·장기 URL 안정성은 미확정이다.
 [Download 계약](../../contracts/schemas/phase0-document-download.contract.json)의 제한은 로컬 설정이며 pending-only Gate를 유지한다.
 
-## Phase 1A Structured Data Pipeline Pilot
+## Phase 1A Structured Data Pipeline Pilot(정형 데이터 적재 시범)
 
 사용자 승인으로 [제품 코드](../../data-pipeline/README.md)의 Source Model → Normalizer → Repository 경계를 구현한다.
 기존 api-quality-dev-20260928-01의 manifest / 5개 Raw checksum을 고정해 동일 100건만 읽는다.
@@ -98,7 +100,7 @@ SAMPLE/PARTIAL의 미관측은 삭제 근거가 아니다. FULL 완전성 검사
 FULL은 controlled test만 실행한다. 운영 접근·증분 parameter·본문 Parser·Document 제품화·AI는 미구현이다.
 [품질 계약](../../contracts/schemas/structured-data-quality.contract.json)은 적재 품질과 completeness를 기록하며 GO/DROP을 판단하지 않는다.
 
-## Phase 1B Full Structured Data Sync
+## Phase 1B Full Structured Data Sync(정형 데이터 전체 동기화)
 
 [FULL 계약](../../contracts/schemas/full-structured-sync.contract.json)과 [Source 안전 규칙](../rules/data-source-rules.md)을 따른다.
 페이지별 Checkpoint는 응답 계약 성공/실패 집계와 로컬 verify 명령을 보존한다. FULL 또는 DB 성공으로 취급하지 않는다.
@@ -120,7 +122,7 @@ commit 뒤 추가 readback이 실패하면 이미 commit된 count를 rollback으
 source_payload·fingerprint·lifecycle·V1/V2·COMMENT는 재설계하지 않는다. 성공 관측의 INSERT/UPDATE/CONTENT_NOOP/REACTIVATE를 그대로 재사용한다.
 첫 Live FULL은 후보 pblancId 목록과 count만 산출하고 실제 soft-delete=0이다. 실제 적용은 별도 승인·새 완전한 FULL·후보 Review가 필요하다.
 
-## Phase 2 Full Document Acquisition
+## Phase 2 Full Document Acquisition(공고 첨부 문서 전체 수집)
 
 `scripts/run_document_acquisition.py collect --profile dev --run-id <unique-id>`는 Phase 1B를 다시 호출하지 않고
 dev DB의 active support_programs에서 문서 후보를 만든다. PRINT_CANDIDATE / ATTACHMENT_CANDIDATE는 source field provenance다.
@@ -136,7 +138,7 @@ DB/filesystem readback 순으로 처리한다. 동일 URL은 run에서 한 번, 
 모든 후보 relation이 ACQUIRED이고 checksum/format/readback/source snapshot이 일치해야 품질 PASS다.
 `verify --run-id`는 HTTP 없이 manifest/result/DB/binary integrity를 재검증한다. 본문 Parsing은 수행하지 않는다.
 
-## Phase 2.5 S3 Document Storage
+## Phase 2.5 S3 Document Storage(원본 문서 S3 저장)
 
 S3 object key는 `biz-aid/documents/sha256/<2>/<2>/<sha256>`이며 확장자를 붙이지 않는다.
 기존 3,231개 object 연결은 로컬 SHA와 S3 HEAD 크기/`ChecksumSHA256` 전수 검증 후에만 수행한다.
@@ -145,7 +147,7 @@ S3 object key는 `biz-aid/documents/sha256/<2>/<2>/<sha256>`이며 확장자를 
 신규 acquisition은 bounded body를 임시 파일로 옮겨 SHA/format을 확인한 뒤 S3에 조건부 생성하고 임시 파일을 정리한다.
 캐시 재사용과 강한 Gate는 실제 S3 body의 size/SHA/format을 확인한다. Parser는 S3 read 경계를 사용한다.
 
-## Phase 3 Document Parsing
+## Phase 3 Document Parsing(문서 읽기·구조화)
 
 [Parsing 계약](../../contracts/schemas/document-parsing.contract.json)과 [Source 규칙](../rules/data-source-rules.md)의 Phase 3 절을 따른다.
 `parsing/router.py`가 `detected_format`으로 route를 고르고 입력 byte의 크기·SHA를 재확인한다.
@@ -166,19 +168,19 @@ TABLE_QUALITY_FAILED·겹친 PP 영역·PP 밖 Docling 표는 구조 없는 nati
 corpus 실행은 `parsing/corpus.py`(`scripts/run_corpus_parsing.py --profile dev --run-id <id> [--max-completed N] [--sources-file F]`)가 source별 child process·timeout·재개로 순차 처리한다.
 현재 dev에는 100 source bounded run 결과가 있고 전체 corpus parsing은 실행하지 않았다.
 
-## Phase 4-A Document Chunking
+## Phase 4-A Document Chunking(문서 조각 생성)
 
 [Chunking 계약](../../contracts/schemas/document-chunking.contract.json)을 따른다. `chunking/source.py`가 현재 parse_key의 PARSED DoclingDocument를 S3에서 검증해 읽고,
 `chunking/chunker.py`가 docling HybridChunker(BGE-M3 tokenizer, meta 없는 serializer)와 BizAidChunkEnricher로 공고 relation별 FinalChunk를 만든다.
 `scripts/run_document_chunking.py --profile dev --source-sha256 <sha>`는 FinalChunk JSONL을 ignored `data/parsed/chunks/`에 쓴다.
 
-## Phase 4-B Document Indexing
+## Phase 4-B Document Indexing(검색용 벡터 적재)
 
 [Indexing 계약](../../contracts/schemas/document-indexing.contract.json)을 따른다. `indexing/pipeline.py`가 `chunk_source`의 FinalChunk를 content_key별로 한 번만
 `indexing/embedder.py`(BGE-M3 dense CLS·L2 1024 + sparse, batch 추론)로 embedding하고 `indexing/qdrant_store.py`가 embedding_key별 collection에 batch upsert한다.
 `docker compose --profile dev-vector up -d qdrant` 후 `scripts/run_document_indexing.py --profile dev --source-sha256 <sha>`로 실행한다. Retriever·query embedding은 구현하지 않는다.
 
-## Phase 5 Document Retrieval
+## Phase 5 Document Retrieval(근거 검색)
 
 [Retrieval 계약](../../contracts/schemas/document-retrieval.contract.json)을 따른다. `retrieval/retriever.py`의 `Retriever(embedder, client, indexing_contract)`는
 `collection_name(identity)`의 기존 collection이 있고 schema·metadata가 현재 identity와 같을 때만 연다. `search(query, mode, top_k, pblanc_id, source_sha256)`는
