@@ -52,6 +52,9 @@
 - Evidence: RAG smoke G05에서 금액은 정답이었지만 "최대 12개월"이 누락되고 "한 달에 최대 20만원"으로 표현했다. G06은 표를 해석하지 못했다(`2026-09-30-phase6-rag-answer.md`). provider 경계(`rag.llm.LlmProvider`)는 준비돼 있다.
   Eligibility smoke A의 criterion reason에 중국어 토큰("经营状态")이 섞였고, 8개 criterion 출력에 LLM 25~34s가 걸렸다(`2026-09-30-eligibility-v1.md`).
   natural-filter smoke B(서울 지역 소상공인 금융)는 "확인할 수 없다"면서 ANSWERED로 E2가 서울 지역 사업임을 "암시한다"고 해석을 덧붙였다. evidence 해석이 과장된 사례다(`2026-09-30-phase6c-natural-filter.md`).
+  V1 기준선 10건에서 QA G05는 다시 금액은 맞았지만 최대 12개월을 빠뜨려 FAIL이었다. Eligibility 2건은 모델이
+  `additional_facts.최근 2개월 매출(원)` 대신 허용되지 않은 `additional_facts.최근 2 개월 매출`을 내 application 검증에서 실패했다.
+  G06 표 금액은 이번에는 32,760원을 근거와 함께 맞혔다(`2026-10-01-v1-ai-baseline.md`).
 - Why deferred: V1 흐름과 grounding은 동작한다. 비교는 완성된 동일 서비스에서 해야 공정하다.
 - Revisit trigger: AI 서비스 V1 완료와 프로젝트 정리 후
 - Side effect: 비교 조건을 같게 한다(Retriever, top_k 5, context, prompt, output schema). 볼 항목은 정답성, groundedness, citation 정확도, 확인 불가 판단, 표 이해, latency, API 비용이다. 원격 API는 공고 첨부 내용을 외부로 보낸다.

@@ -25,3 +25,7 @@ CLI와 같은 `ServiceRuntime`을 호출한다.
 
 다음 후보: provider 추가(Gemini), 표 직렬화 가독성 개선. Reranker·LangGraph는 평가로 필요성이 확인된 후 정한다.
 지원 자격 판단은 하지 않는다. 날짜·상태 같은 정확한 조건은 MySQL이 결정한다. [AI 경계 규칙](../rules/ai-boundary-rules.md)과 [제품 평가](../../evals/README.md)를 따른다.
+
+V1 종료 기준선은 `evals/v1_baseline/cases-v1.json` 10건이다. 최초 1회 결과는 검색 4/4, DOCUMENT_QA 2/3,
+Eligibility 1/3으로 전체 7/10 PASS였다. QA 1건은 12개월 조건을 빠뜨렸고 Eligibility 2건은 model field 이름이 계약과 달라
+application 검증에서 실패했다. 생산 route를 고치지 않은 현재 상태이며 V2 provider·prompt·retrieval 변경은 같은 baseline으로 비교한다.

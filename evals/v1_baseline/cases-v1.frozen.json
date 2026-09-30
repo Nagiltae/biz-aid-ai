@@ -1,0 +1,11 @@
+{
+  "baseline_id": "v1-ai-baseline",
+  "baseline_version": 1,
+  "sha256": "34eb96465d5b7c9b0badc7148e5e8f5f9de4a214faa758bc7ef5a801aea50dde",
+  "case_count": 10,
+  "frozen_at": "2026-10-01T00:00:00+09:00",
+  "runs_before_freeze": 0,
+  "mutation_policy": "기존 case와 기대값을 수정하지 않는다. 변경이 필요하면 새 baseline version을 만든다.",
+  "precanonical_execution_sha256": "41a8d7afd6d82d15665c97d1d271d5295033f85c34272725cd36ca15e0873f74",
+  "post_execution_change": "JSON canonical whitespace only; parsed case values unchanged"
+}

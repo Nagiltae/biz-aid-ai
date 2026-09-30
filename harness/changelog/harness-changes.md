@@ -416,3 +416,9 @@ corpus 100건 실행에서 native text만 있는 low-text page의 native가 OCR�
 
 DoclingDocument → HybridChunker(BGE-M3 tokenizer) → BizAidChunkEnricher → FinalChunk를 추가하고 `document-chunking.contract.json`을 둔다. docling-core를 `[chunking]` extra로 고정하고
 BGE-M3 tokenizer 파일을 기존 모델 artifact에 `scope=chunking`으로 등록한다. parse identity는 parsing scope 파일로만 계산해 기존 parse_key를 유지한다. Source 규칙·Pipeline·Testing을 맞춘다.
+
+## 2026-10-01 — V1 AI Evaluation Baseline
+
+V1 종료 상태를 V2 변경과 같은 조건으로 비교하도록 SEARCH_LIST 4건·DOCUMENT_QA 3건·Eligibility 3건을
+`evals/v1_baseline/cases-v1.json`에 두고 sha256으로 동결했다. 문장 전체 대신 공고 ID·후보 범위·문서 SHA와 조각 순번·Citation·핵심 사실·자격 상태를 판정한다.
+기존 case와 기대값은 수정하지 않고 기준 변경은 새 version으로 만든다. 실제 Ollama·dev MySQL·dev Qdrant 1회 실행은 check-all 밖에서 수행하며 응답 시간은 합격 조건이 아니다.

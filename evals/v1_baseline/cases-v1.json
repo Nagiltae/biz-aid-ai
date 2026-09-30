@@ -1,0 +1,226 @@
+{
+  "baseline_id": "v1-ai-baseline",
+  "baseline_version": 1,
+  "as_of": "2026-09-30",
+  "source_evidence": [
+    "retrieval gold-v1",
+    "2026-09-30-imp001-title-context.md",
+    "2026-09-30-eligibility-v1.md",
+    "2026-10-01-imp014-discovery-diversity.md",
+    "2026-10-01-v1-code-closing.md"
+  ],
+  "cases": [
+    {
+      "case_id": "V1-S01",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "소상공인 금융 지원사업 찾아줘",
+      "expected": {
+        "status": "LISTED",
+        "result_count": 5,
+        "program_ids": [
+          "PBLN_000000000120174",
+          "PBLN_000000000119801",
+          "PBLN_000000000126597",
+          "PBLN_000000000126734",
+          "PBLN_000000000120241"
+        ],
+        "exact_order": true
+      }
+    },
+    {
+      "case_id": "V1-S02",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "소상공인이 받을 수 있는 금융 지원사업 중 지금 신청 가능한 거 찾아줘",
+      "expected": {
+        "status": "LISTED",
+        "result_count": 5,
+        "program_ids": [
+          "PBLN_000000000120174"
+        ],
+        "exact_order": false
+      }
+    },
+    {
+      "case_id": "V1-S03",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "수출 협동조합 지원사업 찾아줘",
+      "expected": {
+        "status": "NO_CANDIDATES",
+        "result_count": 0,
+        "program_ids": [],
+        "exact_order": true
+      }
+    },
+    {
+      "case_id": "V1-S04",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "서울 지역 소상공인 금융 지원사업 찾아줘",
+      "expected": {
+        "status": "LISTED",
+        "result_count": 5,
+        "program_ids": [
+          "PBLN_000000000119801"
+        ],
+        "exact_order": false
+      }
+    },
+    {
+      "case_id": "V1-Q01",
+      "evaluation_type": "DOCUMENT_QA",
+      "question": "비즈플러스카드 지원사업에 신청하려면 신용점수와 업력 요건이 어떻게 되나요?",
+      "target_pblanc_id": "PBLN_000000000119801",
+      "expected": {
+        "status": "ANSWERED",
+        "source_sha256": "046c5194828ed680b49bb9adb402eeda6eb89ce1c5d9241304a6d5769ec1d17d",
+        "evidence_chunk_indexes": [
+          2
+        ],
+        "fact_groups": [
+          [
+            "595"
+          ],
+          [
+            "964"
+          ],
+          [
+            "6개월"
+          ]
+        ],
+        "citation_required": true
+      }
+    },
+    {
+      "case_id": "V1-Q02",
+      "evaluation_type": "DOCUMENT_QA",
+      "question": "강진군 소상공인 창업 임대료 지원금은 한 달에 얼마, 최대 얼마까지 받을 수 있나요?",
+      "target_pblanc_id": "PBLN_000000000117365",
+      "expected": {
+        "status": "ANSWERED",
+        "source_sha256": "018c9ddac66107b2049aa69e9c1da8e6a54227a6fcd6859796cf9f577744265e",
+        "evidence_chunk_indexes": [
+          2
+        ],
+        "fact_groups": [
+          [
+            "20만원",
+            "200000원"
+          ],
+          [
+            "240만원",
+            "2400000원"
+          ],
+          [
+            "12개월"
+          ]
+        ],
+        "citation_required": true
+      }
+    },
+    {
+      "case_id": "V1-Q03",
+      "evaluation_type": "DOCUMENT_QA",
+      "question": "1인 소상공인 고용보험료 지원에서 기준보수 1등급의 월 지원금액은 얼마인가요?",
+      "target_pblanc_id": "PBLN_000000000120839",
+      "expected": {
+        "status": "ANSWERED",
+        "source_sha256": "06a125f2c771df38a5e48f393cade3f38e142dce5745a430f83abc527c34df07",
+        "evidence_chunk_indexes": [
+          11
+        ],
+        "fact_groups": [
+          [
+            "32760원"
+          ]
+        ],
+        "citation_required": true
+      }
+    },
+    {
+      "case_id": "V1-E01",
+      "evaluation_type": "ELIGIBILITY",
+      "question": "이 기업이 비즈플러스카드 지원사업에 지원 가능한가요?",
+      "target_pblanc_id": "PBLN_000000000119801",
+      "company_profile": {
+        "business_entity_type": "개인사업자",
+        "company_size": "소상공인",
+        "business_start_date": "2024-03-01",
+        "business_status": "영업중",
+        "credit_score": 750,
+        "tax_delinquent": false,
+        "additional_facts": {
+          "최근 2개월 매출(원)": 15000000,
+          "연체 중": false,
+          "보증 제한업종 해당": false
+        }
+      },
+      "expected": {
+        "status": "ELIGIBLE",
+        "criterion": {
+          "profile_field": "credit_score",
+          "result": "MET"
+        },
+        "all_criterion_results": [
+          "MET"
+        ],
+        "minimum_criterion_count": 8,
+        "missing_information": []
+      }
+    },
+    {
+      "case_id": "V1-E02",
+      "evaluation_type": "ELIGIBILITY",
+      "question": "신용점수를 모를 때 이 기업이 비즈플러스카드 지원사업에 지원 가능한가요?",
+      "target_pblanc_id": "PBLN_000000000119801",
+      "company_profile": {
+        "business_entity_type": "개인사업자",
+        "company_size": "소상공인",
+        "business_start_date": "2024-03-01",
+        "business_status": "영업중",
+        "credit_score": null,
+        "tax_delinquent": false,
+        "additional_facts": {
+          "최근 2개월 매출(원)": 15000000,
+          "연체 중": false,
+          "보증 제한업종 해당": false
+        }
+      },
+      "expected": {
+        "status": "NEEDS_MORE_INFO",
+        "criterion": {
+          "profile_field": "credit_score",
+          "result": "UNKNOWN"
+        },
+        "missing_information": [
+          "credit_score"
+        ]
+      }
+    },
+    {
+      "case_id": "V1-E03",
+      "evaluation_type": "ELIGIBILITY",
+      "question": "신용점수가 기준보다 낮은 이 기업이 비즈플러스카드 지원사업에 지원 가능한가요?",
+      "target_pblanc_id": "PBLN_000000000119801",
+      "company_profile": {
+        "business_entity_type": "개인사업자",
+        "company_size": "소상공인",
+        "business_start_date": "2024-03-01",
+        "business_status": "영업중",
+        "credit_score": 500,
+        "tax_delinquent": false,
+        "additional_facts": {
+          "최근 2개월 매출(원)": 15000000,
+          "연체 중": false,
+          "보증 제한업종 해당": false
+        }
+      },
+      "expected": {
+        "status": "INELIGIBLE",
+        "criterion": {
+          "profile_field": "credit_score",
+          "result": "NOT_MET"
+        },
+        "missing_information": []
+      }
+    }
+  ]
+}

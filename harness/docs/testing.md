@@ -252,3 +252,11 @@ Eligibility test는 가짜 Retriever·LlmProvider로 전부 MET→ELIGIBLE(고�
 NOT_MET→INELIGIBLE, 잘못된 evidence id·다른 공고 evidence·모르는 profile field·허용 밖 result·비활성 공고 거부를 확인한다.
 내부 API test는 FastAPI TestClient와 가짜 runtime으로 /health, query의 SEARCH_LIST·DOCUMENT_QA 직렬화(판단 결과 200), eligibility status 무변경,
 요청 검증 422·company_profile 422·비활성 공고 404 매핑과 lifespan 종료 시 자원 정리를 확인한다. 실제 서버 HTTP smoke는 check-all 밖에서 한다.
+
+## V1 AI 평가 기준선
+
+`evals/v1_baseline/cases-v1.json` 10건은 V1 종료 시점의 SEARCH_LIST 4건·DOCUMENT_QA 3건·Eligibility 3건을 같은 조건으로 비교하는 작은 기준선이다.
+기존 사례와 기대값은 `cases-v1.frozen.json`의 sha256으로 고정하며 결과를 보고 수정하지 않는다. 기준 변경은 기존 파일을 덮지 않고 새 version으로 만든다.
+답변 문장 전체 exact match 대신 공고 ID·순위·후보 범위, `(source_sha256, chunk_index)` 근거, citation, 핵심 사실, 자격 상태·핵심 criterion을 판정한다.
+응답 시간은 환경 의존 참고값이며 PASS/FAIL에 쓰지 않는다. 실제 Ollama·dev MySQL·dev Qdrant 실행은 check-all 밖에서 명시적으로 1회 수행하고,
+고정 fixture hash·판정 helper만 Contract test로 검사한다. 품질 실패를 고치기 위한 prompt tuning이나 반복 LLM 평가는 이 기준선 작업에 포함하지 않는다.
