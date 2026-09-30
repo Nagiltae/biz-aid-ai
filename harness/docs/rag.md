@@ -12,6 +12,8 @@ CLI는 먼저 `candidates.ProgramCandidateService`로 MySQL 후보 pblanc_id(활
 `RagService.answer(query, candidate_pblanc_ids=...)`가 Retriever에 scope를 넘긴다(Qdrant MatchAny). 후보가 없으면 검색·LLM 없이 NO_CANDIDATES다.
 `--natural-filter`는 `candidates.natural.NaturalLanguageFilterService`가 같은 LlmProvider로 category·target·현재 모집 요청·unapplied 조건을 뽑고,
 활성 공고의 실제 값으로 검증한 뒤 ProgramCandidateFilter를 만든다. 지역·소관기관은 자연어로 적용하지 않고 unapplied로 남기며, 검색 질의는 원문 그대로다.
+같은 추출 호출이 request_mode(SEARCH_LIST·DOCUMENT_QA)를 낸다. SEARCH_LIST는 `candidates/discovery.py`가 후보 scope 안 hybrid 20 chunk를 공고 단위로 중복 제거해
+상위 5개 공고의 MySQL 정형 정보를 돌려준다(답변 생성 LLM 없음). DOCUMENT_QA는 기존 RagService 그대로다. hard filter는 질문 근거가 있을 때만 적용한다.
 
-다음 후보: provider 추가(Gemini), 표 직렬화 가독성 개선, 후보 공고 목록형 응답. Reranker·LangGraph는 평가로 필요성이 확인된 후 정한다.
+다음 후보: provider 추가(Gemini), 표 직렬화 가독성 개선. Reranker·LangGraph는 평가로 필요성이 확인된 후 정한다.
 지원 자격 판단은 하지 않는다. 날짜·상태 같은 정확한 조건은 MySQL이 결정한다. [AI 경계 규칙](../rules/ai-boundary-rules.md)과 [제품 평가](../../evals/README.md)를 따른다.

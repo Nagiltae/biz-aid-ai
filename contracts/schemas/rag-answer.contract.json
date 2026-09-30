@@ -77,6 +77,7 @@
     "service": "candidates.natural.NaturalLanguageFilterService(provider, filter_domain(repository)).extract(query, as_of)",
     "llm_role": "proposes filter inputs only; SQL, lifecycle, candidate selection, dates and retrieval query stay with the application",
     "output_schema": [
+      "request_mode",
       "categories",
       "targets",
       "currently_open_requested",
@@ -87,6 +88,21 @@
     "currently_open": "currently_open_requested=true sets not_closed_on to the application date (Asia/Seoul today or explicit as_of); undated programs stay as period_unknown (IMP-011)",
     "failure": "non-JSON or schema mismatch raises filter_extraction_* without falling back to an unfiltered candidate set",
     "query": "the original user query is used unchanged for retrieval and answer generation (no query rewrite)",
-    "cli": "--natural-filter is mutually exclusive with manual filters; --as-of requires --natural-filter"
+    "cli": "--natural-filter is mutually exclusive with manual filters; --as-of requires --natural-filter",
+    "grounding": "hard filters apply only when grounded in the query: category/target values must be allowed domain values whose text appears in the query (whitespace-insensitive); currently_open_requested applies only when an open-phrase (지금·현재·신청 가능·모집 중·마감 안 등) appears; ungrounded proposals and free-text unapplied constraints not found in the query are kept only in discarded diagnostics"
+  },
+  "discovery": {
+    "request_mode": "SEARCH_LIST (from the same natural-filter extraction call); DOCUMENT_QA keeps the existing grounded answer path",
+    "mode": "hybrid",
+    "fetch_chunks": 20,
+    "max_programs": 5,
+    "rule": "scoped hybrid retrieval ranks candidate programs only; chunk results are deduplicated by pblanc_id at their best rank before any program is shown; these settings are separate from the RAG retrieval baseline (hybrid, top_k 5)",
+    "metadata": "support_programs values as stored: pblanc_id, name, category, target, jurisdiction_name, executing_org_name, application_start_date, application_end_date, application_period_raw, announcement_url",
+    "llm": "no answer-generation LLM call; the list is deterministic",
+    "status": {
+      "LISTED": "at least one indexed candidate program",
+      "NO_CANDIDATES": "empty structured candidate set; no Qdrant call",
+      "NO_INDEXED_PROGRAMS": "candidates exist but none has indexed chunks"
+    }
   }
 }

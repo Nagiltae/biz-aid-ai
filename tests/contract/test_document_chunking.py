@@ -1,4 +1,5 @@
 import copy
+import dataclasses
 import sys
 import unittest
 from pathlib import Path
@@ -68,14 +69,20 @@ class DocumentChunkingContractTests(unittest.TestCase):
         self.assertIn("빈 절", [chunk.text for chunk in chunks if chunk.heading_only])
         heading_chunk = next(chunk for chunk in chunks if "업력 3년" in chunk.text)
         self.assertEqual(heading_chunk.heading_path, ["지원대상", "업력 조건"])
-        self.assertTrue(heading_chunk.embedding_text.startswith("지원대상\n업력 조건\n"))
+        # 검색용 embedding_text는 공고명(MySQL 공고명) 다음 heading 경로다. 근거 본문 text에는 공고명을 넣지 않는다(IMP-001).
+        self.assertTrue(heading_chunk.embedding_text.startswith(f"{heading_chunk.title}\n지원대상\n업력 조건\n"))
+        self.assertTrue(all(chunk.embedding_text.startswith(chunk.title + "\n") for chunk in chunks))
+        self.assertFalse(any(chunk.title in chunk.text for chunk in chunks))
+        self.assertIn(heading_chunk.text, heading_chunk.embedding_text)
         self.assertTrue(all(chunk.token_count <= chunk.chunker_identity["max_tokens"] for chunk in chunks))
-        # 공고 relation마다 FinalChunk가 있고 같은 내용은 같은 content_key를 공유한다.
+        # 공고 relation마다 FinalChunk가 있고, 공고명이 다르면 embedding 입력이 달라 content_key도 다르다.
         self.assertEqual({chunk.pblanc_id for chunk in chunks}, {"PBLN_1", "PBLN_2"})
         by_index = {}
         for chunk in chunks:
             by_index.setdefault(chunk.chunk_index, set()).add(chunk.content_key)
-        self.assertTrue(all(len(keys) == 1 for keys in by_index.values()))
+        self.assertTrue(all(len(keys) == 2 for keys in by_index.values()))
+        same_title = chunk_document(sample_document(), dataclasses.replace(SOURCE, announcements=(("PBLN_1", "같은 공고"), ("PBLN_2", "같은 공고"))))
+        self.assertEqual(len({chunk.content_key for chunk in same_title}), len(same_title) // 2)
         located = [entry for chunk in chunks for entry in chunk.provenance if entry.get("xml_path")]
         # 여러 page에 걸친 내용은 provenance 목록과 pages 집합으로 모든 위치를 유지한다.
         self.assertEqual({page for chunk in chunks for page in chunk.pages}, {1, 2})
@@ -97,6 +104,8 @@ class DocumentChunkingContractTests(unittest.TestCase):
         self.assertNotEqual(base, changed(lambda c: c["chunker"].update(max_tokens=256)))
         self.assertNotEqual(base, changed(lambda c: c["tokenizer"].update(revision="0" * 40)))
         self.assertNotEqual(base, changed(lambda c: c["chunker"].update(merge_peers=False)))
+        # embedding_text context 정책이 바뀌면 re-index 전에 chunk identity가 바뀐다.
+        self.assertNotEqual(base, changed(lambda c: c["chunker"].update(chunker_version=1, embedding_context="none")))
         self.assertNotEqual(base, chunk_set_key("a" * 64, "c" * 64, identity, contract))
         self.assertEqual(base, chunk_set_key("a" * 64, "b" * 64, chunker_identity(contract), contract))
 

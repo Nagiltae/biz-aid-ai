@@ -8,7 +8,7 @@ from biz_aid_pipeline.indexing import qdrant_store
 def unique_texts(chunks):
     """content_key별 embedding 입력. 같은 key는 한 번만 추론한다.
 
-    WHY: 한 첨부가 여러 공고에 붙으면 chunk 내용이 같으므로 vector도 같아야 한다. 공고별 point는 chunk_id로 따로 두어 pblanc_id filter가 동작한다.
+    WHY: 한 첨부가 같은 공고명으로 여러 번 붙으면 embedding 입력이 같으므로 vector도 같아야 한다. 공고별 point는 chunk_id로 따로 두어 pblanc_id filter가 동작한다.
     """
     texts = {}
     for chunk in chunks:

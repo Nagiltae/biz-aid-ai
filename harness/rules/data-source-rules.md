@@ -64,6 +64,8 @@ corpus runner는 명시적 상한(--max-completed)과 종료 요청을 source �
 Chunking 입력은 source의 현재 parse_key로 저장된 canonical DoclingDocument이며 Markdown은 입력이 아니다. format별로 다시 분기하거나 parsing하지 않는다.
 Chunk 크기는 embedding 모델과 같은 tokenizer(repo·revision)로 센다. tokenizer·max_tokens·chunking 정책 변경은 chunk identity를 바꾼다.
 FinalChunk는 pblanc_id·source SHA·parse_key·page 또는 HWPX 위치 provenance를 잃지 않는다. item meta는 metadata로만 옮기고 chunk text에 넣지 않는다.
+공고명 같은 검색 전용 context는 embedding_text에만 넣고 근거 본문(chunk text)은 바꾸지 않는다. 공고명은 MySQL support_programs.name만 쓴다.
+embedding_text 의미를 바꾸는 변경은 re-index 전에 기존 chunk identity(chunker_version·chunker 설정 → chunk_set_key)에 반영한다.
 Embedding 모델은 chunk tokenizer와 같은 repo·revision이며 가중치는 고정 artifact(scope embedding)에서만 읽는다. 실행 중 Hub 다운로드와 입력 truncation은 없다.
 Qdrant point id는 chunk_id, payload는 FinalChunk.payload()다. collection은 embedding_key마다 따로 두고 dense·sparse schema나 metadata가 다르면 재생성하지 않고 실패한다.
 모델·설정·artifact·runtime 변경은 embedding_key를 바꾼다. 재실행은 같은 point를 덮어쓰고 같은 source의 현재 chunk가 아닌 point만 지운다.

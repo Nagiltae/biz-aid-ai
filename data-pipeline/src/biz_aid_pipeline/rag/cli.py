@@ -25,36 +25,39 @@ def main(argv=None):
     from biz_aid_pipeline.candidates.service import ProgramCandidateFilter, ProgramCandidateRepository, ProgramCandidateService
     from biz_aid_pipeline.config.settings import ROOT, DbConfig
     from biz_aid_pipeline.rag.llm import provider_from_settings
+    from biz_aid_pipeline.candidates.discovery import ProgramDiscoveryService
+    from biz_aid_pipeline.rag.router import handle_request
     from biz_aid_pipeline.rag.service import RagService
     try:
         provider = provider_from_settings(args.profile)
         repository = ProgramCandidateRepository.from_config(DbConfig.load(ROOT, args.profile))
-        extraction = None
+        extraction, request_mode = None, "DOCUMENT_QA"
         try:
             if args.natural_filter:
                 from biz_aid_pipeline.candidates.natural import NaturalLanguageFilterService, filter_domain
                 extraction = NaturalLanguageFilterService(provider, filter_domain(repository)).extract(args.query, args.as_of)
-                candidate_filter = extraction.candidate_filter
+                candidate_filter, request_mode = extraction.candidate_filter, extraction.request_mode
             else:
                 candidate_filter = ProgramCandidateFilter(tuple(args.category), tuple(args.target), tuple(args.jurisdiction),
                                                           args.not_closed_on)
             # BOUNDARY: 정형 조건(활성 공고 포함)은 항상 MySQL에서 먼저 적용한다. 필터 인자가 없어도 lifecycle 조건은 적용된다.
             candidates = ProgramCandidateService(repository).find_candidates(candidate_filter)
+            retriever = None
+            if candidates.pblanc_ids:
+                from qdrant_client import QdrantClient
+                from biz_aid_pipeline.indexing.embedder import BgeM3Embedder, indexing_contract
+                from biz_aid_pipeline.indexing.qdrant_store import qdrant_url
+                from biz_aid_pipeline.retrieval.retriever import Retriever
+                contract = indexing_contract()
+                retriever = Retriever(BgeM3Embedder(contract), QdrantClient(url=qdrant_url(args.profile)), contract)
+            rag_service = RagService(retriever, provider)
+            discovery = ProgramDiscoveryService(repository, retriever, rag_service.contract)
+            output = handle_request(args.query, request_mode, candidates.pblanc_ids, rag_service, discovery)
         finally:
             repository.close()
-        retriever = None
-        if candidates.pblanc_ids:
-            from qdrant_client import QdrantClient
-            from biz_aid_pipeline.indexing.embedder import BgeM3Embedder, indexing_contract
-            from biz_aid_pipeline.indexing.qdrant_store import qdrant_url
-            from biz_aid_pipeline.retrieval.retriever import Retriever
-            contract = indexing_contract()
-            retriever = Retriever(BgeM3Embedder(contract), QdrantClient(url=qdrant_url(args.profile)), contract)
-        result = RagService(retriever, provider).answer(args.query, candidate_pblanc_ids=candidates.pblanc_ids)
     except PipelineError as error:
         print(json.dumps({"status": "FAILED", "failure_code": str(error)}, ensure_ascii=False))
         return 1
-    output = result.to_dict()
     output["candidate_period_unknown"] = candidates.period_unknown
     if extraction is not None:
         output["natural_filter"] = extraction.to_dict()

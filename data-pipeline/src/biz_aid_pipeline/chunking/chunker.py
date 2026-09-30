@@ -107,8 +107,9 @@ class ChunkSource:
 class FinalChunk:
     """Chunking → Embedding·Indexing 사이의 계약 단위(document-chunking Contract의 final_chunk).
 
-    chunk_id는 공고(pblanc_id)별 point identity이고, content_key는 공고와 무관한 내용 identity다.
-    한 source가 여러 공고에 붙으면 chunk_id는 공고마다 다르고 content_key는 같아 vector를 한 번만 계산한다.
+    chunk_id는 공고(pblanc_id)별 point identity이고, content_key는 embedding 입력(chunk + 공고명)의 identity다.
+    한 source가 여러 공고에 붙으면 chunk_id는 공고마다 다르고, 공고명까지 같을 때만 content_key가 같아 vector를 한 번 계산한다.
+    text는 근거 본문 그대로이고 embedding_text는 공고명·heading 경로를 앞에 둔 검색용 입력이다.
     """
 
     chunk_id: str
@@ -181,16 +182,20 @@ def chunk_document(document, source, contract=None, parse_contract=None):
     raw_chunks = list(chunker.chunk(document))
     results = []
     for index, chunk in enumerate(raw_chunks):
-        embedding_text = chunker.contextualize(chunk)
-        token_count = counter.count_tokens(embedding_text)
+        contextualized = chunker.contextualize(chunk)
         provenance = [item_provenance(item, document) for item in chunk.meta.doc_items]
         pages = sorted({entry["page"] for entry in provenance if "page" in entry})
-        content_key = canonical_sha256([set_key, index])
         headings = list(chunk.meta.headings or [])
         # WHY: 본문 없이 이어지는 heading도 버리지 않도록 always_emit_headings로 받은 heading-only chunk는 heading 경로를 text로 둔다.
         heading_only = not chunk.text.strip()
         text = "\n".join(headings) if heading_only else chunk.text
         for pblanc_id, title in source.announcements:
+            # WHY: "2. 지원 요건" 같은 일반 heading chunk에는 사업명이 없어 사업명 질문에서 밀린다(IMP-001).
+            # 공고명(MySQL support_programs.name)은 검색용 context로만 embedding_text 첫 줄에 두고 chunk text(근거 본문)는 바꾸지 않는다.
+            embedding_text = f"{title}\n{contextualized}" if title else contextualized
+            token_count = counter.count_tokens(embedding_text)
+            # 제목이 공고마다 다르면 embedding 입력도 달라지므로 content_key에 제목을 넣어 같은 입력만 vector를 공유하게 한다.
+            content_key = canonical_sha256([set_key, index, title])
             results.append(FinalChunk(
                 chunk_id=str(uuid.uuid5(CHUNK_NAMESPACE, f"{set_key}:{pblanc_id}:{index}")),
                 content_key=content_key, chunk_set_key=set_key, chunk_index=index, chunk_count=len(raw_chunks),

@@ -9,7 +9,7 @@
   },
   "chunker": {
     "implementation": "docling-core HybridChunker (no own structure-aware chunker, no semantic chunking)",
-    "chunker_version": 1,
+    "chunker_version": 2,
     "max_tokens": 512,
     "merge_peers": true,
     "repeat_table_header": true,
@@ -24,11 +24,12 @@
       "escape_html": false,
       "traverse_pictures": true
     },
-    "embedding_text": "HybridChunker.contextualize(chunk): heading path lines followed by the chunk text",
-    "size_rule": "max_tokens is the HybridChunker target counted with the embedding tokenizer; a table row that HybridChunker cannot split may exceed it and is kept whole with exceeds_max_tokens=true (never truncated)",
+    "embedding_text": "announcement title (support_programs.name via the chunk's pblanc_id relation) on the first line when present, then HybridChunker.contextualize(chunk): heading path lines followed by the chunk text; the title is retrieval context only and chunk text stays the original body",
+    "size_rule": "max_tokens is the HybridChunker target counted with the embedding tokenizer on the contextualized chunk; the title prefix is added after splitting, so embedding_text may exceed max_tokens by the title length (flagged by exceeds_max_tokens, never truncated; the embedding limit is 8192); a table row that HybridChunker cannot split may also exceed it",
     "heading_rule": "heading_path comes only from the parser's DoclingDocument headings; chunking does not infer headings",
     "table_rule": "TABLE_VALID TableItems are chunked by HybridChunker's table handling; TABLE_QUALITY_FAILED regions are parser text items and are chunked as ordinary text",
-    "heading_only_rule": "always_emit_headings keeps headings whose section has no body; such a chunk has text = heading path and heading_only=true"
+    "heading_only_rule": "always_emit_headings keeps headings whose section has no body; such a chunk has text = heading path and heading_only=true",
+    "embedding_context": "program_title_prefix"
   },
   "tokenizer": {
     "repo_id": "BAAI/bge-m3",
@@ -51,9 +52,9 @@
       "tokenizer_artifacts_sha256"
     ],
     "chunking_config_sha256": "SHA-256 of the chunker section of this contract plus the tokenizer repo and revision",
-    "content_key": "SHA-256 of chunk_set_key and chunk_index; equal for every announcement that shares the source",
+    "content_key": "SHA-256 of chunk_set_key, chunk_index and announcement title; equal for announcements that share the source and the title, so their vector is embedded once",
     "chunk_id": "UUIDv5 (namespace in chunking code) of chunk_set_key, pblanc_id and chunk_index; a valid Qdrant point id",
-    "rule": "same source, same parser result and same chunker configuration give the same chunk ids; any change to tokenizer, max_tokens or chunking policy yields a new chunk_set_key"
+    "rule": "same source, same parser result and same chunker configuration give the same chunk ids; any change to tokenizer, max_tokens, chunking policy or embedding_text context (chunker_version / chunker section) yields a new chunk_set_key before re-indexing"
   },
   "relations": {
     "unit": "one FinalChunk per (announcement relation, chunk); a source attached to several announcements yields the same content_key under each pblanc_id",

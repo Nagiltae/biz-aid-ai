@@ -242,3 +242,5 @@ context에 없는 evidence id가 citation이 되지 않는지, 근거 부족·�
 후보 test는 in-memory SQLite의 V1 subset 표로 정형 필터·lifecycle 제외·기간 판정 불가 보존을, Retriever test는 in-memory Qdrant에서 후보 scope 밖 공고가 세 mode 모두에 없는지와 빈 scope의 embedding 생략을,
 RAG test는 빈 후보의 NO_CANDIDATES(검색·LLM 미호출)와 scope 위반 거부를 확인한다. 실제 MySQL·Qdrant·LLM 경로는 check-all 밖 smoke로 확인한다.
 자연어 필터 test는 가짜 LlmProvider로 허용 값 검증(DB 활성 값 domain, 목록 밖 값 미적용), "지금"의 application 날짜 변환, 지역의 jurisdiction 오매핑 금지, 추출 실패 시 fallback 없는 실패를 확인한다.
+목록·분기 test는 가짜 Retriever·SQLite 표로 공고 단위 중복 제거·MySQL 정형 정보·scope 위반 거부·빈 후보 미검색을, router test로 SEARCH_LIST가 답변 LLM 없이 목록을, DOCUMENT_QA가 기존 RagService를 쓰는지 확인한다.
+hard filter grounding test는 질문에 없는 category·currently_open·자유 문구가 후보 조건이 되지 않는지 확인한다.

@@ -12,6 +12,9 @@ DB로 판단 가능한 날짜·지역·기업형태·지원분야·상태를 LLM
 LLM이 추출한 정형 조건은 SQL 실행 전에 application의 허용 canonical 값(활성 공고의 실제 DB 값)으로 검증한다. 허용 값 밖은 적용하지 않고 unapplied로 드러낸다.
 처리할 수 없거나 모호한 hard 조건(예: 지역)을 다른 정형 field(예: 소관기관 jurisdiction_name)로 바꿔 적용하지 않는다.
 "현재·지금" 같은 상대 시간은 LLM이 만든 날짜가 아니라 application 시간(Asia/Seoul 날짜 또는 명시한 as_of)으로 해석한다.
+LLM이 제안한 hard filter는 질문 원문에 근거가 있고 application이 검증한 경우에만 후보 선택에 영향을 준다. 근거 없는 제안은 진단(discarded)으로만 남긴다.
+지원사업 찾기·목록 요청(SEARCH_LIST)은 문서 QA 생성을 강제하지 않고 MySQL의 공고 정형 정보를 목록으로 돌려준다(답변 생성 LLM 미사용).
+목록용 chunk 검색 결과는 공고(pblanc_id) 단위로 중복을 제거한 뒤 보여준다.
 MySQL이 소유한 정형 조건(공고 lifecycle·분야·대상·소관기관·신청기간)은 의미 검색보다 먼저 적용해 후보 pblanc_id를 정한다.
 Retriever는 정형 계층이 준 후보 scope 밖의 pblanc_id를 반환하지 않는다(Qdrant filter로 강제). LLM·Retriever가 제외된 공고를 되살리지 않는다.
 정형 후보가 비면 query embedding·검색·LLM 생성을 하지 않고 즉시 NO_CANDIDATES로 끝낸다.

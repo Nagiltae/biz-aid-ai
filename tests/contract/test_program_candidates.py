@@ -17,7 +17,9 @@ def engine_with(rows):
     metadata = MetaData()
     table = Table("support_programs", metadata, Column("pblanc_id", String, unique=True), Column("category", String),
                   Column("target", String), Column("jurisdiction_name", String), Column("application_start_date", Date),
-                  Column("application_end_date", Date), Column("source_active", Boolean), Column("source_deleted", Boolean))
+                  Column("application_end_date", Date), Column("source_active", Boolean), Column("source_deleted", Boolean),
+                  Column("name", String), Column("executing_org_name", String), Column("application_period_raw", String),
+                  Column("announcement_url", String))
     metadata.create_all(engine)
     with engine.begin() as connection:
         connection.execute(insert(table), rows)
@@ -26,7 +28,8 @@ def engine_with(rows):
 
 def row(pblanc_id, category="금융", target="소상공인", jurisdiction="경기도", start=None, end=None, active=True):
     return {"pblanc_id": pblanc_id, "category": category, "target": target, "jurisdiction_name": jurisdiction,
-            "application_start_date": start, "application_end_date": end, "source_active": active, "source_deleted": not active}
+            "application_start_date": start, "application_end_date": end, "source_active": active, "source_deleted": not active,
+            "name": f"공고 {pblanc_id}", "executing_org_name": None, "application_period_raw": None, "announcement_url": None}
 
 
 class ProgramCandidateContractTests(unittest.TestCase):

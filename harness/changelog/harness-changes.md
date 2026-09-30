@@ -1,5 +1,19 @@
 # Harness 변경 이력
 
+## 2026-09-30 — IMP-001 공고명 검색 context
+
+FinalChunk.embedding_text 첫 줄에 공고명(support_programs.name)을 넣고 chunk text는 그대로 둔다. content_key에 공고명을 넣어 같은 입력만 vector를 공유한다.
+Chunking 계약 chunker_version 2(embedding_context), Source 규칙에 검색 전용 context·identity 반영 2줄을 추가했다. 고정 100-source를 기존 runner로 재적재했다.
+BGE-M3·RRF·top_k·Retriever·RAG prompt 변경 없음. IMP-001 RESOLVED, IMP-013 추가.
+결과: [Report](../workspace/reports/development/2026-09-30-imp001-title-context.md). AGY 검토 pending.
+
+## 2026-09-30 — Discovery list + hard filter grounding
+
+자연어 추출 호출이 request_mode(SEARCH_LIST·DOCUMENT_QA)를 함께 낸다. SEARCH_LIST는 후보 scope hybrid 검색을 공고 단위로 중복 제거해 MySQL 정형 정보 목록을 돌려준다(답변 LLM 없음).
+LLM hard filter는 질문 원문 근거(허용 값 표현·모집 계열 표현)가 있을 때만 적용한다. AI 경계에 목록 응답·근거 있는 hard filter·공고 단위 중복 제거 3줄을 추가했다.
+RAG prompt·citation·retrieval baseline 변경 없음. IMP-012 RESOLVED, IMP-001 evidence 갱신.
+결과: [Report](../workspace/reports/development/2026-09-30-phase6d-discovery-list.md). AGY 검토 pending.
+
 ## 2026-09-30 — Natural-language candidate filter
 
 자연어 질문 → 같은 LlmProvider 구조화 추출(category·target·현재 모집 요청·unapplied) → 활성 공고 실제 값 검증 → ProgramCandidateFilter → 기존 scoped RAG.

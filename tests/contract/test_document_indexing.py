@@ -68,7 +68,8 @@ class DocumentIndexingContractTests(unittest.TestCase):
         dimension = contract["qdrant"]["vectors"]["dense"]["size"]
         embedder = FakeEmbedder(identity(), dimension)
         client = QdrantClient(":memory:")
-        chunks = chunk_document(sample_document(), SOURCE)
+        # 같은 첨부가 같은 공고명으로 두 공고에 붙은 경우 embedding 입력이 같아 vector를 재사용한다.
+        chunks = chunk_document(sample_document(), dataclasses.replace(SOURCE, announcements=(("PBLN_1", "같은 공고"), ("PBLN_2", "같은 공고"))))
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             first = index_chunks(chunks, SOURCE.source_sha256, embedder, client, contract)
@@ -76,7 +77,7 @@ class DocumentIndexingContractTests(unittest.TestCase):
         name = first["collection"]
         self.assertTrue(first["collection_created"])
         self.assertFalse(second["collection_created"])
-        # 공고 두 개가 content_key를 공유하므로 embedding은 content 수만큼만 계산한다.
+        # 두 공고가 content_key를 공유하므로 embedding은 content 수만큼만 계산한다.
         self.assertEqual(first["embedded"], len({chunk.content_key for chunk in chunks}))
         self.assertLess(first["embedded"], len(chunks))
         self.assertEqual(client.count(name, exact=True).count, len(chunks))

@@ -12,10 +12,14 @@
 - Area: Chunking / Retrieval
 - Issue: FinalChunk의 embedding_text는 heading 경로와 본문뿐이다. "2. 지원 요건" 같은 일반 heading의 chunk는 사업명이 없어 질문의 사업명과 맞지 않는다.
 - Evidence: Retrieval Evaluation G01. 정답 source는 세 mode 모두 1위였지만, 기대 chunk(#2 지원 요건)는 top5 밖이었고 개요 chunk가 1위였다(`2026-09-30-retrieval-evaluation.md`). RAG smoke G01은 같은 이유로 확인 불가였다(`2026-09-30-phase6-rag-answer.md`).
+  DOCUMENT_QA smoke "비즈플러스카드 지원요건 알려줘"도 top5가 모두 같은 공고(#0·#1·#4·#5·#22)였지만 #2가 빠져 확인 불가였다(`2026-09-30-phase6d-discovery-list.md`). 같은 유형이 반복됐다.
 - Why deferred: Hybrid Source Hit@1 12/12, Evidence Hit@5 11/12로 RAG blocker가 아니다. 1건만으로 Chunking을 바꾸지 않는다.
 - Revisit trigger: 더 큰 Gold에서 같은 유형이 반복될 때, 또는 실제 RAG 실패가 title context 부족으로 반복될 때
 - Side effect: embedding_text와 chunk identity가 바뀐다. re-chunk·re-embedding·re-indexing과 Retrieval Evaluation 재실행이 필요하다.
-- Status: OPEN
+- Status: RESOLVED(`2026-09-30-imp001-title-context.md`). embedding_text 첫 줄에 공고명(support_programs.name)을 넣고, chunk text는 그대로 두었다. chunker_version 2로 chunk_set_key를 바꿔 100-source를 재적재했다(stale 3,849 삭제, 3,849 재적재).
+  - G01 evidence 순위: dense·sparse·hybrid 모두 top5 밖 → 1위
+  - "비즈플러스카드 지원요건" QA: #2 지원 요건이 E1, NCB·업력·매출 요건을 근거대로 답함
+  - 정상 G05는 1위 유지
 
 ## IMP-002 표 직렬화 가독성과 표 구조 보존 범위
 
@@ -134,4 +138,18 @@
 - Why deferred: 이번 작업은 prompt tuning loop를 하지 않는다. hard filter 오적용 영향이 작고(마감 확정 공고 2건 제외), 자유 문구는 표시용이다.
 - Revisit trigger: 자연어 필터를 사용자 경로(API·UI)에 노출하기 전, 또는 작은 추출 Gold로 정확도를 측정할 때
 - Side effect: 예시 제거·표현 규칙 강화·질문 원문 근거 검사(추출 값이 질문 표현에 근거하는지)는 추출 결과를 바꾸므로 같은 질문 세트로 전후를 비교해야 한다.
+- Status: RESOLVED. hard filter는 질문 원문 근거가 있을 때만 적용한다(`2026-09-30-phase6d-discovery-list.md`).
+  - category·target: 허용 값이면서 질문에 그 표현이 있어야 한다.
+  - currently_open: 질문에 모집·현재 계열 표현이 있어야 한다.
+  - 근거 없는 제안과 질문에 없는 unapplied 문구는 discarded 진단으로만 남는다.
+  - 남은 한계(위험 아님): 보수적 guard라 "대출"→금융 같은 바꿔 말한 조건은 적용되지 않는다(recall 손실). request_mode 판정은 LLM이지만 후보를 바꾸지 않는다.
+
+## IMP-013 Gold evidence가 chunk_id(chunk identity 의존)로 고정됨
+
+- Area: Evaluation
+- Issue: gold-v1의 expected_evidence는 chunk_id로 판정한다(`evals/retrieval/evaluate.py`). chunk identity가 바뀌면 chunk 경계가 같아도 모든 evidence가 miss로 계산된다.
+- Evidence: IMP-001로 chunker_version 2가 되면서 3,849 point의 chunk_id가 모두 바뀌었다. source별 chunk 수는 100/100 같다. G01·G05 확인은 (source_sha256, chunk_index)로 했다(`2026-09-30-imp001-title-context.md`).
+- Why deferred: 이번 작업은 IMP-001 확인 3건만 한다. Gold 동결 규칙상 gold-v1은 수정하지 않는다.
+- Revisit trigger: 다음 Retrieval Evaluation 실행 전
+- Side effect: (source_sha256, chunk_index) 판정은 chunk 경계가 같을 때만 유효하다. 경계가 바뀌면 새 gold 버전(gold-v2)이 필요하다.
 - Status: OPEN

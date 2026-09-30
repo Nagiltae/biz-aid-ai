@@ -25,8 +25,8 @@ class FakeProvider:
         return LlmResponse(self.text, self.name, self.model, 0.1)
 
 
-def output(categories=(), targets=(), currently_open=False, unapplied=()):
-    return json.dumps({"categories": list(categories), "targets": list(targets), "currently_open_requested": currently_open,
+def output(categories=(), targets=(), currently_open=False, unapplied=(), mode="SEARCH_LIST"):
+    return json.dumps({"request_mode": mode, "categories": list(categories), "targets": list(targets), "currently_open_requested": currently_open,
                        "unapplied_constraints": list(unapplied)}, ensure_ascii=False)
 
 
@@ -39,10 +39,13 @@ class NaturalLanguageFilterTests(unittest.TestCase):
                                                              row("P3", category="수출", active=False)]))
         # 허용 값은 활성 공고에 실제로 있는 값이다. 비활성 공고에만 있는 "수출"은 허용 값이 아니다.
         self.assertEqual(filter_domain(repository), {"categories": ("금융", "기술"), "targets": ("소상공인", "중소기업")})
-        provider = FakeProvider(output(["금융", "금융지원", "finance"], ["소상공인"]))
-        result = NaturalLanguageFilterService(provider, DOMAIN).extract("소상공인 금융 지원사업")
+        provider = FakeProvider(output(["금융", "금융지원", "finance", "기술"], ["소상공인"]))
+        result = NaturalLanguageFilterService(provider, DOMAIN).extract("소상공인 금융 지원사업 찾아줘")
+        self.assertEqual(result.request_mode, "SEARCH_LIST")
         self.assertEqual((result.candidate_filter.categories, result.candidate_filter.targets), (("금융",), ("소상공인",)))
-        self.assertEqual(result.unapplied_constraints, ["categories:금융지원(허용 값 아님)", "categories:finance(허용 값 아님)"])
+        # 질문에 있는 표현("금융지원")은 허용 값이 아니라 unapplied, 질문에 없는 값("finance", "기술")은 hard filter가 되지 않고 진단으로만 남는다.
+        self.assertEqual(result.unapplied_constraints, ["categories:금융지원(허용 값 아님)"])
+        self.assertEqual([(d["field"], d["value"]) for d in result.discarded], [("categories", "finance"), ("categories", "기술")])
         self.assertIn("금융, 기술", provider.requests[0].system.replace("경영, ", ""))
 
     def test_currently_open_uses_application_date_not_llm_date(self):
@@ -52,20 +55,72 @@ class NaturalLanguageFilterTests(unittest.TestCase):
         self.assertEqual((result.candidate_filter.not_closed_on, result.as_of), (date(2026, 9, 30), "2026-09-30"))
         closed = NaturalLanguageFilterService(FakeProvider(output(["금융"])), DOMAIN).extract("금융 지원", date(2026, 9, 30))
         self.assertIsNone(closed.candidate_filter.not_closed_on)
+        # BOUNDARY: 질문에 "지금·모집 중" 같은 표현이 없으면 모델이 true를 내도 날짜 hard filter를 걸지 않는다(IMP-012 smoke B).
+        guarded = NaturalLanguageFilterService(FakeProvider(output(["금융"], ["소상공인"], True, ["서울 지역"])), DOMAIN).extract(
+            "서울 지역 소상공인 금융 지원사업 찾아줘", date(2026, 9, 30))
+        self.assertIsNone(guarded.candidate_filter.not_closed_on)
+        self.assertIn({"field": "currently_open_requested", "value": True, "reason": "no_open_phrase_in_query"}, guarded.discarded)
 
     def test_region_is_never_mapped_to_jurisdiction_or_other_fields(self):
         # 모델이 지역을 target에 잘못 넣어도 허용 값이 아니라 적용되지 않고, jurisdiction 필터는 자연어로 만들지 않는다.
-        provider = FakeProvider(output(["금융"], ["소상공인", "서울특별시"], False, ["서울 지역"]))
+        provider = FakeProvider(output(["금융"], ["소상공인", "서울특별시"], False, ["서울 지역", "부산 지역"]))
         result = NaturalLanguageFilterService(provider, DOMAIN).extract("서울 지역 소상공인 금융 지원사업")
         self.assertEqual((result.candidate_filter.jurisdictions, result.candidate_filter.targets), ((), ("소상공인",)))
-        self.assertEqual(result.unapplied_constraints, ["서울 지역", "targets:서울특별시(허용 값 아님)"])
+        # 질문에 있는 지역은 unapplied로 드러내고, 질문에 없는 "부산 지역"·"서울특별시"는 진단으로만 남는다.
+        self.assertEqual(result.unapplied_constraints, ["서울 지역"])
+        self.assertEqual({d["value"] for d in result.discarded}, {"부산 지역", "서울특별시"})
         self.assertNotIn("jurisdictions", OUTPUT_SCHEMA["properties"])
 
     def test_extraction_failure_raises_instead_of_falling_back_to_all_candidates(self):
-        for text in ("not json", json.dumps({"categories": "금융"}), json.dumps({"categories": [], "targets": [],
+        for text in ("not json", json.dumps({"categories": "금융"}), output(mode="RECOMMEND"), json.dumps({"categories": [], "targets": [],
                                                                                "currently_open_requested": "yes", "unapplied_constraints": []})):
             with self.assertRaises(PipelineError):
                 NaturalLanguageFilterService(FakeProvider(text), DOMAIN).extract("금융 지원")
+
+    def test_search_list_ranks_scoped_programs_once_with_mysql_metadata(self):
+        from biz_aid_pipeline.candidates.discovery import ProgramDiscoveryService
+        from test_rag_answer import result as chunk
+        repository = ProgramCandidateRepository(engine_with([row("P1"), row("P2"), row("P3", active=False)]))
+
+        class Retriever:
+            calls = []
+
+            def search(self, query, mode, top_k, pblanc_ids=None):
+                self.calls.append((mode, top_k, tuple(pblanc_ids)))
+                return [chunk(1, "c1", "P2", "a"), chunk(2, "c2", "P2", "b"), chunk(3, "c3", "P1", "c")]
+        retriever = Retriever()
+        contract = {"discovery": {"mode": "hybrid", "fetch_chunks": 20, "max_programs": 5}}
+        programs = ProgramDiscoveryService(repository, retriever, contract).discover("금융 찾아줘", ("P1", "P2"))
+        # 같은 공고의 여러 chunk는 가장 좋은 순위 한 칸만 차지하고, 정형 정보는 MySQL 값이다.
+        self.assertEqual([(p["rank"], p["pblanc_id"], p["best_chunk_rank"]) for p in programs], [(1, "P2", 1), (2, "P1", 3)])
+        self.assertEqual((programs[0]["category"], programs[0]["target"], retriever.calls), ("금융", "소상공인", [("hybrid", 20, ("P1", "P2"))]))
+        self.assertEqual(ProgramDiscoveryService(repository, retriever, contract).discover("q", ()), [])
+        self.assertEqual(len(retriever.calls), 1)
+        with self.assertRaisesRegex(PipelineError, "retrieval_scope_violation"):
+            ProgramDiscoveryService(repository, retriever, contract).discover("q", ("P1",))
+
+    def test_router_uses_list_without_answer_llm_and_qa_through_existing_rag(self):
+        from biz_aid_pipeline.rag.router import handle_request
+        calls = []
+
+        class Rag:
+            def answer(self, query, candidate_pblanc_ids=None):
+                calls.append(("rag", tuple(candidate_pblanc_ids)))
+
+                class Answer:
+                    def to_dict(self):
+                        return {"status": "ANSWERED"}
+                return Answer()
+
+        class Discovery:
+            def discover(self, query, candidate_pblanc_ids):
+                calls.append(("list", tuple(candidate_pblanc_ids)))
+                return [{"pblanc_id": "P1"}]
+        listed = handle_request("금융 찾아줘", "SEARCH_LIST", ("P1",), Rag(), Discovery())
+        self.assertEqual((listed["status"], calls), ("LISTED", [("list", ("P1",))]))
+        qa = handle_request("비즈플러스카드 요건", "DOCUMENT_QA", ("P1",), Rag(), Discovery())
+        self.assertEqual((qa["request_mode"], calls[-1]), ("DOCUMENT_QA", ("rag", ("P1",))))
+        self.assertEqual(handle_request("q", "SEARCH_LIST", (), Rag(), Discovery())["status"], "NO_CANDIDATES")
 
 
 if __name__ == "__main__":
