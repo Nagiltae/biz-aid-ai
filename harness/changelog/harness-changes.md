@@ -1,5 +1,19 @@
 # Harness 변경 이력
 
+## 2026-09-30 — 100-source Retrieval dataset build
+
+사용자 승인으로 기존 100-source parser corpus 중 이전 parse_key인 PDF·HWP 60건을 기존 corpus runner로 재parsing하고 100건을 dev Qdrant에 적재한다.
+indexing용 얇은 bounded runner(`indexing/corpus.py`, `scripts/run_corpus_indexing.py`)를 추가했다: 명시 목록만, current PARSED gate 선행, resume, source 격리, source 경계 종료.
+Source 규칙에 corpus indexing 한 줄을 추가했다. Parser·Chunker·Embedder·Qdrant schema 변경 없음.
+결과: [Dataset Report](../workspace/reports/development/2026-09-30-dataset100-build.md). AGY 검토 pending.
+
+## 2026-09-30 — Phase 5 Document Retrieval
+
+사용자 승인으로 read-only Retriever(query embedding, dense·sparse·RRF hybrid)를 추가한다. Registry phase는 `phase5-document-retrieval`이다.
+규칙 변경(보고): AI 경계의 "Retriever·query embedding 금지"를 승인 범위로 옮기고 RAG·LLM·LangGraph·Reranker·query rewrite·expansion·eligibility·답변 생성 금지는 유지했다.
+AI 경계·파일 경계에 같은 embedder, identity 기반 collection, read-only 규칙을 한 줄씩 두고 test가 기계적으로 검사한다. Retrieval Contract를 추가했다.
+결과: [Phase 5 Report](../workspace/reports/development/2026-09-30-phase5-document-retrieval.md). AGY 검토 pending.
+
 ## 2026-09-30 — Cleanup B-1: HWP converter identity 실패 격리
 
 `chunking/source.current_parse_key`가 `HwpConversionError`를 `PipelineError("hwp_converter_identity_unavailable:<code>")`로 바꿔 CLI의 source 단위 격리에 포함한다.

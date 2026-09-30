@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "phase": "phase5-document-retrieval",
+  "scope": "dev-only read path: natural-language query -> BGE-M3 dense and sparse query vectors -> existing Qdrant collection -> ranked SearchResult list; no answer generation",
+  "query_embedding": {
+    "rule": "the query is encoded by the same indexing.embedder.BgeM3Embedder (document-indexing contract embedding section, same artifacts and embedding_key); no separate query model, tokenizer or instruction prefix",
+    "vectors": "one dense and one sparse vector per query from BgeM3Embedder.encode"
+  },
+  "collection": {
+    "rule": "collection = indexing.qdrant_store.collection_name(indexing contract, embedder.identity.embedding_key); never configured or hard-coded",
+    "missing": "a missing collection fails (retrieval_collection_missing); the retriever never creates a collection",
+    "schema": "the existing collection must pass indexing.qdrant_store.schema_differences for the current identity before any search; a mismatch fails"
+  },
+  "read_only": "retrieval calls only Qdrant read APIs (collection_exists, get_collection, query_points); it never parses, chunks, embeds documents, upserts, deletes or cleans stale points",
+  "modes": {
+    "dense": "query_points on vector 'dense' (Cosine) with the dense query vector",
+    "sparse": "query_points on sparse vector 'sparse' (dot product) with the sparse query vector",
+    "hybrid": "dense and sparse candidate lists fused client-side by Reciprocal Rank Fusion"
+  },
+  "fusion": {
+    "method": "RRF",
+    "rrf_k": 60,
+    "score": "sum over modes of 1 / (rrf_k + rank) with 1-based rank; a mode that did not return the point contributes 0",
+    "tie_break": "higher RRF score, then smaller best rank over modes, then chunk_id ascending",
+    "candidate_limit": 50,
+    "not_used": "raw score sum, weighted sum, DBSF, learned fusion and rerankers"
+  },
+  "options": {
+    "top_k_default": 5,
+    "top_k_max": 50,
+    "top_k_status": "dev convenience value, not an evaluated production setting",
+    "filters": "optional exact match on payload keyword indexes pblanc_id and source_sha256 only; no MySQL lookup or eligibility filtering"
+  },
+  "result": {
+    "fields": [
+      "rank",
+      "mode",
+      "score",
+      "chunk_id",
+      "pblanc_id",
+      "title",
+      "text",
+      "heading_path",
+      "source_sha256",
+      "source_format",
+      "route",
+      "parse_key",
+      "chunk_set_key",
+      "chunk_index",
+      "pages",
+      "provenance",
+      "embedding_key",
+      "dense_rank",
+      "dense_score",
+      "sparse_rank",
+      "sparse_score",
+      "rrf_score"
+    ],
+    "source": "all document fields come from the stored point payload (FinalChunk.payload()); no other metadata store",
+    "score": "dense: cosine score, sparse: dot score, hybrid: RRF score; raw scores of different modes are not comparable"
+  }
+}

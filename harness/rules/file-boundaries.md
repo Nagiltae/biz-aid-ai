@@ -12,7 +12,7 @@ AGY와 사용자 승인 전 삭제하지 않는다. 실패 응답은 ignored `da
 Phase 3 Parser는 `data-pipeline/src/biz_aid_pipeline/parsing/`에 둔다. S3 원본 read와 DoclingDocument 생성까지가 경계다.
 PDF 변환은 `parsing/pdf.py`의 `convert_pdf` 하나이며 HWP 경로도 이를 재사용한다. 모델 artifact·torch 임시 cache는 저장소 밖에 둔다.
 3-B.1 표 engine benchmark 코드는 `evals/table_engine/`에 두며 제품 parsing route를 대신하지 않는다. 결과는 ignored `data/parsed/table-engine-eval/`에 둔다.
-Chunking은 `data-pipeline/src/biz_aid_pipeline/chunking/`, Embedding·dev Qdrant 적재는 `indexing/`에 둔다. frontend/ backend/ ai/ Retriever/RAG module 생성은 현재 범위 밖이다.
+Chunking은 `data-pipeline/src/biz_aid_pipeline/chunking/`, Embedding·dev Qdrant 적재는 `indexing/`, 검색은 `retrieval/`에 둔다. frontend/ backend/ ai/ RAG module 생성은 현재 범위 밖이다.
 의존은 parsing ← chunking ← indexing 한 방향이다. parser는 chunk하지 않고, chunker는 저장된 PARSED DoclingDocument만 읽고 다시 parsing하지 않으며,
-indexer는 FinalChunk만 소비하고 parser·원본을 직접 읽지 않는다. 이후 검색 단계는 indexing의 embedder·collection 이름 규칙을 재사용하되 적재 경로(chunk·upsert·stale 정리)를 호출하지 않는다.
+indexer는 FinalChunk만 소비하고 parser·원본을 직접 읽지 않는다. `retrieval/`은 indexing의 embedder·collection 이름·schema 검사만 재사용하고 parsing·chunking·적재 경로(upsert·stale 정리·collection 생성)를 import·호출하지 않는다(test가 검사).
 Phase 0 도구를 제품 Pipeline 또는 FastAPI 모듈로 문서화하지 않는다.

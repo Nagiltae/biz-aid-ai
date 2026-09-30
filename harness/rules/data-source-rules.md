@@ -67,6 +67,7 @@ FinalChunk는 pblanc_id·source SHA·parse_key·page 또는 HWPX 위치 provenan
 Embedding 모델은 chunk tokenizer와 같은 repo·revision이며 가중치는 고정 artifact(scope embedding)에서만 읽는다. 실행 중 Hub 다운로드와 입력 truncation은 없다.
 Qdrant point id는 chunk_id, payload는 FinalChunk.payload()다. collection은 embedding_key마다 따로 두고 dense·sparse schema나 metadata가 다르면 재생성하지 않고 실패한다.
 모델·설정·artifact·runtime 변경은 embedding_key를 바꾼다. 재실행은 같은 point를 덮어쓰고 같은 source의 현재 chunk가 아닌 point만 지운다.
+corpus indexing은 명시한 source 목록만 순차 처리하고, 모든 target이 현재 parse_key PARSED인지 먼저 확인한 뒤 시작하며, parser 실행과 동시에 돌리지 않는다. 종료 요청은 source 경계에서만 반영한다.
 chunking·indexing CLI는 source 단위 실패를 안정적 code의 PipelineError로만 격리한다. 하위 모듈 예외(예: HwpConversionError)는 단계 경계에서 PipelineError로 바꿔 한 source가 batch 전체를 멈추지 않게 한다.
 조립에서 native 단어 하나는 한 곳에만 속한다. PP 영역 안 단어는 PP 결과가, 영역에 걸친 native item은 영역 밖 단어만 가진다. OCR 부족 page는 warning·metadata로 드러내고 문서 status는 문서 text Gate가 정한다.
 native text가 조금이라도 있고 raster image가 없는 low-text page는 OCR하지 않고 native text를 유지한다(OCR은 같은 글자를 다시 읽을 뿐이다).

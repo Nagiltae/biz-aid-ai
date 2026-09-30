@@ -10,7 +10,7 @@
 | setup.sh | Bash·Git·Python >=3.11·Docker Compose >=2, Compose config와 mounts | Java·Node·DB·서비스 health, daemon 접근 |
 | check-format.sh | Control/Input의 UTF-8·LF·newline·공백·JSON indent·Git whitespace | 제품 언어 formatter |
 | check-lint.sh | Python AST·Bash syntax·JSON key 중복·Shell 실행 권한 | 제품 lint, 정적 타입 검사 |
-| check-contract.sh | 로컬 snapshot / report, 실제 sanitized API Fixture·mock HTTP·Raw / secret 보존 Contract tests | Live API 측정·공급자 전체 명세·제품 API·Qdrant 검색 계약 |
+| check-contract.sh | 로컬 snapshot / report, 실제 sanitized API Fixture·mock HTTP·Raw / secret 보존 Contract tests | Live API 측정·공급자 전체 명세·제품 API·실제 Qdrant 서버 검색 |
 | check-integration.sh | CLI snapshot → hash 확인 → 보고서 생성·검증, 실패 종료와 credential 없는 Probe CLI | Live HTTP·문서 본문 Parser·서비스 DB 경계 |
 | check-git-tracked.sh | dev / CI ref·미추적 파일·금지 ignore·Profile Secret ignore / 추적 금지·example 추적·index 동기화·최종 status | Push·Merge 권한 강제 |
 | check-comments.sh | Python tokenize / AST docstring·Bash comment의 한글 여부 | 주석 WHY의 적절성·누락은 AGY / 사용자 검토 |
@@ -226,3 +226,10 @@ Chunking test는 합성 DoclingDocument로 meta 비노출, VALID 표·보존된 
 Indexing test는 embedding 모델·tokenizer 정렬, embedding 가중치의 artifact scope 분리, embedding_key 변화, sparse 집계 규칙을 확인하고
 in-memory Qdrant와 가짜 embedder로 point id·payload 보존, content_key 재사용, 재실행 idempotency, stale 정리, schema·모델 불일치 실패를 확인한다.
 실제 BGE-M3 추론과 dev Qdrant 적재는 check-all 밖에서 format별 1개로만 확인한다.
+
+## Phase 5 Document Retrieval
+
+Retrieval test는 in-memory Qdrant와 가짜 embedder로 collection이 embedding identity에서 정해지는지, 세 mode 결과 field가 payload와 같은지,
+검색 전후 point·collection이 변하지 않는지, 다른 identity의 collection이 없으면 만들지 않고 실패하는지 확인한다.
+RRF 순위·동점 결정성과, `retrieval/` 코드가 적재·변환 경로를 호출하거나 별도 모델을 import하지 않는지를 AST로 확인한다.
+실제 BGE-M3 query와 dev Qdrant 검색은 check-all 밖에서 소수 질문 smoke로만 확인하며 검색 품질 수치를 결론내리지 않는다.

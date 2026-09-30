@@ -106,6 +106,28 @@ class DocumentIndexingContractTests(unittest.TestCase):
         with self.assertRaisesRegex(PipelineError, "qdrant_url_not_loopback"):
             qdrant_store.qdrant_url("dev", environ={"QDRANT_URL": "http://10.0.0.5:6333"})
 
+    def test_bounded_indexing_runner_processes_only_targets_resumes_and_isolates_failures(self):
+        from biz_aid_pipeline.indexing.corpus import drive
+        calls, written = [], []
+
+        def index_one(sha):
+            calls.append(sha)
+            if sha == "c":
+                raise PipelineError("current_parsed_artifact_required")
+            return {"source_sha256": sha, "status": "INDEXED", "chunks": 2, "collection": "bizaid_chunks_v1_x"}
+        state = {"run_id": "r", "state": "RUNNING", "stop_reason": None, "total": 4, "completed": 0, "indexed": 0, "failed": 0,
+                 "skipped": 0, "current": None, "chunks": 0, "failures": {}, "processed_seconds": 0.0, "collection": None,
+                 "started": 0.0, "source_points": {}}
+        drive(["a", "b", "c", "d"], index_one, {"b"}, state, lambda outcome, _: written.append(outcome))
+        # 목록 밖 source는 없고, 이미 INDEXED인 b는 다시 처리하지 않으며, c 실패 뒤에도 d를 처리한다.
+        self.assertEqual(calls, ["a", "c", "d"])
+        self.assertEqual((state["state"], state["completed"], state["indexed"], state["failed"], state["skipped"], state["chunks"]),
+                         ("COMPLETED", 4, 2, 1, 1, 4))
+        self.assertEqual(state["failures"], {"current_parsed_artifact_required": 1})
+        stopped = dict(state, state="RUNNING", completed=0)
+        drive(["a"], index_one, set(), stopped, lambda *_: None, lambda: True)
+        self.assertEqual(stopped["state"], "STOPPED_SIGNAL")
+
 
 if __name__ == "__main__":
     unittest.main()

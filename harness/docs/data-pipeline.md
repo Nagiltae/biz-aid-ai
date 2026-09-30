@@ -1,7 +1,7 @@
 # 데이터 파이프라인
 
 최종 Pipeline 계획은 API → Raw → Normalize → MySQL Upsert → 변경 판단 →
-Download → Checksum → Parse → Chunk → Embedding → Qdrant다. Qdrant 적재까지 dev에서 구현됐고 검색·답변(Retriever·RAG)은 미구현이다.
+Download → Checksum → Parse → Chunk → Embedding → Qdrant다. Qdrant 적재와 read-only 검색(Retriever)까지 dev에서 구현됐고 답변(RAG)은 미구현이다.
 
 ## 현재 도구
 
@@ -177,6 +177,13 @@ corpus 실행은 `parsing/corpus.py`(`scripts/run_corpus_parsing.py --profile de
 [Indexing 계약](../../contracts/schemas/document-indexing.contract.json)을 따른다. `indexing/pipeline.py`가 `chunk_source`의 FinalChunk를 content_key별로 한 번만
 `indexing/embedder.py`(BGE-M3 dense CLS·L2 1024 + sparse, batch 추론)로 embedding하고 `indexing/qdrant_store.py`가 embedding_key별 collection에 batch upsert한다.
 `docker compose --profile dev-vector up -d qdrant` 후 `scripts/run_document_indexing.py --profile dev --source-sha256 <sha>`로 실행한다. Retriever·query embedding은 구현하지 않는다.
+
+## Phase 5 Document Retrieval
+
+[Retrieval 계약](../../contracts/schemas/document-retrieval.contract.json)을 따른다. `retrieval/retriever.py`의 `Retriever(embedder, client, indexing_contract)`는
+`collection_name(identity)`의 기존 collection이 있고 schema·metadata가 현재 identity와 같을 때만 연다. `search(query, mode, top_k, pblanc_id, source_sha256)`는
+dense·sparse를 각각 `query_points`로 찾고 hybrid는 후보 50개씩을 RRF(k=60, 동점은 최고 순위 → chunk_id)로 합친다. 결과 field는 payload에서만 온다.
+`scripts/run_document_retrieval.py --profile dev --query "..." --mode dense|sparse|hybrid --top-k N`은 JSONL을 출력한다.
 
 ## Identity 요약
 

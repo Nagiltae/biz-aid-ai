@@ -254,10 +254,11 @@ def status_text(root, run_id):
              f"skipped: {snapshot['skipped']}",
              f"current: {(snapshot['current'] or '-')[:12]}  elapsed: {int(elapsed // 3600)}h {int(elapsed % 3600 // 60)}m"]
     processed = snapshot["processed"]
-    if processed >= 50 and snapshot["state"] == "RUNNING":
-        # 처리한 source의 평균 시간만 근거로 쓴다. 문서 크기 분포가 달라 대략값이다.
+    if processed >= 1 and snapshot["state"] == "RUNNING":
+        # 이번 run에서 실제 처리한 source의 평균만 근거로 쓴다. 문서 크기·OCR 여부 분포가 달라 대략값이며 초반에는 크게 흔들린다.
         eta = (elapsed / max(done, 1)) * snapshot["remaining"]
-        lines.append(f"ETA (rough): {int(eta // 3600)}h {int(eta % 3600 // 60)}m")
+        lines.append(f"avg/source: {elapsed / max(done, 1):.0f}s  ETA (rough, from {processed} processed): "
+                     f"{int(eta // 3600)}h {int(eta % 3600 // 60)}m")
     if snapshot["stop_reason"]:
         lines.append(f"stop_reason: {snapshot['stop_reason']}")
     return "\n".join(lines)

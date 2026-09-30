@@ -11,7 +11,7 @@
 | Spring Boot | 인증·기업·사업·대화·즐겨찾기 Source of Truth, 정확한 DB filtering, FastAPI 호출 | 미구현 |
 | FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 미구현 |
 | MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | dev 공고 FULL(V1/V2), 문서 source·S3 위치(V3/V4), parse 상태·identity(V5) 구현 |
-| Qdrant | 문서 Chunk vector와 근거 metadata | Phase 4-B dev Indexing(dense·sparse 적재) 구현, 검색은 미구현 |
+| Qdrant | 문서 Chunk vector와 근거 metadata | dev dense·sparse 적재(Phase 4-B)와 read-only 검색(Phase 5 Retriever) 구현 |
 | Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 저장·PDF/HWP/HWPX Parser(OCR·PP 표)·Chunking·dense/sparse Indexing 구현 |
 | Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe·5×20 API 품질 Batch·동일 표본의 제한된 문서 Download Gate |
 | Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
@@ -90,4 +90,4 @@ parsing(S3 원본 → DoclingDocument, S3 + V5 row) ← chunking(현재 parse_ke
 | Qdrant | FinalChunk point(id=chunk_id, dense+sparse, payload=FinalChunk.payload) | S3 parsed artifact + V5 row에서 다시 만들 수 있는 파생 index |
 
 MySQL과 Qdrant는 `pblanc_id`·`source_sha256`으로만 연결한다. collection은 embedding_key별이고 dev loopback Compose Qdrant만 쓴다.
-Retriever는 미구현이며 [AI 경계](../rules/ai-boundary-rules.md)와 [파일 경계](../rules/file-boundaries.md)를 따른다.
+`retrieval/`은 같은 embedder로 query를 만들어 현재 embedding_key collection을 읽기만 한다(dense·sparse·RRF hybrid). RAG·MySQL 조건 결합은 미구현이며 [AI 경계](../rules/ai-boundary-rules.md)와 [파일 경계](../rules/file-boundaries.md)를 따른다.

@@ -158,3 +158,16 @@ docker compose --profile dev-vector up -d qdrant
 - Qdrant 주소는 `QDRANT_URL`(loopback만) 또는 기본 `http://127.0.0.1:6333`이다.
 - source 하나의 실패는 JSON 결과 줄(`status: FAILED`, `failure_code`)로 격리한다. 재실행은 같은 point를 덮어쓴다.
 - 세부 규칙: [Chunking 계약](../contracts/schemas/document-chunking.contract.json), [Indexing 계약](../contracts/schemas/document-indexing.contract.json).
+
+## Phase 5 Retrieval
+
+```sh
+.venv/bin/python -B scripts/run_document_retrieval.py --profile dev --query "..." --mode hybrid --top-k 5 [--pblanc-id ID] [--source-sha256 SHA]
+```
+
+- `retrieval`: 같은 `BgeM3Embedder`로 query dense·sparse를 만들고 현재 embedding_key collection을 읽기만 한다. collection이 없거나 schema가 다르면 실패한다.
+- 출력 첫 줄은 query·mode·collection·embedding_key, 이후 줄은 SearchResult(text는 기본 200자, `--full-text`로 전체).
+- [Retrieval 계약](../contracts/schemas/document-retrieval.contract.json).
+
+Bounded corpus indexing: `scripts/run_corpus_indexing.py --profile dev --run-id <id> --sources-file <sha 목록>` (`--status --run-id <id>`로 진행률·ETA).
+먼저 모든 target의 current parse_key PARSED gate를 확인하고, 이미 INDEXED인 source는 같은 run에서 건너뛴다. 결과는 ignored `data/parsed/index-runs/<id>/`.

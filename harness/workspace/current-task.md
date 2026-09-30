@@ -2,23 +2,23 @@
 
 ## Goal / Context
 
-2026-09-30 사용자 요청: AI 서비스 개발(Retriever) 착수 전 기반 정리·전체 리뷰·Harness 안정화.
-새 기능은 추가하지 않는다. 정상 동작하는 Parser·Chunking·Embedding·Qdrant 경로를 재설계하지 않는다.
+2026-09-30 사용자 요청: 기존 100-source parser 검증 corpus를 Retrieval Evaluation용 dataset으로 완성한다.
+이전 parse_key인 PDF·HWP 60건을 현재 parser로 재parsing하고, 100건 전체를 Chunking → BGE-M3 dense·sparse → dev Qdrant로 적재한다.
+기존 Parser·Chunker·Embedder·Indexer를 그대로 쓰는 bounded data processing이며 background run 하나로 순차 실행한다.
 
 ## Read First
 
-[AGENTS](../../AGENTS.md) → [Architecture](../docs/architecture.md) → [Pipeline](../docs/data-pipeline.md)의 Identity 요약 →
-[파일 경계](../rules/file-boundaries.md) → [AI 경계](../rules/ai-boundary-rules.md) → [Testing](../docs/testing.md).
+[AGENTS](../../AGENTS.md) → [Source 규칙](../rules/data-source-rules.md)의 corpus 실행 줄 → [Pipeline](../docs/data-pipeline.md) → [Indexing 계약](../../contracts/schemas/document-indexing.contract.json).
 
 ## Scope / Acceptance
 
-1. 호출처가 없음을 확인한 dead code·unused import만 삭제한다. 애매한 후보는 보고서에 보류로 남긴다.
-2. 문서·Rule·Contract·Registry를 실제 구현 상태에 맞추고, 반복 실수를 막는 규칙만 최소 추가한다.
-3. parse_key·chunk_set_key·embedding_key와 artifact scope, Qdrant schema 규칙은 바뀌지 않아야 한다.
-4. 실제 확인은 기존 parsed source 1개의 Chunking → Indexing smoke로 한정한다. Retriever·RAG·LangGraph·LLM·corpus 실행은 하지 않는다.
+1. target은 기존 run(`corpus-20260930-01`)의 정확한 100 unique source(PDF 45·HWP 42·HWPX 13)이고, 재parsing은 current PARSED가 없는 PDF·HWP 60건뿐이다.
+2. PHASE A(60 재parsing)가 60/60 PARSED이고 100/100 current PARSED gate를 통과해야 PHASE B(100 indexing)를 시작한다. 두 phase는 동시에 돌지 않는다.
+3. 최종: 100 source indexing 성공, 실패 0, 현재 embedding_key collection 하나, point 중복 없음, pblanc_id·provenance 존재.
+4. 전체 2,926 corpus·Parser/Chunker/BGE-M3/Qdrant schema/Retriever 변경·Gold·Retrieval Evaluation·RAG는 하지 않는다.
 AGY 독립 Review / 사용자 검토는 pending이다.
 
 ## Validation / Reports
 
-[Final Report](reports/development/2026-09-30-pre-ai-service-cleanup.md).
-모든 변경 후 `./scripts/check-all.sh`가 실제 exit 0이어야 한다.
+[Final Report](reports/development/2026-09-30-dataset100-build.md).
+새 runner 코드 변경 후 `./scripts/check-all.sh`가 실제 exit 0이어야 한다.
