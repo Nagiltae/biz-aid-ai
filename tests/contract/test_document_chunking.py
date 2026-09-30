@@ -2,6 +2,7 @@ import copy
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "data-pipeline/src"))
@@ -12,7 +13,10 @@ from docling_core.types.doc.common.meta import BaseMeta
 
 from biz_aid_pipeline.chunking.chunker import (ChunkSource, chunk_document, chunk_set_key, chunker_identity,
                                                chunking_contract)
-from biz_aid_pipeline.parsing.models import artifact_files, parsing_contract, scoped_artifacts_sha256
+from biz_aid_pipeline.chunking.source import current_parse_key
+from biz_aid_pipeline.config.settings import PipelineError
+from biz_aid_pipeline.parsing.hwp_pdf import HwpConversionError
+from biz_aid_pipeline.parsing.models import artifact_files, parse_key, parsing_contract, scoped_artifacts_sha256
 
 
 def meta(name, value):
@@ -109,6 +113,18 @@ class DocumentChunkingContractTests(unittest.TestCase):
         # chunking tokenizer를 추가해도 parse identity는 parsing 범위 파일만으로 계산돼 PDF·HWP parse_key가 바뀌지 않는다.
         self.assertNotIn(tokenizer["artifact_folder"], {folder for folder, _ in artifact_files(parse_contract, "parsing")})
         self.assertNotEqual(scoped_artifacts_sha256(parse_contract, "parsing"), scoped_artifacts_sha256(parse_contract, "chunking"))
+
+    def test_hwp_converter_identity_failure_is_source_scoped_and_normal_key_unchanged(self):
+        contract, version = parsing_contract(), "LibreOffice 1 | H2Orestart 2 | dockerfile 3"
+        # BOUNDARY: CLI는 PipelineError만 source 단위로 격리하므로 변환기 오류가 그대로 새면 batch 전체가 멈춘다.
+        with mock.patch("biz_aid_pipeline.parsing.hwp_pdf.converter_version",
+                        side_effect=HwpConversionError("hwp_converter_unavailable")):
+            with self.assertRaises(PipelineError) as raised:
+                current_parse_key("a" * 64, "HWP", contract)
+        self.assertEqual(str(raised.exception), "hwp_converter_identity_unavailable:hwp_converter_unavailable")
+        with mock.patch("biz_aid_pipeline.parsing.hwp_pdf.converter_version", return_value=version):
+            self.assertEqual(current_parse_key("a" * 64, "HWP", contract),
+                             ("HWP_PDF_DOCLING", parse_key("a" * 64, "HWP_PDF_DOCLING", contract, version)))
 
 
 if __name__ == "__main__":

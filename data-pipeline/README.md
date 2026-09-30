@@ -1,4 +1,4 @@
-# Data Pipeline — Phase 1A / 1B / 2
+# Data Pipeline — Phase 1A ~ 4
 
 제품 코드는 src/biz_aid_pipeline이다. scripts는 CLI 진입점이고 tests는 이 package를 import한다.
 실행 환경: Python 3.11 / Pydantic v2 / SQLAlchemy 2 Core / PyMySQL / dev MySQL / 공통 Flyway.
@@ -128,7 +128,7 @@ updtPnttm incremental semantics / scheduler는 후속 검증 대상이다.
 `parsing` package가 S3 원본 byte를 DoclingDocument로 변환한다. route는 `detected_format`만 따르며 자체 문서 tree를 만들지 않는다.
 현재 HWPX → `HwpxDoclingAdapter`, PDF → Docling + PP-TableMagic + page-selective OCR, HWP → 전용 Docker PDF 변환 후 같은 PDF route가 활성이다.
 XLSX/ZIP/OTHER/UNKNOWN은 정책 결정 대기다. PARSED 결과는 결정론적 JSON으로 S3에 영구 저장하고 V5 MySQL에는 상태·identity·pointer만 저장한다.
-동일 source SHA·parse_key는 S3와 row를 검증 후 재사용하며 local disk는 전송용 임시 파일만 사용한다. 전체 corpus parsing은 아직 없다.
+동일 source SHA·parse_key는 S3와 row를 검증 후 재사용하며 local disk는 전송용 임시 파일만 사용한다. corpus runner(`scripts/run_corpus_parsing.py`)는 있고 전체 corpus 실행은 아직 하지 않았다.
 `scripts/run_document_parsing.py --profile dev --source-sha256 <sha256> [--source-sha256 <sha256> ...]`는 verified S3 원본 1~3건을
 SHA 오름차순으로 읽어 기존 parser와 persistence를 연결한다. CLI는 SHA를 반드시 명시하며 전체 corpus를 찾거나 별도 중복 규칙을 만들지 않는다.
 실제 AWS 실행은 별도 승인 범위다.
@@ -143,3 +143,18 @@ export BIZAID_DOCLING_ARTIFACTS_PATH=~/.cache/biz-aid/docling-artifacts
 ```
 
 CI는 `cache-key`로 만든 key의 Actions cache를 복원하고 miss일 때만 provisioning한 뒤 항상 verify하고 offline으로 검증한다. [Parsing 계약](../contracts/schemas/document-parsing.contract.json)을 따른다.
+
+## Phase 4 Chunking / Indexing
+
+```sh
+.venv/bin/python -B scripts/run_document_chunking.py --profile dev --source-sha256 <sha>
+docker compose --profile dev-vector up -d qdrant
+.venv/bin/python -B scripts/run_document_indexing.py --profile dev --source-sha256 <sha> [--source-sha256 <sha> ...]
+```
+
+- `chunking`: 현재 parse_key의 PARSED DoclingDocument를 S3에서 검증해 읽고 FinalChunk를 만든다. JSONL은 ignored `data/parsed/chunks/`에만 쓴다.
+- `indexing`: FinalChunk → BGE-M3 dense·sparse(`embedder.BgeM3Embedder.encode`) → embedding_key별 Qdrant collection에 batch upsert → 같은 source의 이전 point 정리.
+- 두 단계 모두 dev 전용이고 모델·tokenizer는 `BIZAID_DOCLING_ARTIFACTS_PATH`의 고정 artifact에서만 읽는다(`HF_HUB_OFFLINE=1`).
+- Qdrant 주소는 `QDRANT_URL`(loopback만) 또는 기본 `http://127.0.0.1:6333`이다.
+- source 하나의 실패는 JSON 결과 줄(`status: FAILED`, `failure_code`)로 격리한다. 재실행은 같은 point를 덮어쓴다.
+- 세부 규칙: [Chunking 계약](../contracts/schemas/document-chunking.contract.json), [Indexing 계약](../contracts/schemas/document-indexing.contract.json).

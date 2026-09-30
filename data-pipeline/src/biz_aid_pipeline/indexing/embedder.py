@@ -2,10 +2,9 @@
 
 dense는 CLS hidden state의 L2 정규화, sparse는 sparse_linear의 token별 ReLU weight를 token id별 최댓값으로 모은 것이다(BGE-M3 출력 정의).
 """
-import hashlib
-import json
 from functools import lru_cache
 
+from biz_aid_pipeline.chunking.chunker import canonical_sha256
 from biz_aid_pipeline.config.settings import ROOT, PipelineError, read_json
 from biz_aid_pipeline.parsing.models import docling_artifacts_path, installed_version, parsing_contract, scoped_artifacts_sha256
 
@@ -16,12 +15,11 @@ def indexing_contract(path=CONTRACT_PATH):
     return read_json(path)
 
 
-def canonical_sha256(value):
-    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
-
-
 def embedding_identity(contract, parse_contract=None):
-    """embedding 결과에 영향을 주는 모델·artifact·설정·runtime 버전. 바뀌면 새 embedding_key와 새 collection이다."""
+    """embedding 결과에 영향을 주는 모델·artifact·설정·runtime 버전. 바뀌면 새 embedding_key와 새 collection이다.
+
+    embedding_key는 vector 공간의 identity라 parse_key·chunk_set_key를 넣지 않는다. 그 변화는 chunk_id로 point 단위에서 드러난다.
+    """
     parse_contract = parse_contract or parsing_contract()
     spec = contract["embedding"]
     identity = {"model_repo_id": spec["model_repo_id"], "model_revision": spec["model_revision"],

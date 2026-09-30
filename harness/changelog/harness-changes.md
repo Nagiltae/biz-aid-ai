@@ -1,5 +1,19 @@
 # Harness 변경 이력
 
+## 2026-09-30 — Cleanup B-1: HWP converter identity 실패 격리
+
+`chunking/source.current_parse_key`가 `HwpConversionError`를 `PipelineError("hwp_converter_identity_unavailable:<code>")`로 바꿔 CLI의 source 단위 격리에 포함한다.
+Source 규칙에 'source 단위 실패는 PipelineError로만 격리하고 하위 예외는 단계 경계에서 변환한다' 한 줄을 추가했다. parse_key 규칙·converter 동작 변경 없음.
+
+## 2026-09-30 — Pre AI Service Cleanup
+
+Retriever 착수 전 정리. 기능·identity 변경 없음(parse_key·chunk_set_key·embedding_key 불변 확인).
+Registry phase를 `phase4-document-indexing`으로 옮기고 setup 검사가 qdrant-client를 확인한다(parsing 전제 검사는 유지).
+Parsing Contract의 `TABLE_QUALITY_FAILED` downstream 규칙이 Chunking Contract·구현과 충돌해, "표 구조로는 들어가지 않고 보존 text만 chunk"로 명확히 했다. 규칙 완화가 아니라 기존 구현 의미의 명시다.
+파일 경계에 parsing ← chunking ← indexing 단방향 의존, Source 규칙에 artifact scope별 identity, DB 규칙에 Qdrant 파생 index 경계를 한 줄씩 추가했다.
+완료된 Table Engine Evaluation 전제 문장(Phase 4 진입 금지)을 삭제했다. AGENTS·README·Architecture·RAG·Pipeline·infra·contracts 문서를 현재 구현에 맞췄다.
+결과: [Cleanup Report](../workspace/reports/development/2026-09-30-pre-ai-service-cleanup.md). AGY 검토 pending.
+
 ## 2026-09-30 — Phase 4-B Document Indexing
 
 FinalChunk → BGE-M3 dense·sparse → dev Qdrant 적재를 추가한다. 가중치는 기존 모델 artifact 체계에 scope embedding으로 등록해 parse_key·chunk identity가 바뀌지 않는다.

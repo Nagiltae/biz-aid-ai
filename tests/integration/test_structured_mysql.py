@@ -15,7 +15,6 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "data-pipeline/src"))
 from biz_aid_pipeline.bizinfo.models import SourceBatch, SourcePage, SyncScope
 from biz_aid_pipeline.config.settings import DbConfig, PipelineError
-from biz_aid_pipeline.ingestion.normalizer import normalize
 from biz_aid_pipeline.ingestion.service import ingest
 from biz_aid_pipeline.persistence.mysql_repository import MysqlRepository, utc_datetime
 sys.path.insert(0, str(ROOT / "scripts/lib"))

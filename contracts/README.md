@@ -1,6 +1,6 @@
 # Boundary Contracts
 
-현재 활성 계약은 **로컬 Phase 0 기록과 근거 기반 외부 API Raw 응답**을 대상으로 한다.
+활성 계약은 Phase 0 로컬 기록·외부 API Raw 응답부터 Phase 4 Chunking·Indexing까지 단계별 로컬 계약이다.
 
 - [Raw snapshot](schemas/raw-snapshot.contract.json): byte 보존 metadata.
 - [Phase 0 report](schemas/phase0-report.contract.json): 측정 상태·분모·증거·판단 기록.
@@ -46,4 +46,7 @@ scripts/phase0_api_quality.py가 Run / Raw checksum에서 품질 요약을 재�
 source role은 API field provenance이며 본공고/부속 의미 계약이 아니다. 본문 Parser 계약도 포함하지 않는다.
 
 [Phase 3 Document Parsing 계약](schemas/document-parsing.contract.json)은 DoclingDocument 표현, detected-format route,
-상태·경고 code, parse_key 버전 규칙, 정규화·문서 Gate, HWPX container 한도와 미결정 항목을 고정한다.
+상태·경고 code, parse_key 버전 규칙, 정규화·문서 Gate, HWPX container 한도, 모델 artifact(scope별)와 미결정 항목을 고정한다.
+
+[Phase 4-A Chunking 계약](schemas/document-chunking.contract.json)은 DoclingDocument 입력, HybridChunker 설정, BGE-M3 tokenizer, FinalChunk schema·identity·provenance를 고정한다.
+[Phase 4-B Indexing 계약](schemas/document-indexing.contract.json)은 BGE-M3 dense·sparse 추론, embedding_key, Qdrant collection schema·point·payload·stale 규칙을 고정한다.

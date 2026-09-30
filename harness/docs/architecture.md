@@ -10,9 +10,9 @@
 | React | UI, 서버 상태 캐시, 선택 기업·채팅 UI 상태 | 미구현 |
 | Spring Boot | 인증·기업·사업·대화·즐겨찾기 Source of Truth, 정확한 DB filtering, FastAPI 호출 | 미구현 |
 | FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 미구현 |
-| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | Phase 1A Pilot 및 Phase 1B dev FULL DRY-RUN 경계 구현 |
+| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | dev 공고 FULL(V1/V2), 문서 source·S3 위치(V3/V4), parse 상태·identity(V5) 구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | Phase 4-B dev Indexing(dense·sparse 적재) 구현, 검색은 미구현 |
-| Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 영구 저장 구현, Phase 3 Parser는 DoclingDocument 경계·HWPX·Docling PDF route 구현 |
+| Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 저장·PDF/HWP/HWPX Parser(OCR·PP 표)·Chunking·dense/sparse Indexing 구현 |
 | Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe·5×20 API 품질 Batch·동일 표본의 제한된 문서 Download Gate |
 | Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
 
@@ -45,10 +45,10 @@ Review Lifecycle과 증거 범위는 [workflow.md](workflow.md)에서 관리한�
 
 1. §48·57의 Harness 배치와 이번 요청의 순서가 다르다. 이번 요청에 따라 Gate 준비용 Harness를 먼저 만든다. Phase 1 전체 착수로 간주하지 않는다.
 2. §37·46·49의 전체 서비스 검증은 미구현 상태에 적용할 수 없다. 현재 적용 검증을 실행하고 제품 검증은 N/A로 공개한다. 제품 도입 때 해당 검증을 필수로 추가한다.
-3. §5 도식의 문서 Normalize와 §19 API Normalize는 대상이 다르다. 상세 Pipeline 설계 때 구분을 확정한다. 이번에 어느 쪽도 구현하지 않는다.
+3. §5 도식의 문서 Normalize와 §19 API Normalize는 대상이 다르다. API Normalize는 `ingestion/normalizer.py`, 문서 Normalize는 Parsing Contract의 text 정규화(NFC·줄바꿈·제어문자)로 구현됐다.
 4. 사용자 확인 Endpoint / 인증 정보와 실제 Sample의 pagination / envelope / field 타입은 [External API Contract](../../contracts/external-api/README.md)에 있다. Pagination·ID·no-data와 5×20 품질 Run은 OBSERVED다. 공식 정렬·일반 오류 보장은 미확정이다.
 5. §53의 이번 API 품질 Task는 12개 주요 필드·타입/nonblank 기준·실제 행 분모·기본 정렬 선두 100건을 사용한다. API 측정에서 의미·접속은 미측정이었다. 문서 성공률은 별도 Download Gate에서 측정하고 공식 최신순 보장은 미확정이다.
-6. HWP / HWPX / HTML의 근거 page 대체 규칙과 표 추출 품질 기준이 미결정이다. Parser 선택 전에 검증한다.
+6. 결정됨: HWP는 Docker LibreOffice+H2Orestart로 PDF 변환 후 PDF route, HWPX는 native XML adapter(page 없음, section·XML 경로 provenance), PDF 표는 PP-TableMagic + fail-closed TABLE_QUALITY_FAILED다. HTML·XLSX·ZIP은 POLICY_PENDING이다.
 7. §57의 과거 API 확인 서술과 이번 사용자 제공 Sample은 별개 Evidence다. Sample을 이번 Live 실행 결과로 재사용하지 않는다.
 
 최초 Phase 0 준비에서는 최상위 문서 자체를 수정하지 않았다. 후속 승인 범위는 해당 문서 첫머리에 기록한다.
@@ -59,7 +59,7 @@ Review Lifecycle과 증거 범위는 [workflow.md](workflow.md)에서 관리한�
 
 제품용 Python `data-pipeline/`이 구조화된 API source를 정규화해 dev MySQL에 저장한다.
 공통 `migrations/` Flyway만 DDL owner다. Compose는 기존 phase0와 실제 MySQL / Flyway만 실행한다.
-backend / ai / frontend / Qdrant는 미구현이다. Phase 1A 실제 Pilot은 기존 동일 100건 SAMPLE이며 당시 FULL은 controlled test였다.
+당시 backend / ai / frontend / Qdrant는 미구현이었다. Phase 1A 실제 Pilot은 기존 동일 100건 SAMPLE이며 당시 FULL은 controlled test였다.
 제품 코드 경계와 lifecycle 안전조건은 [Pipeline](../../data-pipeline/README.md)에서 확인한다.
 
 Phase 1B 승인으로 dev API 전체 pagination / Raw 완전성 검증 / 구조화 적재를 추가한다.
@@ -76,4 +76,18 @@ Dev MySQL은 Host 127.0.0.1:3306 → container 3306이며 사용자 계정·비�
 문서 구조의 공통 표현은 docling-core의 DoclingDocument다. BizAid는 source SHA·route·parse_key·상태·경고만 결과 봉투에 둔다.
 PDF와 HWP(→PDF)는 Docling 변환기, HWPX는 native XML Adapter가 같은 표현을 만든다. 자체 canonical document tree는 없다.
 PARSED DoclingDocument의 결정론적 JSON은 S3, `(source_sha256, parse_key)` 상태·identity·pointer는 V5 MySQL이 소유한다.
-후속 Chunking(HybridChunker·BGE-M3 tokenizer·BizAidChunkEnricher)은 이 DoclingDocument를 직접 소비하는 전제이며 이번 범위가 아니다.
+
+## Phase 4 Chunking / Indexing
+
+```text
+parsing(S3 원본 → DoclingDocument, S3 + V5 row) ← chunking(현재 parse_key PARSED artifact → FinalChunk) ← indexing(FinalChunk → BGE-M3 → Qdrant)
+```
+
+| 저장소 | 소유 | 재생성 |
+| --- | --- | --- |
+| S3 | 문서 원본(content SHA), PARSED DoclingDocument JSON(parse_key 주소, immutable) | 원본은 불가, parsed는 parser로 가능 |
+| MySQL | 공고(pblanc_id)·source relation·parse 상태·identity·artifact pointer | Flyway schema, 데이터는 Pipeline |
+| Qdrant | FinalChunk point(id=chunk_id, dense+sparse, payload=FinalChunk.payload) | S3 parsed artifact + V5 row에서 다시 만들 수 있는 파생 index |
+
+MySQL과 Qdrant는 `pblanc_id`·`source_sha256`으로만 연결한다. collection은 embedding_key별이고 dev loopback Compose Qdrant만 쓴다.
+Retriever는 미구현이며 [AI 경계](../rules/ai-boundary-rules.md)와 [파일 경계](../rules/file-boundaries.md)를 따른다.

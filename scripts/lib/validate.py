@@ -25,7 +25,7 @@ import phase0
 
 # Phase를 추가할 때 목록 하나만 갱신해야 setup·integration·harness 사이의 DB 준비 누락이 생기지 않는다.
 DATABASE_PHASES = ("phase1a-structured-pilot", "phase1b-full-sync", "phase2-document-acquisition",
-                   "phase2-5-s3-storage", "phase3-document-parsing")
+                   "phase2-5-s3-storage", "phase3-document-parsing", "phase4-document-indexing")
 DYNAMIC_WORKSPACE_PATHS = [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -222,7 +222,8 @@ def setup_check():
         if not pydantic.__version__.startswith("2.") or not sqlalchemy.__version__.startswith("2."):
             raise ValueError("Phase 1A requires Pydantic v2 and SQLAlchemy v2")
         print("PASS: Pydantic v2, SQLAlchemy v2, PyMySQL available; DB tested in integration")
-    if registry()["phase"] == "phase3-document-parsing":
+    # Phase 4 chunking·indexing도 같은 고정 artifact와 parser 결과를 소비하므로 parsing 전제 검사를 유지한다.
+    if registry()["phase"] in ("phase3-document-parsing", "phase4-document-indexing"):
         import docling_core
         try:
             import lzma
@@ -248,7 +249,11 @@ def setup_check():
             raise ValueError("paddleocr must not be installed; the PDF table engine uses paddlex without OCR models")
         print(f"PASS: docling-core, Docling PDF converter, PP-TableMagic engine, lzma and pinned model artifacts ({artifacts.name}) "
               "identity verified; OCR engines absent; HF offline")
-    print("N/A: Java/Node/Qdrant/product APIs/AI; live upstream calls are separate")
+    if registry()["phase"] == "phase4-document-indexing":
+        if importlib.util.find_spec("qdrant_client") is None:
+            raise ValueError("qdrant-client missing; install data-pipeline/requirements.txt")
+        print("PASS: qdrant-client available; dev Qdrant server is tested outside check-all")
+    print("N/A: Java/Node/product APIs/Retriever/AI; live upstream and Qdrant server calls are separate")
 
 
 def format_check():

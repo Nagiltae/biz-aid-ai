@@ -539,7 +539,7 @@
       ],
       "parse_status_change": false,
       "mapping_rule": "structure cells map to logical TableCell only through a proven rule; an unproven mapping is TABLE_QUALITY_FAILED, never a silent fallback",
-      "downstream_rule": "TABLE_QUALITY_FAILED tables must not enter Chunking or indexing",
+      "downstream_rule": "TABLE_QUALITY_FAILED tables must not enter Chunking or indexing as table structure (no TableItem rows, columns or spans); their preserved native text is chunked as ordinary text and keeps table_verdict and reasons in chunk provenance",
       "failed_table_policy": {
         "structure": "no TableItem, row, column or span structure is created",
         "text": "all native PDF text inside the table bbox is preserved without loss as non-table text",

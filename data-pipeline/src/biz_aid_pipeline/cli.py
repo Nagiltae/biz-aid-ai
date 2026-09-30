@@ -1,7 +1,6 @@
 import argparse
 import json
 import sys
-from pathlib import Path
 
 from biz_aid_pipeline.config.settings import ApiConfig, DbConfig, PipelineError, ROOT, credential_echo
 from biz_aid_pipeline.ingestion.sample import load_pilot_sample

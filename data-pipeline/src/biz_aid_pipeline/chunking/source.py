@@ -20,8 +20,12 @@ def current_parse_key(source_sha256, detected_format, contract):
     route, _ = route_for(detected_format, contract)
     converter = None
     if route == "HWP_PDF_DOCLING":
-        from biz_aid_pipeline.parsing.hwp_pdf import converter_version
-        converter = converter_version(contract)
+        from biz_aid_pipeline.parsing.hwp_pdf import HwpConversionError, converter_version
+        try:
+            converter = converter_version(contract)
+        except HwpConversionError as error:
+            # BOUNDARY: 변환기 identity 없이는 현재 parse_key를 정할 수 없다. CLI가 이 source만 실패로 격리하도록 PipelineError로 바꾼다.
+            raise PipelineError("hwp_converter_identity_unavailable:" + error.code) from None
     return route, parse_key(source_sha256, route, contract, converter)
 
 

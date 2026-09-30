@@ -4,8 +4,6 @@ from datetime import datetime, timezone
 from biz_aid_pipeline.bizinfo.models import SourceAnnouncement, SyncScope
 from biz_aid_pipeline.config.settings import ROOT, PipelineError, read_json
 
-ERROR_OUTCOMES = ("TRANSPORT_ERROR", "API_ERROR", "CONTRACT_ERROR")
-
 
 def now():
     return datetime.now(timezone.utc).isoformat()

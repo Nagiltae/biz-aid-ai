@@ -1,6 +1,6 @@
 # 개발 Infrastructure
 
-Compose에는 기존 `phase0`와 승인된 dev DB profile `mysql` / `flyway`만 있다.
+Compose에는 기존 `phase0`, 승인된 dev DB profile `mysql` / `flyway`, dev-vector profile `qdrant`가 있다.
 MySQL은 loopback 127.0.0.1:3306에서만 공개하며 컨테이너 내부도 3306이다. Flyway는 공통 migrations를 읽기 전용으로 mount한다.
 MySQL 8.4 / Flyway 11을 사용한다. Flyway는 Apple Silicon에서도 linux/amd64로 실행한다.
 
@@ -39,3 +39,6 @@ tag와 label은 Contract `routes.HWP.converter.dockerfile_sha256`와 같아야 �
 SHA=$(shasum -a 256 infra/hwp-converter/Dockerfile | cut -d' ' -f1)
 docker build -t biz-aid/hwp-pdf-converter:${SHA:0:12} --label org.bizaid.dockerfile_sha256=$SHA infra/hwp-converter
 ```
+
+dev Qdrant(`qdrant/qdrant:v1.19.1`)는 `docker compose --profile dev-vector up -d qdrant`로 띄운다. 127.0.0.1:6333에만 열고 volume `qdrant_dev`에 저장한다.
+인증이 없으므로 loopback 밖에 열지 않는다(Harness Compose 검사가 강제). 내용은 다시 만들 수 있는 파생 index다.

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "phase": "phase3-document-parsing",
+  "phase": "phase4-document-indexing",
   "agy_review": "pending",
   "development_producers": [
     "codex",
@@ -172,7 +172,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-09-30-phase4b-document-indexing.md",
+  "report": "harness/workspace/reports/development/2026-09-30-pre-ai-service-cleanup.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",

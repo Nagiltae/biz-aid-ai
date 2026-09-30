@@ -67,6 +67,7 @@ FinalChunk는 pblanc_id·source SHA·parse_key·page 또는 HWPX 위치 provenan
 Embedding 모델은 chunk tokenizer와 같은 repo·revision이며 가중치는 고정 artifact(scope embedding)에서만 읽는다. 실행 중 Hub 다운로드와 입력 truncation은 없다.
 Qdrant point id는 chunk_id, payload는 FinalChunk.payload()다. collection은 embedding_key마다 따로 두고 dense·sparse schema나 metadata가 다르면 재생성하지 않고 실패한다.
 모델·설정·artifact·runtime 변경은 embedding_key를 바꾼다. 재실행은 같은 point를 덮어쓰고 같은 source의 현재 chunk가 아닌 point만 지운다.
+chunking·indexing CLI는 source 단위 실패를 안정적 code의 PipelineError로만 격리한다. 하위 모듈 예외(예: HwpConversionError)는 단계 경계에서 PipelineError로 바꿔 한 source가 batch 전체를 멈추지 않게 한다.
 조립에서 native 단어 하나는 한 곳에만 속한다. PP 영역 안 단어는 PP 결과가, 영역에 걸친 native item은 영역 밖 단어만 가진다. OCR 부족 page는 warning·metadata로 드러내고 문서 status는 문서 text Gate가 정한다.
 native text가 조금이라도 있고 raster image가 없는 low-text page는 OCR하지 않고 native text를 유지한다(OCR은 같은 글자를 다시 읽을 뿐이다).
 같은 parse_key와 무결성이 재확인된 artifact만 재사용하고, 버전 변경은 해당 route 문서만 새 key로 재처리한다. 과거 결과는 덮어쓰지 않는다.
@@ -84,7 +85,8 @@ Docling 부분 성공(PARTIAL_SUCCESS)은 page 누락 위험이 있으므로 PAR
 PARSED는 실행·재적재·text 양 Gate 통과이며 본문·표의 의미상 완전성을 보장하지 않는다. 소비자는 warning을 함께 읽는다.
 PDF 표 engine은 PP-TableMagic(2026-09-29 사용자 결정)이며 Docling은 layout·읽기 순서 backbone으로 남는다. TableFormer는 실행하지 않는다.
 PP는 OCR 모델 없이 native text 사각형을 주입해 실행하고 cell text는 native 단어로 채운다. 표 engine 설정 변경은 evidence와 새 pipeline_config_sha256 없이 하지 않는다.
-Docling layout·PP 표 모델은 저장소 밖 명시적 `BIZAID_DOCLING_ARTIFACTS_PATH`의 고정 snapshot만 사용한다. Contract 파일 목록의 manifest가 기대값과 같아야 변환하며 parse_key에 넣는다.
+Docling layout·PP 표·OCR·BGE-M3 모델은 저장소 밖 명시적 `BIZAID_DOCLING_ARTIFACTS_PATH`의 고정 snapshot만 사용한다. 전체 manifest가 기대값과 같아야 실행한다.
+각 identity에는 자기 단계 scope(parsing→parse_key, chunking→chunk_set_key, embedding→embedding_key)의 manifest만 넣는다. 다른 단계 모델 추가가 상위 key를 바꾸면 안 된다.
 네트워크 provisioning은 `provision --allow-network` 명령과 CI cache miss step에서만 허용하고 resolved commit으로 받는다.
 parsing·test runtime의 모델 네트워크 다운로드는 금지하며 artifact가 없으면 변환 전에 실패한다. 모델·cache를 저장소·data/에 두지 않는다.
 
@@ -102,10 +104,9 @@ PDF 문서 parser는 Docling이며 표 engine이 바뀌어도 최종 구조화 �
 다른 표 engine은 표 변환만 책임지는 adapter로 DoclingDocument의 TableItem에 수렴한다.
 실제 BizAid corpus benchmark evidence와 사용자 결정 없이 primary table engine을 바꾸지 않는다. 현재 primary는 PP-TableMagic이다.
 engine routing은 변환 전에 알 수 있는 source·표 특성의 결정적 규칙이어야 하며 "실패하면 다른 engine으로 재시도"는 primary 해결책으로 인정하지 않는다.
-Table Engine Evaluation이 끝나기 전에는 Phase 4 Chunking·Embedding·Qdrant에 진입하지 않는다.
 PP-TableMagic 후보는 표 검출과 구조를 함께 소유하는 구조로 검증한다. Docling 표 bbox를 PP 입력 gate로 쓰는 방식은 귀속 측정용이며 기본안이 아니다.
 구조 cell을 논리 TableCell로 옮기는 매핑은 증명된 규칙으로만 하며 증명되지 않으면 조용한 fallback이 아니라 TABLE_QUALITY_FAILED다.
-TABLE_QUALITY_FAILED 표는 Chunking·indexing에 들어가지 않는다. 이 표 품질 evidence는 기존 ParseStatus를 늘리지 않는다.
+TABLE_QUALITY_FAILED 표는 표 구조(TableItem 행·열·span)로 Chunking·indexing에 들어가지 않는다. 보존된 native text만 일반 text로 chunk되고 provenance에 table_verdict가 남는다. 이 표 품질 evidence는 기존 ParseStatus를 늘리지 않는다.
 TABLE_QUALITY_FAILED 표는 행·열·span 구조를 만들지 않고 bbox 안 native text를 손실 없이 보존하며 page·bbox·source SHA·실패 사유·parser identity를 남긴다.
 서로 겹친 PP 표 영역(container·duplicate 후보)은 검증된 규칙 전까지 하나를 고르지 않고 합친 영역을 TABLE_QUALITY_FAILED native text로 보존한다.
 DoclingDocument 조립은 교체한 item의 caption·footnote 자식, VALID 표의 cell 밖 단어, 영역에 일부만 걸친 text, PP 영역 밖 Docling 표 text를 버리지 않는다.

@@ -1,6 +1,7 @@
 """DoclingDocument → Docling HybridChunker(BGE-M3 tokenizer) → BizAidChunkEnricher → FinalChunk[].
 
 parser가 만든 canonical DoclingDocument를 그대로 받는다. Markdown을 중간 표현으로 쓰지 않고 format별로 분기하지 않는다.
+WHY: Markdown으로 내리면 item별 page·bbox·HWPX 위치·표 품질 meta와 표 cell 구조가 사라져 근거 추적(provenance)을 복원할 수 없다.
 구조 분할은 docling-core HybridChunker가 맡고, 이 module은 설정·tokenizer identity와 BizAid metadata만 붙인다.
 """
 import hashlib
@@ -10,7 +11,7 @@ from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-from biz_aid_pipeline.config.settings import ROOT, read_json
+from biz_aid_pipeline.config.settings import ROOT, PipelineError, read_json
 from biz_aid_pipeline.parsing.models import docling_artifacts_path, installed_version, parsing_contract, scoped_artifacts_sha256
 
 CONTRACT_PATH = ROOT / "contracts/schemas/document-chunking.contract.json"
@@ -43,6 +44,11 @@ def chunker_identity(contract, parse_contract=None):
 
 
 def chunk_set_key(source_sha256, parse_key, identity, contract):
+    """한 source의 chunk 집합 identity. parse_key(parser 결과)를 입력으로 받지만 embedding 설정은 넣지 않는다.
+
+    parse_key → chunk_set_key → embedding_key는 단방향이다. 하위 단계 설정 변경이 상위 key를 바꾸지 않아
+    embedding만 바꿔도 parsing·chunking을 다시 하지 않는다.
+    """
     inputs = dict(identity, source_sha256=source_sha256, parse_key=parse_key)
     selected = {name: inputs[name] for name in contract["identity"]["chunk_set_key_inputs"]}
     return canonical_sha256(selected)
@@ -99,6 +105,12 @@ class ChunkSource:
 
 @dataclass
 class FinalChunk:
+    """Chunking → Embedding·Indexing 사이의 계약 단위(document-chunking Contract의 final_chunk).
+
+    chunk_id는 공고(pblanc_id)별 point identity이고, content_key는 공고와 무관한 내용 identity다.
+    한 source가 여러 공고에 붙으면 chunk_id는 공고마다 다르고 content_key는 같아 vector를 한 번만 계산한다.
+    """
+
     chunk_id: str
     content_key: str
     chunk_set_key: str
@@ -158,7 +170,7 @@ def chunk_document(document, source, contract=None, parse_contract=None):
     contract = contract or chunking_contract()
     parse_contract = parse_contract or parsing_contract()
     if not source.announcements:
-        raise ValueError("chunk_source_without_announcement")
+        raise PipelineError("chunk_source_without_announcement")
     chunker = hybrid_chunker(contract, parse_contract)
     counter = tokenizer(contract, parse_contract)
     identity = chunker_identity(contract, parse_contract)

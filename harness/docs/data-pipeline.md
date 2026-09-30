@@ -1,7 +1,7 @@
 # 데이터 파이프라인
 
 최종 Pipeline 계획은 API → Raw → Normalize → MySQL Upsert → 변경 판단 →
-Download → Checksum → Parse → Chunk → Embedding → Qdrant다. 현재 승인 범위는 Phase 1B 구조화 FULL이며 이후 문서·AI 제품화는 미구현이다.
+Download → Checksum → Parse → Chunk → Embedding → Qdrant다. Qdrant 적재까지 dev에서 구현됐고 검색·답변(Retriever·RAG)은 미구현이다.
 
 ## 현재 도구
 
@@ -160,9 +160,11 @@ MySQL에는 JSON byte를 넣지 않으며 local file은 SDK 전송용 임시 파
 `parsing/orchestration.py`는 명시된 unique content SHA의 일치하는 verified S3 relation을 조회해 원본 byte를 검증하고,
 기존 `parse_document`와 `persist_parse_result`를 순서대로 호출한다. CLI는 `--source-sha256`를 1~3회 명시하며 SHA 오름차순으로 순차 실행한다.
 대상을 자동 발견하지 않고 source별 실패를 격리하며 별도 중복 판정 없이 persistence idempotency를 사용한다.
-Docling 배포는 PDF 전용 extras의 docling-slim이다. layout(heron)·PP 표 모델 6개는 `BIZAID_DOCLING_ARTIFACTS_PATH`에 미리 준비한 고정 snapshot만 읽고 실행 중 다운로드하지 않는다.
+Docling 배포는 PDF 전용 extras의 docling-slim이다. layout(heron)·PP 표 모델 6개·PP-OCRv5 2개는 `BIZAID_DOCLING_ARTIFACTS_PATH`에 미리 준비한 고정 snapshot만 읽고 실행 중 다운로드하지 않는다.
 TABLE_QUALITY_FAILED·겹친 PP 영역·PP 밖 Docling 표는 구조 없는 native text와 `bizaid__table_quality` provenance로 남고 PARSED는 표 완전성을 뜻하지 않는다. 전체 실행 전 동시성·메모리(PDF 표본 peak RSS 약 3.55 GB) 정책이 필요하다.
-저장 정책과 최대 3개 explicit source의 bounded orchestration은 구현됐다. Full Parse는 후속 sub-step이다. HWP 변환기 이미지는 `infra/hwp-converter/Dockerfile`로 빌드한다(infra README). Chunking은 이 산출물을 HybridChunker로 직접 소비하는 후속 Task다.
+저장 정책과 최대 3개 explicit source의 bounded orchestration은 구현됐다. HWP 변환기 이미지는 `infra/hwp-converter/Dockerfile`로 빌드한다(infra README).
+corpus 실행은 `parsing/corpus.py`(`scripts/run_corpus_parsing.py --profile dev --run-id <id> [--max-completed N] [--sources-file F]`)가 source별 child process·timeout·재개로 순차 처리한다.
+현재 dev에는 100 source bounded run 결과가 있고 전체 corpus parsing은 실행하지 않았다.
 
 ## Phase 4-A Document Chunking
 
@@ -175,3 +177,15 @@ TABLE_QUALITY_FAILED·겹친 PP 영역·PP 밖 Docling 표는 구조 없는 nati
 [Indexing 계약](../../contracts/schemas/document-indexing.contract.json)을 따른다. `indexing/pipeline.py`가 `chunk_source`의 FinalChunk를 content_key별로 한 번만
 `indexing/embedder.py`(BGE-M3 dense CLS·L2 1024 + sparse, batch 추론)로 embedding하고 `indexing/qdrant_store.py`가 embedding_key별 collection에 batch upsert한다.
 `docker compose --profile dev-vector up -d qdrant` 후 `scripts/run_document_indexing.py --profile dev --source-sha256 <sha>`로 실행한다. Retriever·query embedding은 구현하지 않는다.
+
+## Identity 요약
+
+| key | 입력 | 바뀌는 경우 | 저장 위치 |
+| --- | --- | --- | --- |
+| parse_key | source SHA·route·route별 parser 부품 버전·PDF 설정·parsing scope artifact | parser 변경(해당 route만) | S3 parsed key, V5 row |
+| chunk_set_key | source SHA·parse_key·chunker 설정·docling-core·tokenizer(chunking scope) | parser 결과 또는 chunking 설정 변경 | FinalChunk, Qdrant payload |
+| chunk_id | chunk_set_key·pblanc_id·chunk_index(UUIDv5) | 위와 같음, 공고 relation마다 다름 | Qdrant point id |
+| content_key | chunk_set_key·chunk_index | 위와 같음, 공고와 무관 | embedding 재사용 key |
+| embedding_key | 모델 repo·revision·embedding 설정·embedding/tokenizer artifact·torch·transformers | embedding 변경만 | Qdrant collection 이름·metadata |
+
+상위 key는 하위 설정을 넣지 않는다. embedding만 바꾸면 parsing·chunking을 다시 하지 않고 새 collection에 적재한다.

@@ -178,7 +178,11 @@ def fill_cells(cells, words):
 
 
 def assess_table(cell_boxes, td_count, table_words, engine):
-    """표 하나의 fail-closed 판정. 사유가 하나라도 있으면 구조를 버리고 TABLE_QUALITY_FAILED다."""
+    """표 하나의 fail-closed 판정. 사유가 하나라도 있으면 구조를 버리고 TABLE_QUALITY_FAILED다.
+
+    WHY: 틀린 행·열 구조는 금액·대상 같은 조건을 다른 칸에 묶어 그럴듯한 오답 근거가 된다. 구조만 버리고 text는
+    조립 단계가 보존하므로 검색 근거는 남고, chunk provenance의 table_verdict로 구조 미보장을 알 수 있다.
+    """
     cells, proven = grid_cells(cell_boxes, engine["edge_tolerance_px"]) if cell_boxes else ([], False)
     if not proven:
         return TABLE_QUALITY_FAILED, ["grid_unproven"], None

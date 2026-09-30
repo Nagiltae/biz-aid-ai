@@ -19,6 +19,7 @@ def qdrant_url(profile, root=ROOT, environ=None):
 
 
 def collection_name(contract, embedding_key):
+    # WHY: 다른 모델·설정의 vector는 거리 비교가 무의미하다. embedding_key별 collection이면 한 검색이 서로 다른 vector 공간을 섞지 않는다.
     return f"bizaid_chunks_v{contract['qdrant']['schema_version']}_{embedding_key[:12]}"
 
 
@@ -105,6 +106,8 @@ def source_filter(source_sha256):
 
 def delete_stale(client, name, source_sha256, current_ids):
     """같은 source의 point 중 이번 chunk 집합에 없는 것(이전 parse·chunk 결과, 끊긴 공고 relation)을 지운다."""
+    # WHY: 이전 parser·chunker 결과가 남으면 검색이 같은 문서의 낡은 내용이나 더 이상 붙지 않은 공고를 근거로 돌려준다.
+    # upsert 뒤에 지우므로 도중 실패해도 source의 point가 비는 순간이 없다.
     from qdrant_client import models
     selector = models.Filter(must=source_filter(source_sha256).must,
                              must_not=[models.HasIdCondition(has_id=list(current_ids))])
