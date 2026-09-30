@@ -62,6 +62,8 @@ S3는 boto3 credential chain으로 고정 dev bucket을 쓴다. HWP 변환 이�
 | Indexing | `scripts/run_document_indexing.py --profile dev --source-sha256 <sha>` |
 | Retrieval | `scripts/run_document_retrieval.py --profile dev --query "..." --mode hybrid --top-k 5` |
 | RAG 답변 | `scripts/run_rag_answer.py --profile dev --query "..."` (Ollama 실행 필요) |
+| 자격 판단 | `scripts/run_eligibility.py --profile dev --pblanc-id <id> --company-profile company.json` |
+| 내부 API | `scripts/run_api.py` → 127.0.0.1:8000 (`/internal/v1/query`, `/internal/v1/eligibility`) |
 
 library 진입점: `parsing.orchestration.run_source`, `chunking.cli.chunk_source`, `indexing.pipeline.index_source`, `indexing.embedder.BgeM3Embedder`, `retrieval.retriever.Retriever`.
 

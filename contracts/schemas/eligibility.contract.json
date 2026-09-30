@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "scope": "dev-only single-program eligibility v1: one active pblanc_id + one CompanyProfileSnapshot -> program-scoped retrieval -> LLM criterion comparison -> application validation and overall status -> resolved citations",
+  "profile": {
+    "model": "eligibility.profile.CompanyProfileSnapshot",
+    "persistence": "none; the AI layer consumes a snapshot, the service layer owns company data",
+    "fields": [
+      "company_name",
+      "business_entity_type",
+      "company_size",
+      "region",
+      "industry",
+      "business_start_date",
+      "business_status",
+      "employee_count",
+      "annual_revenue_krw",
+      "credit_score",
+      "tax_delinquent",
+      "venture_certified",
+      "research_institute",
+      "exporter",
+      "additional_facts"
+    ],
+    "derived": "business_age_months is computed by the application from business_start_date and as_of (Asia/Seoul date by default)",
+    "missing": "every field is optional; a missing value makes dependent criteria UNKNOWN"
+  },
+  "program": "support_programs row must exist with source_active=1 and source_deleted=0, otherwise eligibility_program_not_found_or_inactive",
+  "retrieval": {
+    "query": "지원대상 지원 자격 신청 자격 지원 요건 제외 대상 신청 제한",
+    "mode": "hybrid",
+    "top_k": 5,
+    "rule": "fixed application query (no company values, no query rewrite); Retriever scope is exactly the target pblanc_id; the retrieval baseline is unchanged"
+  },
+  "criterion_output": {
+    "fields": [
+      "criterion",
+      "result",
+      "reason",
+      "evidence_ids",
+      "profile_fields"
+    ],
+    "result": [
+      "MET",
+      "NOT_MET",
+      "UNKNOWN"
+    ],
+    "rules": [
+      "one logical requirement (including an OR alternative) is one criterion",
+      "exclusion conditions are MET when the company is not in the excluded state",
+      "a required company fact that is missing gives UNKNOWN, never an inferred MET or NOT_MET",
+      "every criterion cites at least one evidence id of this request and names the profile fields it compared"
+    ]
+  },
+  "validation": {
+    "fail": [
+      "schema mismatch or result outside MET/NOT_MET/UNKNOWN",
+      "evidence id not in the request context",
+      "evidence from another pblanc_id",
+      "profile field name not in the snapshot facts"
+    ],
+    "adjust": "a MET or NOT_MET criterion whose referenced profile fields are all missing becomes UNKNOWN (recorded in adjusted)"
+  },
+  "overall_status": {
+    "rule": "application-derived from validated criteria; the model never sets it",
+    "INSUFFICIENT_EVIDENCE": "no retrieved evidence or no criterion",
+    "INELIGIBLE": "any NOT_MET",
+    "NEEDS_MORE_INFO": "no NOT_MET and any UNKNOWN",
+    "ELIGIBLE": "all MET"
+  },
+  "explanation": "assembled by the application from criterion results; no separate explanation LLM call",
+  "disclaimer": "제공된 기업 정보와 공고문을 기반으로 한 사전 판단이며, 최종 자격은 사업 수행기관의 기준 확인이 필요합니다."
+}

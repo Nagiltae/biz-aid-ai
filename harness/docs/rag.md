@@ -15,5 +15,11 @@ CLI는 먼저 `candidates.ProgramCandidateService`로 MySQL 후보 pblanc_id(활
 같은 추출 호출이 request_mode(SEARCH_LIST·DOCUMENT_QA)를 낸다. SEARCH_LIST는 `candidates/discovery.py`가 후보 scope 안 hybrid 20 chunk를 공고 단위로 중복 제거해
 상위 5개 공고의 MySQL 정형 정보를 돌려준다(답변 생성 LLM 없음). DOCUMENT_QA는 기존 RagService 그대로다. hard filter는 질문 근거가 있을 때만 적용한다.
 
+Eligibility v1(`eligibility/`, [계약](../../contracts/schemas/eligibility.contract.json)): 공고 1개 + 기업 Profile snapshot → 고정 질의로 그 공고만 hybrid top5 →
+LLM criterion(MET·NOT_MET·UNKNOWN, evidence id, profile field) → application 검증·최종 상태(ELIGIBLE·INELIGIBLE·NEEDS_MORE_INFO·INSUFFICIENT_EVIDENCE)·citation.
+
+내부 HTTP API([계약](../../contracts/schemas/internal-api.contract.json)): `scripts/run_api.py`로 127.0.0.1:8000에 띄우며 /internal/v1/query·/internal/v1/eligibility가
+CLI와 같은 `ServiceRuntime`을 호출한다.
+
 다음 후보: provider 추가(Gemini), 표 직렬화 가독성 개선. Reranker·LangGraph는 평가로 필요성이 확인된 후 정한다.
 지원 자격 판단은 하지 않는다. 날짜·상태 같은 정확한 조건은 MySQL이 결정한다. [AI 경계 규칙](../rules/ai-boundary-rules.md)과 [제품 평가](../../evals/README.md)를 따른다.

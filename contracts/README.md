@@ -51,4 +51,6 @@ source role은 API field provenance이며 본공고/부속 의미 계약이 아�
 [Phase 4-A Chunking 계약](schemas/document-chunking.contract.json)은 DoclingDocument 입력, HybridChunker 설정, BGE-M3 tokenizer, FinalChunk schema·identity·provenance를 고정한다.
 [Phase 4-B Indexing 계약](schemas/document-indexing.contract.json)은 BGE-M3 dense·sparse 추론, embedding_key, Qdrant collection schema·point·payload·stale 규칙을 고정한다.
 [Phase 5 Retrieval 계약](schemas/document-retrieval.contract.json)은 query embedding 재사용, collection 결정, read-only, dense·sparse·RRF hybrid, SearchResult field를 고정한다.
+[내부 API 계약](schemas/internal-api.contract.json)은 FastAPI endpoint·요청·위임 서비스·HTTP 오류 매핑을 고정한다.
+[Eligibility 계약](schemas/eligibility.contract.json)은 단일 공고 자격 판단의 입력·criterion·상태 규칙을 고정한다.
 [Phase 6 RAG 답변 계약](schemas/rag-answer.contract.json)은 retrieval baseline, evidence context, grounding 규칙, 출력 schema, application citation, provider 경계를 고정한다.

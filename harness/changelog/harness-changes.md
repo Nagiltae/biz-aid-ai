@@ -1,5 +1,19 @@
 # Harness 변경 이력
 
+## 2026-09-30 — FastAPI Internal API v1
+
+`biz_aid_pipeline/api/`(FastAPI): /health, /internal/v1/query, /internal/v1/eligibility. CLI와 API는 같은 `runtime.ServiceRuntime`을 호출하고, lifespan에서 한 번 만든 자원을 재사용한다.
+파일 경계의 "FastAPI 없음"을 내부 API 위치로 바꾸고 4줄을 추가했다: 서비스 계층 전용·브라우저 직접 의존 금지, thin handler, 무거운 자원 요청별 재생성 금지, 판단 결과는 HTTP 오류가 아님.
+작은 내부 API 계약을 추가하고 requirements에 fastapi·uvicorn을 추가했다. 판단 로직 변경 없음. IMP-014 추가.
+결과: [Report](../workspace/reports/development/2026-09-30-internal-api-v1.md). AGY 검토 pending.
+
+## 2026-09-30 — Single-program Eligibility v1
+
+`eligibility/`: CompanyProfileSnapshot(저장 없음) + 대상 공고 1개 → 고정 질의 scope 검색 → LLM criterion → application 검증·최종 상태·citation. 작은 Eligibility 계약을 추가했다.
+규칙 변경(보고): AI 경계의 "지원 자격 판단 금지"를 단일 공고 v1 승인으로 옮기고, 여러 공고 판정·추천 점수 금지를 명시했다. Profile snapshot 소비·대상 공고 근거·모름은 UNKNOWN·상태는 application 계산 4줄을 추가했다.
+Retrieval·RAG prompt·index 변경 없음. IMP-003 evidence 갱신.
+결과: [Report](../workspace/reports/development/2026-09-30-eligibility-v1.md). AGY 검토 pending.
+
 ## 2026-09-30 — IMP-001 공고명 검색 context
 
 FinalChunk.embedding_text 첫 줄에 공고명(support_programs.name)을 넣고 chunk text는 그대로 둔다. content_key에 공고명을 넣어 같은 입력만 vector를 공유한다.

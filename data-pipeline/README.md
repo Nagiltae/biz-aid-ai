@@ -172,6 +172,10 @@ docker compose --profile dev-vector up -d qdrant
 RAG 답변: `scripts/run_rag_answer.py --profile dev --query "..." [--category 금융] [--target 소상공인] [--jurisdiction 경기도] [--not-closed-on 2026-09-30]`
 (MySQL 활성 공고 후보 → scope 검색 → Ollama 답변. `OLLAMA_MODEL` 필요)
 자연어 조건: `scripts/run_rag_answer.py --profile dev --natural-filter [--as-of 2026-09-30] --query "..."` (수동 필터와 함께 쓸 수 없음)
+단일 공고 자격 판단: `scripts/run_eligibility.py --profile dev --pblanc-id <id> --company-profile company.json [--as-of YYYY-MM-DD]` (Profile JSON은 저장하지 않음)
+
+내부 AI API: `BIZAID_DOCLING_ARTIFACTS_PATH=... OLLAMA_MODEL=qwen3.5:9b .venv/bin/python -B scripts/run_api.py` → `http://127.0.0.1:8000`
+(`GET /health`, `POST /internal/v1/query`, `POST /internal/v1/eligibility`, 문서 `/docs`). Spring Boot가 호출하는 내부 API이며 브라우저에서 직접 쓰지 않는다.
 
 Bounded corpus indexing: `scripts/run_corpus_indexing.py --profile dev --run-id <id> --sources-file <sha 목록>` (`--status --run-id <id>`로 진행률·ETA).
 먼저 모든 target의 current parse_key PARSED gate를 확인하고, 이미 INDEXED인 source는 같은 run에서 건너뛴다. 결과는 ignored `data/parsed/index-runs/<id>/`.

@@ -39,6 +39,7 @@
 - Area: RAG / LLM
 - Issue: 현재는 로컬 qwen3.5:9b 하나로만 동작을 확인했다. 핵심 값은 맞지만 조건·기간을 빠뜨리거나 표현이 약간 부정확한 경우가 있다.
 - Evidence: RAG smoke G05에서 금액은 정답이었지만 "최대 12개월"이 누락되고 "한 달에 최대 20만원"으로 표현했다. G06은 표를 해석하지 못했다(`2026-09-30-phase6-rag-answer.md`). provider 경계(`rag.llm.LlmProvider`)는 준비돼 있다.
+  Eligibility smoke A의 criterion reason에 중국어 토큰("经营状态")이 섞였고, 8개 criterion 출력에 LLM 25~34s가 걸렸다(`2026-09-30-eligibility-v1.md`).
   natural-filter smoke B(서울 지역 소상공인 금융)는 "확인할 수 없다"면서 ANSWERED로 E2가 서울 지역 사업임을 "암시한다"고 해석을 덧붙였다. evidence 해석이 과장된 사례다(`2026-09-30-phase6c-natural-filter.md`).
 - Why deferred: V1 흐름과 grounding은 동작한다. 비교는 완성된 동일 서비스에서 해야 공정하다.
 - Revisit trigger: AI 서비스 V1 완료와 프로젝트 정리 후
@@ -152,4 +153,14 @@
 - Why deferred: 이번 작업은 IMP-001 확인 3건만 한다. Gold 동결 규칙상 gold-v1은 수정하지 않는다.
 - Revisit trigger: 다음 Retrieval Evaluation 실행 전
 - Side effect: (source_sha256, chunk_index) 판정은 chunk 경계가 같을 때만 유효하다. 경계가 바뀌면 새 gold 버전(gold-v2)이 필요하다.
+- Status: OPEN
+
+## IMP-014 SEARCH_LIST가 공고 5개를 채우지 못함(IMP-001 이후)
+
+- Area: Discovery(SEARCH_LIST)
+- Issue: 목록은 후보 scope hybrid 20 chunk를 공고 단위로 중복 제거한다. IMP-001로 embedding_text에 공고명이 들어간 뒤 상위 chunk가 소수 공고에 몰려 목록이 짧아졌다.
+- Evidence: "소상공인 금융 지원사업 찾아줘"(후보 69, index 보유 7)의 목록 공고 수가 5개(`2026-09-30-phase6d-discovery-list.md`, 재적재 전)에서 2개(`2026-09-30-internal-api-v1.md`, HTTP smoke)로 줄었다.
+- Why deferred: 이번 작업은 기존 서비스를 HTTP로 노출하는 것이다. discovery 설정(fetch_chunks 20)과 순위 방식은 바꾸지 않았다.
+- Revisit trigger: SEARCH_LIST를 사용자 화면(Spring Boot·React)에 연결하기 전
+- Side effect: fetch_chunks를 늘리면 latency가 는다. Qdrant group 검색(공고별 최고 chunk)으로 바꾸면 순위 규칙이 바뀌므로 discovery 계약과 test를 함께 고친다.
 - Status: OPEN

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "scope": "internal HTTP interface for the service layer (Spring Boot); dev, loopback, no browser clients, no CORS, no auth yet",
+  "server": "scripts/run_api.py → uvicorn biz_aid_pipeline.api.app:app on 127.0.0.1:8000 (BIZAID_API_PORT), one worker",
+  "endpoints": {
+    "GET /health": {
+      "response": {
+        "status": "ok"
+      },
+      "rule": "no model, DB, Qdrant or LLM call"
+    },
+    "POST /internal/v1/query": {
+      "request": {
+        "query": "string 1..2000",
+        "as_of": "YYYY-MM-DD optional"
+      },
+      "delegates": "ServiceRuntime.answer_query → NaturalLanguageFilterService → ProgramCandidateService → rag.router.handle_request",
+      "response": "service result as returned: SEARCH_LIST {request_mode, status, candidate_count, programs, natural_filter, candidate_period_unknown} or DOCUMENT_QA (RagAnswer fields + request_mode, natural_filter)"
+    },
+    "POST /internal/v1/eligibility": {
+      "request": {
+        "pblanc_id": "PBLN_ digits",
+        "as_of": "YYYY-MM-DD optional",
+        "company_profile": "CompanyProfileSnapshot fields"
+      },
+      "delegates": "CompanyProfileSnapshot.from_dict → ServiceRuntime.evaluate_eligibility → EligibilityService",
+      "response": "EligibilityService result as returned (contracts/schemas/eligibility.contract.json); status is never recomputed"
+    }
+  },
+  "business_outcomes": "NO_CANDIDATES, NO_INDEXED_PROGRAMS, INSUFFICIENT_EVIDENCE, NEEDS_MORE_INFO, INELIGIBLE, ELIGIBLE, LISTED, ANSWERED are HTTP 200",
+  "errors": {
+    "body": {
+      "error": {
+        "code": "stable failure code"
+      }
+    },
+    "422": "request validation (FastAPI) or company_profile_*",
+    "404": "eligibility_program_not_found_or_inactive",
+    "502": "LLM output violated its contract (filter_extraction_*, eligibility_output_*, invalid evidence/profile field, rag_llm_output_*)",
+    "503": "llm_unavailable, llm_http_error, MySQL OperationalError, Qdrant connection error (dependency_unavailable)",
+    "500": "any other failure (internal_error or other PipelineError code)",
+    "rule": "no stack trace or connection detail in responses"
+  },
+  "resources": "ServiceRuntime is created once in the FastAPI lifespan: LLM provider, MySQL engine pool and Qdrant client at startup, BGE-M3 Retriever on first use; closed at shutdown; Ollama is external"
+}
