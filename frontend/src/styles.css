@@ -284,6 +284,8 @@ a:focus-visible {
 .badge,
 .tag {
   display: inline-block;
+  white-space: nowrap;
+  flex-shrink: 0;
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
   font-size: 0.78rem;
@@ -735,4 +737,22 @@ a:focus-visible {
   .account {
     margin-left: auto;
   }
+}
+
+/* AI 검색 결과: 공고 카드는 FastAPI 순위 그대로 번호를 붙여 보여 준다. */
+.ai-result {
+  margin-top: 0.4rem;
+}
+
+.program-grid.ranked {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.program-card .button.small {
+  align-self: flex-start;
+}
+
+.badge.rank {
+  background: var(--primary);
+  color: #fff;
 }

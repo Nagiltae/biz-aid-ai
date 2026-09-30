@@ -1,5 +1,13 @@
 # Harness 변경 이력
 
+## 2026-10-01 — Spring Boot ↔ FastAPI 연결 + React AI E2E V1
+
+`UnconnectedAiGateway`를 `HttpAiGateway`(동기 RestClient, 연결 3s·응답 90s 환경설정, 자동 재시도 없음)로 바꿨다. Spring은 FastAPI 결과를 계약 검증 후 그대로 전달하고, 성공한 AI 응답만 ASSISTANT 메시지(V7 `ai_result_type`·`ai_result_json`)로 저장한다.
+FastAPI `/internal/v1/*`에 공유 키 서비스 간 인증(`X-Internal-Api-Key`, `INTERNAL_AI_API_KEY`, 키 없으면 503 fail closed)을 추가했다. `/health`는 열어 둔다. AI 판단 로직·검색·prompt는 바꾸지 않았다.
+사용자 결정: 공유 키 방식, FastAPI는 호스트 실행 + Compose backend가 host.docker.internal로 호출(Compose 통합은 IMP-017).
+규칙 변경(보고, 완화 없음): AI 경계(재판단·재정렬 금지, 자동 재시도 금지, 실패 시 가짜 ASSISTANT 금지), 파일 경계(React는 AI 포함 Spring만 호출, HttpAiGateway 한 곳, 내부 인증 실패는 사용자 인증 실패 아님), Safety(JWT_SECRET·INTERNAL_AI_API_KEY 환경변수), DB 규칙(V7).
+결과: [Report](../workspace/reports/development/2026-10-01-ai-e2e-v1.md). AGY 검토 pending.
+
 ## 2026-10-01 — React + Spring Boot 서비스 V1
 
 `backend/`(Spring Boot 3.5, Java 21: JWT 인증·기업정보·지원사업 조회·대화·AI 경계)와 `frontend/`(React 19 + Vite + TanStack Query)를 추가했다. Spring ↔ FastAPI 실제 연결은 하지 않았다(AiGateway 미연결 구현).

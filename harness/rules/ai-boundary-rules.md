@@ -11,7 +11,8 @@ DB로 판단 가능한 날짜·지역·기업형태·지원분야·상태를 LLM
 단일 공고 자격 사전 판단(Eligibility v1: 공고 1개 + 기업 Profile snapshot, `eligibility/`)이 승인됐다.
 계속 금지: LangGraph·Reranker·LLM query rewrite·parent/neighbor expansion·여러 공고 일괄 판정·추천 점수·적합도 순위.
 AI 계층은 자격 판단에 기업 Profile snapshot을 입력으로 받을 뿐 기업 정보의 저장·source of truth를 소유하지 않는다.
-서비스 계층(Spring)은 AI 결과(목록·답변·자격 상태)를 만들거나 고치지 않고 전달만 한다. AI가 연결되지 않았으면 가짜 결과 대신 미연결 오류를 돌려준다.
+서비스 계층(Spring)은 AI 결과(목록·순위·답변·자격 상태·근거)를 재판단·재정렬하거나 만들지 않고 계약 검증 후 전달만 한다. 계약을 어긴 응답은 고쳐 쓰지 않고 거부한다.
+AI POST 요청(검색·자격 판정)은 자동 재시도하지 않는다(LLM 중복 실행·메시지 이중 저장 방지). AI 호출이 실패하면 가짜 ASSISTANT 메시지를 저장하지 않고, 자연어 답이 없는 목록 결과에 답변 문장을 지어 넣지 않는다.
 자격 판단은 제공된 기업 사실과 정확히 그 대상 공고에서 검색된 evidence 둘 다에 근거해야 한다.
 기업 사실이 없으면 LLM이 추론하지 않고 UNKNOWN / NEEDS_MORE_INFO로 둔다(값 없는 필드로 낸 MET·NOT_MET은 application이 UNKNOWN으로 되돌린다).
 최종 자격 상태는 검증된 criterion 결과로 application이 계산하며 모델이 덮어쓸 수 없다.

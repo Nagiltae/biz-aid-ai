@@ -1,5 +1,6 @@
 package com.bizaid.conversation;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
@@ -26,10 +27,11 @@ public final class ConversationDtos {
         }
     }
 
-    public record MessageResponse(Long id, MessageRole role, String content, Instant createdAt) {
+    public record StartedQuestion(Long conversationId, MessageResponse message) {
+    }
 
-        static MessageResponse from(Message message) {
-            return new MessageResponse(message.getId(), message.getRole(), message.getContent(), message.getCreatedAt());
-        }
+    /** resultType·result는 ASSISTANT 메시지에만 있다. result는 저장된 AI 결과 JSON을 그대로 돌려 화면을 복원한다. */
+    public record MessageResponse(Long id, MessageRole role, String content, String resultType, JsonNode result,
+                                  Instant createdAt) {
     }
 }

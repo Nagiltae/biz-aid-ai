@@ -44,5 +44,7 @@
 | Token Rotation | 재발급권 교체 | 재발급마다 이전 Refresh Token 폐기 |
 | JPA / QueryDSL | 객체로 DB 다루기 / 타입 안전한 동적 쿼리 | 일반 CRUD / 지원사업 다중 조건 검색 |
 | Entity / DTO | DB 매핑 객체 / API 전달 객체 | Entity를 HTTP 응답으로 직접 내보내지 않음 |
-| AiGateway | Spring의 AI 연결 경계 | FastAPI 연결 전에는 ai_service_not_connected |
+| AiGateway | AI 연결 창구 | Spring의 FastAPI 호출 경계(HttpAiGateway) |
+| Timeout / Retry | 요청 제한시간 / 자동 재시도 | 연결 3초·응답 90초, AI POST는 자동 재시도 안 함 |
+| Service-to-Service Authentication | 서비스 간 인증 | Spring→FastAPI 공유 키 헤더(X-Internal-Api-Key) |
 | Proxy | 요청 대신 전달 | Vite·nginx가 /api를 Spring으로 넘겨 CORS 없이 호출 |

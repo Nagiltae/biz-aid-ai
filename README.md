@@ -17,7 +17,8 @@ query → BGE-M3 → Qdrant dense·sparse·RRF hybrid → SearchResult          
 query → Hybrid top5 → Ollama(qwen3.5:9b) → 근거 답변 + citation             [구현: RAG v1, dev CLI]
 질문 → MySQL 후보 → 목록(SEARCH_LIST)/문서 QA · 자격 판단 v1 · FastAPI 내부 API  [구현]
 React → Spring Boot(JWT·기업정보·지원사업 조회·대화) → MySQL                 [구현: 서비스 V1]
-Spring Boot ↔ FastAPI 실제 연결 · Reranker · LangGraph                       [미구현]
+React → Spring → FastAPI(AI 검색·자격 판정) → 대화 저장                      [구현: AI E2E V1]
+FastAPI Compose 통합 · Reranker · LangGraph                                   [미구현]
 ```
 
 - canonical 문서 표현은 docling-core DoclingDocument 하나다. Markdown은 chunking 입력이 아니다.
@@ -53,9 +54,11 @@ export BIZAID_DOCLING_ARTIFACTS_PATH=~/.cache/biz-aid/docling-artifacts
 docker compose --profile dev-vector up -d qdrant          # dev Qdrant 127.0.0.1:6333
 ```
 
-서비스 V1(MySQL + Spring Boot + React)은 한 번에 올린다. `.env.dev`에 `JWT_SECRET`(32byte 이상)을 먼저 넣는다.
+서비스 전체(React + Spring Boot + MySQL + AI)는 호스트 FastAPI를 먼저 띄운 뒤 Compose로 올린다.
+사전 준비: Ollama 실행 + `qwen3.5:9b` 설치, dev Qdrant 실행, `.env.dev`에 `JWT_SECRET`(32byte 이상)·`INTERNAL_AI_API_KEY`·`OLLAMA_MODEL=qwen3.5:9b`.
 
 ```bash
+BIZAID_DOCLING_ARTIFACTS_PATH=~/.cache/biz-aid/docling-artifacts .venv/bin/python -B scripts/run_api.py   # FastAPI 127.0.0.1:8000
 docker compose --env-file .env.dev --profile app up --build   # 화면 http://127.0.0.1:3000, API 127.0.0.1:8080
 ```
 

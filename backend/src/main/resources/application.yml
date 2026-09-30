@@ -43,3 +43,11 @@ bizaid:
     path: /api/auth
     secure: ${REFRESH_COOKIE_SECURE:false}
   service-zone: Asia/Seoul
+  # FastAPI 내부 AI API. IntelliJ 직접 실행은 호스트 FastAPI(127.0.0.1:8000), Compose는 host.docker.internal:8000을 쓴다.
+  # 응답 제한시간이 긴 이유: 로컬 Qwen이 목록 검색 10~16초, 자격 판정 25~36초 걸린다. 자동 재시도는 하지 않는다.
+  ai:
+    base-url: ${AI_BASE_URL:http://127.0.0.1:8000}
+    connect-timeout: ${AI_CONNECT_TIMEOUT:3s}
+    response-timeout: ${AI_RESPONSE_TIMEOUT:90s}
+    # 서비스 간 인증 공유 키. FastAPI와 같은 값을 환경변수로만 받는다.
+    api-key: ${INTERNAL_AI_API_KEY:}

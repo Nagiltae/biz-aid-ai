@@ -37,6 +37,14 @@ public class Message {
     @Column(nullable = false, length = 65535)
     private String content;
 
+    /** ASSISTANT 메시지의 AI 결과 종류(FastAPI request_mode: SEARCH_LIST / DOCUMENT_QA). USER 메시지는 null. */
+    @Column(name = "ai_result_type", length = 20)
+    private String aiResultType;
+
+    /** 화면 복원용 AI 구조화 결과 JSON(공고 카드·답변·근거). 실제 column은 JSON(V7), length는 테스트용 H2 schema에만 쓰인다. */
+    @Column(name = "ai_result_json", length = 1_000_000)
+    private String aiResultJson;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -44,9 +52,16 @@ public class Message {
     }
 
     public Message(Conversation conversation, MessageRole role, String content, Instant now) {
+        this(conversation, role, content, null, null, now);
+    }
+
+    public Message(Conversation conversation, MessageRole role, String content, String aiResultType, String aiResultJson,
+                   Instant now) {
         this.conversation = conversation;
         this.role = role;
         this.content = content;
+        this.aiResultType = aiResultType;
+        this.aiResultJson = aiResultJson;
         this.createdAt = now;
     }
 
@@ -60,6 +75,14 @@ public class Message {
 
     public String getContent() {
         return content;
+    }
+
+    public String getAiResultType() {
+        return aiResultType;
+    }
+
+    public String getAiResultJson() {
+        return aiResultJson;
     }
 
     public Instant getCreatedAt() {

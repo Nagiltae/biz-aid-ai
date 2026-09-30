@@ -20,8 +20,17 @@ public enum ErrorCode {
     COMPANY_ALREADY_REGISTERED(HttpStatus.CONFLICT, "company_already_registered", "이미 기업정보가 등록되어 있습니다. 수정 기능을 사용해 주세요."),
     PROGRAM_NOT_FOUND(HttpStatus.NOT_FOUND, "program_not_found", "지원사업을 찾을 수 없거나 더 이상 게시되지 않는 공고입니다."),
     CONVERSATION_NOT_FOUND(HttpStatus.NOT_FOUND, "conversation_not_found", "대화를 찾을 수 없습니다."),
-    AI_SERVICE_NOT_CONNECTED(HttpStatus.SERVICE_UNAVAILABLE, "ai_service_not_connected",
-            "AI 서비스가 아직 연결되지 않았습니다. 연결 작업이 끝나면 이 화면에서 결과를 볼 수 있습니다."),
+    // AI(FastAPI) 호출 오류. 모두 서버 쪽 문제라 사용자 로그인 오류(401)와 구분되는 5xx로 돌려준다.
+    AI_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "ai_service_unavailable",
+            "AI 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+    AI_SERVICE_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "ai_service_timeout",
+            "AI 응답이 제한시간 안에 오지 않았습니다. 잠시 후 다시 시도해 주세요."),
+    AI_SERVICE_AUTH_FAILED(HttpStatus.BAD_GATEWAY, "ai_service_auth_failed",
+            "AI 서비스 연결 설정에 문제가 있습니다. 관리자에게 문의해 주세요."),
+    AI_RESPONSE_INVALID(HttpStatus.BAD_GATEWAY, "ai_response_invalid",
+            "AI 응답 형식이 올바르지 않아 결과를 보여 줄 수 없습니다. 다시 시도해 주세요."),
+    AI_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "ai_service_error",
+            "AI 서비스에서 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "internal_error", "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
 
     private final HttpStatus status;

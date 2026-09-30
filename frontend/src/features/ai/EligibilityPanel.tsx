@@ -2,9 +2,9 @@ import { useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { ApiError } from "../../shared/api/client";
-import { ErrorMessage, Loading } from "../../shared/components/StateViews";
+import { Loading } from "../../shared/components/StateViews";
 import { useAuth } from "../auth/AuthContext";
-import { AiNotConnectedNotice } from "./AiNotConnectedNotice";
+import { AiErrorNotice } from "./AiErrorNotice";
 import { aiApi } from "./aiApi";
 import { EligibilityResultView } from "./EligibilityResultView";
 
@@ -59,20 +59,17 @@ export function EligibilityPanel({ pblancId }: { pblancId: string }) {
           </select>
         </label>
         <button className="button primary full" type="submit" disabled={mutation.isPending}>
-          우리 회사 지원 가능 여부 확인
+          {mutation.data ? "입력한 정보로 다시 확인" : "우리 회사 지원 가능 여부 확인"}
         </button>
       </form>
       <div className="panel-result">
-        {mutation.isPending && <Loading message="공고문과 기업정보를 비교하고 있습니다." />}
-        {error?.code === "ai_service_not_connected" && <AiNotConnectedNotice what="지원 자격 판정 결과" />}
+        {mutation.isPending && <Loading message="공고문과 기업정보를 비교하고 있습니다. 30초 이상 걸릴 수 있습니다." />}
         {error?.code === "company_not_registered" && (
           <p className="alert info">
             {error.message} <Link to="/company">기업정보 등록하기</Link>
           </p>
         )}
-        {mutation.isError && error?.code !== "ai_service_not_connected" && error?.code !== "company_not_registered" && (
-          <ErrorMessage error={mutation.error} />
-        )}
+        {mutation.isError && error?.code !== "company_not_registered" && <AiErrorNotice error={mutation.error} />}
         {mutation.data && <EligibilityResultView result={mutation.data} />}
       </div>
     </section>

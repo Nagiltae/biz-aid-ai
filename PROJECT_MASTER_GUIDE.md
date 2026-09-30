@@ -73,8 +73,9 @@
 | MySQL 후보 필터, 자연어 조건 해석, 목록 검색 | 완료 |
 | 공고 1개 지원 자격 판정 | 완료 |
 | FastAPI 내부 API | 완료 |
-| React + Spring Boot 서비스 V1(로그인·기업정보·지원사업 목록/상세·대화 저장·AI 화면) | 완료(FastAPI 연결 전) |
-| Spring Boot ↔ FastAPI 실제 연결, 운영 배포 | **예정(다음 작업)** |
+| React + Spring Boot 서비스 V1(로그인·기업정보·지원사업 목록/상세·대화 저장·AI 화면) | 완료 |
+| Spring Boot ↔ FastAPI 실제 연결(AI E2E V1: 화면에서 AI 목록·답변·자격 판정·근거) | 완료(FastAPI는 호스트 실행) |
+| FastAPI Compose 통합, 운영 배포 | **예정** |
 | LangChain·LangGraph | **미적용** |
 
 ### 전체 흐름 한눈에 보기
@@ -115,7 +116,7 @@ Qdrant에서 후보 공고 안에서만 관련 문서 조각 검색(Dense + Spar
 
 [서비스 화면 — 서비스 V1]
 React(로그인·기업정보·지원사업·AI 검색) → Spring Boot(/api, JWT) → MySQL
-Spring Boot → FastAPI(위의 질문 처리·자격 판정)는 다음 단계에서 연결(지금은 "AI 연결 준비 중")
+Spring Boot ─HttpAiGateway(공유 키)─► FastAPI(위의 질문 처리·자격 판정) → 결과를 그대로 화면에, 성공한 답은 대화에 저장
 ```
 
 ### 누가 무엇을 담당하나
@@ -132,7 +133,7 @@ Spring Boot → FastAPI(위의 질문 처리·자격 판정)는 다음 단계에
 
 ### 아직 남은 작업
 
-- Spring Boot ↔ FastAPI 실제 연결(AI 검색·자격 판정 결과를 화면에 표시), 운영 배포
+- FastAPI Compose 통합(IMP-017), 운영 배포
 - 표를 LLM이 읽기 어려운 문제(IMP-002), 다른 LLM(Gemini)과 비교(IMP-003)
 - 전체 2,926개 문서 처리(현재 100개만 처리)
 
@@ -191,8 +192,8 @@ Spring Boot → FastAPI(위의 질문 처리·자격 판정)는 다음 단계에
 ### 목표 구조와 현재 구현
 
 ```text
-React(화면) ─► Spring Boot(서비스 서버) ─✕─► FastAPI(내부 AI 서버) ─► Python AI 서비스
- [구현 V1]         [구현 V1]      (연결 예정)      [구현]                 [구현]
+React(화면) ─► Spring Boot(서비스 서버) ─► FastAPI(내부 AI 서버) ─► Python AI 서비스
+ [구현 V1]         [구현 V1]    (공유 키 인증)    [구현, 호스트 실행]     [구현]
                                                                       │
                                      MySQL · Qdrant · S3 · Ollama(Qwen) ◄┘  [구현, dev 환경]
 ```
@@ -200,7 +201,7 @@ React(화면) ─► Spring Boot(서비스 서버) ─✕─► FastAPI(내부 A
 | 구성요소 | 역할 | 왜 필요한가 | 상태 |
 | --- | --- | --- | --- |
 | React | 사용자 화면 | 사용자는 화면으로 쓴다. FastAPI를 직접 부르지 않는다 | 구현(V1, `frontend/`) |
-| Spring Boot | 회원·인증·기업정보·대화의 원본 관리(Source of Truth), 지원사업 조회, FastAPI 호출 경계 | 서비스 데이터와 인증은 AI 서버가 아니라 서비스 서버가 책임진다 | 구현(V1, `backend/`), FastAPI 연결 전 |
+| Spring Boot | 회원·인증·기업정보·대화의 원본 관리(Source of Truth), 지원사업 조회, FastAPI 호출 경계 | 서비스 데이터와 인증은 AI 서버가 아니라 서비스 서버가 책임진다 | 구현(V1, `backend/`), FastAPI 연결(HttpAiGateway) |
 | FastAPI | 내부 AI API의 입구 | Spring Boot가 AI 기능을 HTTP로 부르기 위한 창구 | 구현(v1) |
 | Python AI 서비스 | 후보 필터·검색·답변·자격 판정 | 실제 AI 로직 | 구현 |
 | Python 데이터 파이프라인 | 수집·다운로드·파싱·조각·적재 | 요청 처리와 분리된 배치 작업 | 구현 |
@@ -793,8 +794,8 @@ prompt에는 조각 ID·공고 ID·파일 hash 같은 식별자를 넣지 않는
 
 ### 아직 없는 것
 
-- 인증, 브라우저 접근 허용(CORS)은 없다. 내부 API라서다.
-- Spring Boot는 `AiGateway` 경계까지 준비됐고(§14) 실제 HTTP 연결은 다음 작업이다. 배포도 예정이다.
+- 브라우저 접근 허용(CORS)은 없다. 내부 API라서다. 사용자 로그인은 없고 서비스 간 공유 키만 확인한다.
+- Spring Boot가 `HttpAiGateway`로 호출한다(§14). `/internal/v1/*`는 공유 키(`X-Internal-Api-Key`)가 필요하고 `/health`는 열려 있다. 배포는 예정이다.
 - 실행: `scripts/run_api.py`(127.0.0.1:8000), 자동 API 문서 `/docs`
 
 ---
@@ -802,7 +803,7 @@ prompt에는 조각 ID·공고 ID·파일 hash 같은 식별자를 넣지 않는
 ## 14. React + Spring Boot 서비스 V1
 
 **사용자가 실제로 쓰는 화면(React)과 서비스 서버(Spring Boot)** 를 만든 단계다. 로그인 → 기업정보 등록 → 지원사업 목록·상세 → AI 검색 → 자격 판정 화면까지 한 흐름으로 동작한다.
-AI 결과는 아직 나오지 않는다. **Spring Boot ↔ FastAPI 실제 연결은 다음 작업**이고, 이번에는 연결 지점(경계)과 결과를 보여 줄 화면까지 준비했다.
+서비스 V1 당시에는 AI 결과가 나오지 않았고 연결 지점(경계)과 결과 화면까지 준비했다. 같은 날 이어진 **AI E2E V1**에서 Spring ↔ FastAPI를 실제로 연결했다(이 절 뒤쪽 "AI 연결").
 
 ### 누가 무엇을 하나
 
@@ -812,7 +813,7 @@ React(frontend/, 화면)
    ▼
 Spring Boot(backend/, 서비스 서버) ──► MySQL(users·companies·conversations 등 + 기존 support_programs 조회)
    │
-   └─ ai.AiGateway ─ ✕ (다음 단계에서 FastAPI /internal/v1/query · /internal/v1/eligibility 연결)
+   └─ ai.AiGateway(HttpAiGateway) ─► FastAPI /internal/v1/query · /internal/v1/eligibility (AI E2E V1에서 연결)
 ```
 
 | 구성 | 맡는 일 | 맡지 않는 일 |
@@ -878,18 +879,18 @@ Spring Boot(backend/, 서비스 서버) ──► MySQL(users·companies·conver
 ### 대화 저장 구조
 
 - AI 검색 화면에서 질문하면 **① 대화 생성(첫 질문 앞부분이 제목) → ② 사용자 메시지(USER) 저장 → ③ Spring AI API 호출** 순서다. AI가 아직 연결되지 않아도 질문 기록은 남는다.
-- ASSISTANT 메시지는 AI 응답을 받았을 때 서버가 저장한다(FastAPI 연결 단계). 사용자가 API로 ASSISTANT 메시지를 만들 수는 없다.
+- ASSISTANT 메시지는 AI 응답이 성공했을 때만 서버가 저장한다(AI E2E V1). 사용자가 API로 ASSISTANT 메시지를 만들 수는 없다.
 - 다른 사용자의 대화는 "없음"과 같은 오류(404)로 처리해 존재 여부도 알려 주지 않는다.
-- 근거(citation) 같은 AI 부가 정보 column은 지금 만들지 않았다. 실제 FastAPI 응답 형태를 보고 신규 migration으로 추가한다.
+- 근거(citation) 같은 AI 구조화 결과는 실제 FastAPI 응답을 확인한 뒤 V7(`ai_result_type`, `ai_result_json`)으로 추가했다.
 
-### AI 검색·자격 판정 경계 — 왜 아직 FastAPI를 연결하지 않았나
+### AI 검색·자격 판정 경계 — 서비스 V1에서 왜 FastAPI를 바로 연결하지 않았나
 
 - 사용자가 **서비스 화면·데이터 구조와 AI 연결을 나눠서 진행**하기로 정했다. 연결에는 timeout, 오류 코드 대응, citation 응답 매핑, 서비스 간 인증을 따로 설계해야 해서 한 번에 섞으면 문제 원인을 가리기 어렵다.
 - 지금 Spring은 요청을 끝까지 준비한다.
   - `POST /api/ai/query`: 로그인 확인 → 질문 검증 → `AiGateway.query`
   - `POST /api/programs/{pblancId}/eligibility`: 로그인 확인 → 게시 중인 공고인지 확인 → 내 기업정보 조회 → 이번 요청의 일시 정보(신용점수·체납)와 합쳐 **CompanyProfileSnapshot**(FastAPI와 같은 snake_case 이름) 조립 → `AiGateway.evaluateEligibility`
 - `AiGateway`의 현재 구현(`UnconnectedAiGateway`)은 **가짜 결과를 만들지 않고** `503 ai_service_not_connected`를 돌려준다. React는 이 code를 보고 "AI 연결 준비 중" 안내를 보여 준다.
-- 다음 단계에서는 `AiGateway`의 HTTP 구현만 추가하면 된다. Controller·Service·React 화면은 바뀌지 않는다.
+- 실제로 AI E2E V1에서는 `AiGateway`의 HTTP 구현을 추가하고, 대화 저장을 AI 요청 안으로 옮기는 정도로 연결이 끝났다.
 - 결과 화면 부품은 미리 만들었다. 자격 판정 결과는 **한글 우선**(지원 가능 / 지원 불가 / 추가 정보 필요 / 공고 근거 부족 + 작은 영어 상태 코드), 조건별 충족·미충족·판단 불가, 근거 표시(공고명·page 또는 HWPX 구역·문단 제목 경로)다. 실제 근거가 없으므로 화면에 고정 예시 데이터를 넣지 않았다.
 
 ### 화면(React)
@@ -915,8 +916,8 @@ Spring Boot(backend/, 서비스 서버) ──► MySQL(users·companies·conver
 | GET · POST · PUT | `/api/company` | 내 기업정보 조회 · 등록 · 수정 |
 | POST · GET | `/api/conversations` | 대화 생성 · 목록 |
 | GET · POST | `/api/conversations/{id}/messages` | 메시지 조회 · 사용자 메시지 저장 |
-| POST | `/api/ai/query` | AI 검색·질문(현재 503 미연결) |
-| POST | `/api/programs/{pblancId}/eligibility` | 지원 자격 판정(현재 503 미연결) |
+| POST | `/api/ai/query` | AI 검색·질문 `{query, conversationId?}` → 저장된 질문·답변 메시지와 AI 결과 |
+| POST | `/api/programs/{pblancId}/eligibility` | 지원 자격 판정(일시 정보: 신용점수·체납·추가 사실) |
 
 - 정상 응답은 wrapper 없이 DTO 그대로, **오류는 항상** `{"error": {"code", "message", "fieldErrors"?}}` 한 형태다(FastAPI 오류 본문과 같은 모양). React는 code로 분기하고 message를 보여 준다.
 
@@ -936,6 +937,68 @@ docker compose --env-file .env.dev --profile app up --build
 - 기존 `dev-db`(MySQL + flyway)·`dev-vector`(Qdrant) 흐름은 그대로다. `.env.dev`는 수정하지 않았다.
 - `--env-file .env.dev`를 붙이는 이유: 저장소의 기존 Compose 실행 방식(`infra/dev_mysql.py`)이 이 옵션을 쓴다. 같은 값으로 실행해야 이미 떠 있는 mysql 컨테이너를 다시 만들지 않고 그대로 쓴다.
 - IntelliJ로 backend를 직접 실행할 때는 `.env.dev`의 `MYSQL_HOST=127.0.0.1`을 그대로 쓴다. AWS RDS로 옮길 때도 `MYSQL_*` 값만 바꾸면 된다.
+
+### AI 연결 — Spring ↔ FastAPI (AI E2E V1, 10-01)
+
+서비스 V1에서 비워 둔 **AI 연결 창구(AiGateway)** 에 실제 HTTP 구현(`HttpAiGateway`)을 넣어, 화면에서 실제 AI 결과를 볼 수 있게 했다. 새 AI 기능은 만들지 않았고, 이미 있던 React·Spring·FastAPI를 한 흐름으로 이었다.
+
+```text
+React ──/api/ai/query──────────────► Spring AiQueryService ─ ① 질문(USER) 저장
+                                         │
+                                         ▼ ② HttpAiGateway ─ POST /internal/v1/query (X-Internal-Api-Key)
+                                      FastAPI(호스트 127.0.0.1:8000) → 조건 추출·MySQL 후보·Qdrant 검색·Qwen
+                                         │
+                                         ▼ ③ 계약 검증(고치지 않음) → ④ 성공 시에만 AI 답변(ASSISTANT) 저장
+React ◄── {conversationId, userMessage, assistantMessage, result} ──┘
+```
+
+- **HTTP 도구 선택 — 동기 RestClient**: 서비스가 Spring MVC(요청마다 스레드 하나)라서, 내부 API 두 개를 부르려고 비동기 스택(WebFlux)을 새로 들이지 않았다. Spring 6 기본 동기 client인 RestClient에 JDK HttpClient를 붙였다.
+- **요청 제한시간(Timeout)**: 연결 3초, 응답 90초(`AI_CONNECT_TIMEOUT`, `AI_RESPONSE_TIMEOUT`로 변경 가능). 연결은 서버가 꺼져 있으면 빨리 알려야 해서 짧게, 응답은 로컬 Qwen이 목록 10~16초·자격 판정 25~36초 걸려서 길게 뒀다. 일반 API처럼 2~5초로 두면 정상 요청도 실패한다.
+- **자동 재시도(Retry) 없음**: 같은 LLM 요청이 두 번 돌고, 기다리는 시간이 두 배가 되고, 메시지가 두 번 저장될 수 있다. 실패하면 화면의 "다시 시도" 버튼으로 사용자가 직접 다시 요청한다. 실제 smoke에서도 FastAPI 로그에 요청이 정확히 1번씩만 찍혔다.
+- **서비스 간 인증(Service-to-Service Authentication)**: Spring이 `X-Internal-Api-Key` 헤더에 공유 비밀키를 넣고, FastAPI가 `/internal/v1/*`에서 확인한다(비교는 시간 차이로 키를 추측할 수 없는 방식). 키는 환경변수 `INTERNAL_AI_API_KEY`로만 받고 코드·Git·오류 응답에 없다. FastAPI에 키가 설정되지 않았으면 열어 두지 않고 거부한다(503). `/health`는 상태 확인용이라 열어 둔다.
+- **내부 인증 실패는 로그인 실패가 아니다**: FastAPI가 401을 주면 사용자에게 401(로그인 필요)로 보내지 않는다. 사용자는 로그인돼 있고 문제는 서버 설정이므로 `502 ai_service_auth_failed`로 바꾼다. 그렇지 않으면 React가 토큰 재발급을 시도하다 로그아웃시킨다.
+- **이름 규칙만 바꾸고 의미는 그대로**: FastAPI JSON은 `request_mode`, Spring·React는 `requestMode`다. HttpAiGateway 전용 ObjectMapper가 이름 규칙만 기계적으로 바꾼다. 값·순위·상태는 FastAPI 그대로다.
+- **Spring은 AI 결과를 고치지 않는다**: 받은 결과가 계약대로인지만 확인한다(요청 유형이 두 가지 중 하나인지, 목록에 같은 공고가 두 번 있지 않은지, 자격 판정 근거가 모두 요청한 공고인지). 어기면 고쳐 쓰지 않고 `502 ai_response_invalid`로 거부한다. 목록을 다시 정렬하거나 중복을 지우면 그것 자체가 AI 결과 수정이기 때문이다.
+
+오류 변환(React에는 내부 URL·Ollama·Qdrant·DB 상세를 보내지 않고 공통 오류 형식만 보낸다):
+
+| 상황 | 사용자에게 가는 오류 |
+| --- | --- |
+| FastAPI 서버 없음·연결 제한시간 | 503 `ai_service_unavailable` |
+| 응답 제한시간(90초) 초과 | 504 `ai_service_timeout` |
+| 내부 인증 실패·키 미설정 | 502 `ai_service_auth_failed` |
+| LLM 출력 계약 위반(FastAPI 502)·Spring 응답 검증 실패 | 502 `ai_response_invalid` |
+| 공고 없음(FastAPI 404) | 404 `program_not_found`(Spring 공고 확인과 같은 의미) |
+| 후보 없음·근거 부족·정보 필요·지원 불가 | **오류 아님**, 200 정상 결과 |
+
+#### 목록 찾기(SEARCH_LIST) 화면 흐름
+
+"소상공인 금융 지원사업 찾아줘" → FastAPI가 SEARCH_LIST로 판단 → 공고 5개(순위·공고명·분야·대상·기관·신청기간) → Spring 그대로 전달 → React가 **받은 순서 그대로** 카드(1위~5위)와 "적용된 조건: 소상공인, 금융 · 후보 공고 69건"을 보여 준다. 각 카드의 "상세 보기"로 공고 상세·자격 판정으로 이어진다.
+
+#### 공고문 질문(DOCUMENT_QA) 화면 흐름
+
+"비즈플러스카드 지원요건 알려줘" → FastAPI가 공고문 근거로 답변 + 근거 목록 → React가 답변 문장과 **공고문 근거(Citation)** 를 보여 준다. 근거는 "AI 답변이 실제 어느 공고문 위치를 근거로 했는지"이며 번호(E1)·공고명·페이지(p.3)·문단 제목 경로(2. 지원 요건)로 표시한다. 근거가 부족하면 FastAPI가 준 "확인할 수 없습니다" 답과 "근거 부족" 표시가 나온다.
+
+#### 기업 지원 자격 판정 흐름
+
+상세 화면 → (선택) 신용점수·체납 여부 입력 → Spring이 로그인 사용자의 저장된 기업정보 + 이번 일시 정보를 CompanyProfileSnapshot으로 조립 → FastAPI 판정 → Spring이 상태를 다시 계산하지 않고 전달 → React:
+- 상태는 한글 우선: 지원 가능 / 지원 불가 / 추가 정보 필요 / 공고 근거 부족 + 작은 영어 코드(ELIGIBLE 등)
+- 조건별 결과: 충족 / 미충족 / 판단 불가 + 그 조건의 공고문 근거(p.3 · 2. 지원 요건)
+- 추가 정보 필요: FastAPI `missing_information`을 "이 화면에서 입력할 정보(신용점수·체납)"와 "기업정보에서 고칠 정보(업력·매출·업종 등)"로 나눠 보여 주고, 입력 후 "입력한 정보로 다시 확인"으로 다시 요청한다. 자동 질문 대화(LangGraph)는 만들지 않았다.
+- 신용점수·체납·공고별 추가 사실(`additionalFacts`)은 여전히 DB에 저장하지 않는다.
+
+#### AI 응답 대화 저장
+
+- 한 번의 `/api/ai/query` 요청 안에서: 질문(USER) 저장 → FastAPI 호출 → **성공했을 때만** AI 답변(ASSISTANT) 저장. 각각 짧은 트랜잭션이라 수십 초 AI 호출 동안 DB 연결을 잡지 않는다.
+- 실패하면 질문만 남고 AI 답변은 저장하지 않는다(가짜 ASSISTANT 메시지 없음).
+- 구조화 결과 보존(V7): `messages.ai_result_type`(SEARCH_LIST / DOCUMENT_QA)과 `messages.ai_result_json`(공고 카드·답변·근거 JSON)을 추가했다. 대화를 다시 열면 이 JSON으로 같은 카드·근거를 그린다.
+- 목록 결과는 자연어 답이 없다. "조건에 맞는 지원사업을 찾았습니다" 같은 문장을 Spring이 AI 답변처럼 만들지 않으려고 `content`를 빈 문자열로 두고 결과는 JSON으로만 보존한다. DB CHECK로 "USER는 AI 결과 없음, ASSISTANT는 AI 결과 필수"를 강제한다.
+
+#### 실행 구조
+
+- FastAPI는 컨테이너가 아니라 **호스트에서** 기존 방식(`scripts/run_api.py`, 127.0.0.1:8000)으로 실행한다. Compose의 Spring 컨테이너가 `host.docker.internal:8000`으로 부른다(Docker Desktop은 호스트 loopback 서비스로 연결해 준다는 것을 먼저 확인했다).
+- 이유(사용자 결정): FastAPI 이미지를 만들려면 torch·paddle·docling(수 GB)과 모델 artifact 3.7GB mount, "Qdrant는 loopback 주소만" 규칙 변경이 필요하다. 기능 연결을 인프라 작업이 막지 않도록 호스트 연결로 먼저 완성하고 Compose 통합은 IMP-017로 남겼다.
+- Ollama(Qwen)는 기존 로컬 runtime을 그대로 쓰고 모델을 다시 받거나 이미지에 넣지 않았다.
 
 ### 개발 중 문제와 해결
 
@@ -1094,14 +1157,34 @@ docker compose --env-file .env.dev --profile app up --build
 - 이유: 새 DB는 공고 데이터가 비어 목록·상세를 확인할 수 없다. profile을 나누면 기존 `dev-db`·`dev-vector` 흐름이 바뀌지 않는다.
 - 결과: `docker compose --env-file .env.dev --profile app up --build`로 MySQL + Spring + React가 올라오고 실제 공고 1,554건이 화면에 나온다.
 
-### 16.22 FastAPI는 이번에 연결하지 않는다
+### 16.22 서비스 V1에서는 FastAPI를 바로 연결하지 않았다
 - 판단: 화면·서비스 데이터와 AI 연결을 한 번에 하면 오류 원인을 가리기 어렵고, 연결에는 timeout·오류 매핑·citation 형태·서비스 간 인증 설계가 따로 필요하다.
 - 선택: Spring에 `AiGateway` 경계와 요청 조립(기업정보 → CompanyProfileSnapshot)까지 만들고, 현재 구현은 가짜 결과 없이 `ai_service_not_connected`(503)를 돌려준다.
-- 결과: 다음 작업은 `AiGateway`의 HTTP 구현 하나를 추가하는 일로 좁혀졌다.
+- 결과: AI E2E V1에서 `AiGateway`의 HTTP 구현 하나를 추가해 연결을 끝냈다(§16.24~16.27).
 
 ### 16.23 Zustand를 쓰지 않는다
 - 판단: 여러 화면이 공유하는 client 상태가 "로그인 사용자" 하나뿐이다. 서버 데이터는 TanStack Query가 관리한다.
 - 선택: React Context로 충분해 Zustand를 넣지 않았다. 실제로 공유 상태가 늘어나면 도입한다.
+
+### 16.24 서비스 간 인증은 공유 키 헤더 (사용자 결정)
+- 문제: FastAPI는 loopback에만 열려 있지만, 같은 PC의 다른 프로세스도 내부 API를 부를 수 있었다.
+- 선택지: 인증 없음(loopback만 의존) / 공유 키 헤더 / mTLS·OAuth 같은 무거운 방식
+- 선택: 공유 키 헤더(`X-Internal-Api-Key`, `INTERNAL_AI_API_KEY`). 키가 없으면 FastAPI가 거부(fail closed).
+- 이유: V1 규모에 맞는 가장 작은 방식이고, 키는 환경변수로만 관리한다. 사용자는 `.env.dev`에 한 줄만 추가하면 된다.
+
+### 16.25 FastAPI는 호스트에서 실행, Compose 통합은 뒤로 (사용자 결정)
+- 문제: FastAPI 컨테이너화에는 수 GB 의존성 설치, 3.7GB 모델 mount, Qdrant loopback 규칙 변경이 필요했다.
+- 선택: 호스트 FastAPI + Compose backend가 `host.docker.internal:8000`으로 호출. Compose 통합은 IMP-017.
+- 결과: 모델·Ollama·Qdrant 정책을 바꾸지 않고 기능 연결을 끝냈다.
+
+### 16.26 동기 RestClient, 긴 응답 제한시간, 자동 재시도 없음
+- 판단: Spring MVC 구조라 WebFlux가 필요 없다. LLM 응답은 수십 초라 일반 API 제한시간을 쓸 수 없다. POST 재시도는 LLM 중복 실행·메시지 이중 저장 위험이 있다.
+- 선택: RestClient(JDK HttpClient), 연결 3초·응답 90초(환경설정), 재시도 없음.
+
+### 16.27 목록 결과는 문장을 만들지 않고 구조화 결과로 저장
+- 문제: 목록(SEARCH_LIST)에는 자연어 답이 없는데 `messages.content`는 필수였다.
+- 선택지: Spring이 "찾았습니다" 같은 문장 생성 / content를 비우고 결과 JSON 보존 / 대화 도메인 재설계
+- 선택: content는 빈 문자열, 결과는 V7 `ai_result_json`. 서비스가 AI 답변을 지어내지 않는다는 경계를 지켰다.
 
 ---
 
@@ -1159,8 +1242,19 @@ docker compose --env-file .env.dev --profile app up --build
 
 ### 검사
 
-- 전체 검사(`check-all`) 최신(서비스 V1): Contract test 408개, Integration test 64개 통과(exit 0)
+- 전체 검사(`check-all`) 최신: §17 AI E2E V1 표와 해당 report 참고
 - 원격 CI(GitHub Actions)는 Phase 4-B commit에서 2.3GB 추가 모델을 포함해 통과(6분 28초)
+
+### AI E2E V1 (실제 화면 → Spring → FastAPI → Qwen)
+
+| 항목 | 결과 |
+| --- | --- |
+| Smoke A: "소상공인 금융 지원사업 찾아줘"(화면에서 입력) | SEARCH_LIST, HTTP 200, 공고 5개(순위 1~5, 중복 0), 크라우드펀딩·비즈플러스카드·임실·영도구·인천 순(IMP-014와 같은 순위), AI 처리 16.5초, USER·ASSISTANT 메시지 저장, 화면 카드 표시 |
+| Smoke B: 비즈플러스카드 자격 판정(화면, 신용점수 720·체납 없음) | NEEDS_MORE_INFO(업력·매출·업종 정보 없음), 조건 8개(충족 5·판단 불가 3), 근거 전부 대상 공고(범위 밖 0), 화면 "추가 정보 필요" 표시 |
+| 호출 경계 | 화면의 요청 중 FastAPI(8000) 직접 호출 0, FastAPI 로그에 query 1회·eligibility 1회(자동 재시도 없음) |
+| backend test | 11/11(새 4개: 목록 순위 그대로·저장, 답변+근거, 판정 상태·근거·요청 본문, 제한시간·내부 인증 오류) |
+| frontend test | 6/6(새 3개: 목록 카드 순위, 답변+근거, 추가 정보 필요 표시) |
+| check-all | exit 0(Contract 409, Integration 64, V7 COMMENT 검사 포함) |
 
 ### 서비스 V1 (React + Spring Boot)
 
@@ -1168,7 +1262,7 @@ docker compose --env-file .env.dev --profile app up --build
 | --- | --- |
 | backend test(H2 격리 DB) | 7/7 통과: 인증 흐름(해시 저장·rotation·재사용 탐지·로그아웃), 기업정보, 대화, AI 미연결, QueryDSL 조건 조합·모집 상태 규칙 일치 |
 | frontend test | 4/4 통과: 비로그인 → 로그인 화면, 목록 렌더링, 기업정보 저장, AI 미연결 안내(+ /api만 호출) |
-| Compose E2E(실제 dev MySQL) | 5개 흐름 확인: 가입·로그인·기업정보 / 목록 1,554건·필터(금융+소상공인+접수중 4건)·상세 / 대화·메시지 / AI 검색 503 / 자격 판정 503 |
+| Compose E2E(실제 dev MySQL) | 5개 흐름 확인: 가입·로그인·기업정보 / 목록 1,554건·필터(금융+소상공인+접수중 4건)·상세 / 대화·메시지 / AI 검색 503 / 자격 판정 503(당시 미연결) |
 | check-all | exit 0(Contract 408, Integration 64, V6 COMMENT 검사 포함) |
 
 ---
@@ -1260,6 +1354,18 @@ docker compose --env-file .env.dev --profile app up --build
 - 문제: headless 브라우저 캡처에서 좁은 폭일 때 상단 메뉴가 두 줄로 깨지고 오른쪽이 잘렸다.
 - 해결: 760px 이하에서 메뉴를 로고 아래 한 줄로 내렸다. 600px 폭 캡처로 다시 확인했다.
 
+### 18.18 AI 실패 후 "다시 시도"가 새 대화를 만들 수 있음(AI E2E V1)
+- 문제: 첫 질문에서 대화를 서버가 만들고 AI가 실패하면, 오류 응답에는 대화 번호가 없어 다시 시도할 때 대화가 하나 더 생길 수 있었다.
+- 해결: 화면이 첫 질문 전에 대화를 먼저 만들고 그 번호로 AI 요청을 보낸다. 실패해도 같은 대화에 질문이 이어진다.
+
+### 18.19 빈 환경변수가 기본값을 덮어씀
+- 문제: `.env.example`에 `AI_BASE_URL=`처럼 빈 줄을 두면, 직접 실행 때 Spring 설정의 기본값(127.0.0.1:8000) 대신 빈 주소가 들어간다.
+- 해결: 선택 설정은 예시 파일에 빈 줄로 두지 않고 설명만 남겼다. 필수 키(`INTERNAL_AI_API_KEY`)만 줄로 둔다.
+
+### 18.20 좁은 판정 패널에서 결과 뱃지 줄바꿈
+- 문제: 실제 화면 smoke 캡처에서 "판단 불가" 뱃지가 세로로 깨졌다.
+- 해결: 뱃지는 줄바꿈하지 않고 줄어들지 않게 CSS를 고쳤다.
+
 ---
 
 ## 19. 개발 타임라인
@@ -1288,7 +1394,8 @@ docker compose --env-file .env.dev --profile app up --build
 | FastAPI v1 | 내부 API | 3개 endpoint, ServiceRuntime | HTTP 200 smoke | 목록 품질 |
 | 문서 한국어화 | 이해·포트폴리오 문서 | 마스터 가이드, 용어집 | 문서만 변경 | 목록 개선 |
 | IMP-014(10-01) | 목록 공고 다양성 | 공고 단위 그룹 검색 | 2개 → 5개 | 서비스 화면 |
-| 서비스 V1(10-01) | React + Spring Boot | JWT 인증·기업정보·지원사업 조회(QueryDSL)·대화·AI 경계, V6, Compose app | E2E 5개 흐름, AI는 미연결 안내 | Spring ↔ FastAPI 연결(다음) |
+| 서비스 V1(10-01) | React + Spring Boot | JWT 인증·기업정보·지원사업 조회(QueryDSL)·대화·AI 경계, V6, Compose app | E2E 5개 흐름, AI는 미연결 안내 | Spring ↔ FastAPI 연결 |
+| AI E2E V1(10-01) | 화면에서 실제 AI | HttpAiGateway·공유 키 인증·제한시간·오류 변환, V7 AI 결과 저장, 결과 화면 | 목록 5개·자격 판정 화면 표시 | 다음 기능 결정 |
 
 ---
 
@@ -1301,12 +1408,13 @@ docker compose --env-file .env.dev --profile app up --build
 3. **공고 1개 지원 자격 판정**: 기업 정보를 넣으면 조건별 충족·미충족·판단 불가와 최종 상태
 4. **수동 정형 필터 검색**: 분야·대상·소관기관·모집 여부
 5. **내부 HTTP API**: `/health`, `/internal/v1/query`, `/internal/v1/eligibility`
-6. **서비스 화면(React + Spring Boot V1)**: 회원가입·로그인(JWT), 내 기업정보 등록·수정, 지원사업 목록(검색어·분야·대상·모집 상태·소관기관 필터)·상세, 질문 대화 저장, AI 검색·자격 판정 화면(현재 "AI 연결 준비 중" 안내)
+7. **화면에서 실제 AI 사용(AI E2E V1)**: 문장 질문 → 공고 카드(FastAPI 순위) 또는 답변 + 공고문 근거, 대화 다시 열면 결과 복원, 공고 상세에서 자격 판정(조건별 결과·근거·부족한 정보 → 입력 후 다시 확인)
+6. **서비스 화면(React + Spring Boot V1)**: 회원가입·로그인(JWT), 내 기업정보 등록·수정, 지원사업 목록(검색어·분야·대상·모집 상태·소관기관 필터)·상세, 질문 대화 저장
 
 ### 아직 할 수 없는 것
 
 - 여러 공고 한꺼번에 자격 판정, 기업 맞춤 추천 순위·점수
-- 화면에서 실제 AI 검색·자격 판정 결과 보기(Spring Boot ↔ FastAPI 연결 전), 운영 배포
+- FastAPI까지 Compose 한 명령으로 올리기(IMP-017, 지금은 호스트에서 먼저 실행), 운영 배포
 - 전체 2,926개 문서 처리(100개만 처리)
 - ZIP·XLSX 등 305개 파일, 그림·차트 내용 해석
 - 대화 이력 기반 질문, LangChain·LangGraph
@@ -1333,6 +1441,7 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | IMP-013 | 평가 Gold가 조각 ID로 고정돼, 조각 식별값이 바뀌면 평가 스크립트를 그대로 못 씀 | 다음 검색 평가 | 다음 평가 전 |
 | IMP-015 | Spring 내장 Flyway가 "MySQL 8.4는 검증 안 됨"을 경고(동작은 정상) | migration 도구 호환 | RDS 이전·Spring 업그레이드 때 |
 | IMP-016 | refresh_tokens의 폐기·만료 row를 지우는 정책이 없어 로그인마다 row가 쌓임 | 테이블 크기 | 운영 배포 전 |
+| IMP-017 | FastAPI가 Compose app profile에 없음(호스트에서 먼저 실행) | 한 명령 실행 | 배포 설계 때 |
 
 ### 해결한 문제(RESOLVED)
 
@@ -1467,7 +1576,11 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | JPA(Spring Data JPA) | 객체로 DB를 다루는 표준 | 회원·기업정보·대화의 CRUD |
 | QueryDSL | 타입 안전한 동적 쿼리 도구 | 지원사업 다중 조건 검색 |
 | Entity / DTO | DB 매핑 객체 / API 전달 객체 | Entity를 응답으로 직접 내보내지 않음 |
-| AiGateway | Spring의 AI 연결 경계 | 지금은 미연결 오류, 다음 단계에서 FastAPI 호출 |
+| AiGateway | AI 연결 창구 | Spring의 FastAPI 호출 경계(HttpAiGateway) |
+| RestClient | Spring 동기 HTTP 호출 도구 | FastAPI 내부 API 호출 |
+| Timeout | 요청 제한시간 | 연결 3초·응답 90초(환경설정) |
+| Retry | 자동 재시도 | AI POST는 하지 않음(중복 실행·이중 저장 방지) |
+| Service-to-Service Authentication | 서비스 간 인증 | 공유 키 헤더 `X-Internal-Api-Key` |
 | TanStack Query | 서버 데이터 cache 도구 | 목록·상세·기업정보의 loading·error·cache |
 | Idempotency | 반복 실행해도 같은 결과 | 재적재해도 point 중복 없음 |
 | Provenance | 근거 위치·출처 | page·bbox·HWPX 경로·표 판정 |
@@ -1492,6 +1605,7 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 9. **재현성·재처리 설계**: 결과 식별값 3단계, 오프라인 고정 모델, 이전 point 자동 정리
 10. **Harness Engineering**: 여러 AI 에이전트가 규칙 안에서 개발하도록 Contract·Registry·자동 검사(Contract test 406개)를 운영했다.
 11. **내부 API 서비스화**: FastAPI 얇은 입구 + 공통 실행 환경(모델 1회 적재)
+13. **AI E2E V1**: 화면 → Spring → FastAPI → Qwen 실제 연결, 공유 키 서비스 간 인증, 긴 제한시간·재시도 없음, AI 결과를 고치지 않는 경계, 성공한 답만 대화 저장
 12. **서비스 V1(React + Spring Boot)**: JWT(Access 메모리·Refresh HttpOnly Cookie·DB 해시·rotation), JPA + QueryDSL 동적 검색, 공통 Flyway V6(한국어 COMMENT), AI 연결 경계(가짜 결과 없음), Compose 한 번 실행
 
 ---
@@ -1546,6 +1660,9 @@ JWT를 썼습니다. Access Token은 15분짜리이고 React 메모리에만 둬
 **Q. JPA와 QueryDSL은 어떻게 나눠 썼나요?**
 회원·기업정보·대화처럼 단순한 저장·조회는 Spring Data JPA 메서드로 했고, 검색어·분야·대상·소관기관·모집 상태가 자유롭게 조합되는 지원사업 목록 하나만 QueryDSL로 만들었습니다. 값이 있는 조건만 붙이고, 문자열 SQL을 조립하지 않아 잘못된 column은 compile 단계에서 잡힙니다. 기존 파이프라인 테이블은 조회 전용 Entity로 매핑해 쓰기 경로를 만들지 않았습니다.
 
+**Q. Spring과 FastAPI는 어떻게 연결했나요?**
+Spring의 AI 연결 창구(AiGateway) 한 곳에서 동기 RestClient로 FastAPI 내부 API를 부릅니다. LLM이 수십 초 걸려 응답 제한시간은 90초로 길게, 연결 제한시간은 3초로 짧게 두고 모두 환경설정으로 바꿀 수 있습니다. POST는 자동 재시도하지 않습니다(LLM 중복 실행과 메시지 이중 저장 방지). 서비스 간 인증은 공유 키 헤더이고, FastAPI 인증 실패는 사용자 로그인 실패가 아니라 설정 오류라 502로 바꿉니다. Spring은 AI 결과를 검증만 하고 순위·상태를 고치지 않으며, 성공한 응답만 구조화 결과와 함께 대화에 저장합니다.
+
 **Q. 이 프로젝트에서 Backend 경험이 어떻게 활용됐나요?**
 DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았습니다. 대량 적재는 단일 트랜잭션과 멱등성(같은 키면 재사용)으로 만들었고, 서비스 원본은 Spring Boot, AI는 내부 API로 역할을 나눴습니다. FastAPI에서는 연결 재사용, 서버 시작 시 자원 생성, 판단 결과와 HTTP 오류 구분 같은 서버 설계를 적용했습니다.
 
@@ -1581,7 +1698,7 @@ DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았�
 
 현재 상태 기준 후보(사용자 결정 필요):
 
-1. **Spring Boot ↔ FastAPI 실제 연결**: `AiGateway` HTTP 구현, timeout·오류 매핑, citation 응답과 ASSISTANT 메시지 저장, 서비스 간 인증
+1. **FastAPI Compose 통합(IMP-017)**: 한 명령 전체 실행(모델 mount·Qdrant 주소 정책 결정 필요)
 2. **Gemini 비교(IMP-003)**: 같은 검색·context·prompt로 Qwen과 비교
 3. **표 가독성(IMP-002)**: 표 직렬화 개선(재조각·재적재 필요)
 4. **평가 확장**: 다음 검색 평가 전 IMP-013 해소, 자격 판정 소규모 Gold

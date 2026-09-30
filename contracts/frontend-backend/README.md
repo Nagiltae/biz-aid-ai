@@ -21,12 +21,13 @@ React는 Spring Boot `/api`만 호출하며 DB와 FastAPI에 직접 접근하지
 | GET · POST · PUT | /api/company | 필요 | 내 기업정보 조회·등록·수정 |
 | POST · GET | /api/conversations | 필요 | 대화 생성·목록 |
 | GET · POST | /api/conversations/{id}/messages | 필요 | 메시지 조회·사용자 메시지 저장 |
-| POST | /api/ai/query | 필요 | AI 검색·질문(FastAPI 연결 전: 503) |
-| POST | /api/programs/{pblancId}/eligibility | 필요 | 지원 자격 판정(FastAPI 연결 전: 503) |
+| POST | /api/ai/query | 필요 | AI 검색·질문 `{query, conversationId?}` → `{conversationId, userMessage, assistantMessage, result}` |
+| POST | /api/programs/{pblancId}/eligibility | 필요 | 지원 자격 판정 `{creditScore?, taxDelinquent?, additionalFacts?}`(일시 정보, 저장 안 함) |
 
 ## 응답과 오류
 
 정상 응답은 wrapper 없이 DTO를 그대로 돌려준다. 목록은 `{items, page, size, totalElements, totalPages}`(page는 0부터)다.
 오류는 항상 `{"error": {"code", "message", "fieldErrors"?}}`다. React는 code로 분기하고 message를 보여 준다.
-대표 code: validation_failed(400), auth_required·auth_invalid_credentials·auth_refresh_invalid(401), company_not_registered·program_not_found·conversation_not_found(404), company_already_registered·auth_email_taken(409), ai_service_not_connected(503).
+대표 code: validation_failed(400), auth_required·auth_invalid_credentials·auth_refresh_invalid(401), company_not_registered·program_not_found·conversation_not_found(404), company_already_registered·auth_email_taken(409), ai_service_unavailable(503)·ai_service_timeout(504)·ai_service_auth_failed·ai_response_invalid·ai_service_error(502).
+AI 결과(`result`)는 FastAPI 값을 camelCase로 옮긴 것이다. SEARCH_LIST는 `programs`(FastAPI 순위 그대로), DOCUMENT_QA는 `answer`·`citations`다. 메시지 조회의 ASSISTANT 메시지는 `resultType`·`result`로 같은 화면을 복원한다.
 날짜만 의미하는 값(신청기간·개업일)은 `YYYY-MM-DD`, 시각(createdAt·updatedAt)은 UTC ISO-8601(`Z`)이다. 모집 상태는 Asia/Seoul 오늘 날짜로 계산한다.

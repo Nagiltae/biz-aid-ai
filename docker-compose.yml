@@ -72,6 +72,12 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
       JWT_SECRET: ${JWT_SECRET:-}
       FLYWAY_LOCATIONS: filesystem:/migrations
+      AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:8000}
+      AI_CONNECT_TIMEOUT: ${AI_CONNECT_TIMEOUT:-3s}
+      AI_RESPONSE_TIMEOUT: ${AI_RESPONSE_TIMEOUT:-90s}
+      INTERNAL_AI_API_KEY: ${INTERNAL_AI_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./migrations:/migrations:ro
   frontend:

@@ -66,13 +66,13 @@ class CompanyConversationAiTest extends ApiTestSupport {
     }
 
     @Test
-    void aiEndpointsReportNotConnectedInsteadOfInventingResults() throws Exception {
+    void aiEndpointsReportUnavailableAiInsteadOfInventingResults() throws Exception {
         String token = signup("ai@example.com");
         mvc.perform(post("/api/ai/query").contentType(MediaType.APPLICATION_JSON).content("{\"query\":\"금융 지원\"}"))
                 .andExpect(status().isUnauthorized());
         mvc.perform(post("/api/ai/query").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"query\":\"소상공인 금융 지원사업 찾아줘\"}"))
-                .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("ai_service_not_connected"));
+                .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("ai_service_unavailable"));
 
         jdbc.update("INSERT INTO support_programs (id, pblanc_id, name, source_active, source_deleted) VALUES (900, 'PBLN_900', '판정 대상', true, false)");
         String path = "/api/programs/PBLN_900/eligibility";
@@ -85,6 +85,6 @@ class CompanyConversationAiTest extends ApiTestSupport {
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("program_not_found"));
         mvc.perform(post(path).header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"creditScore\":700,\"taxDelinquent\":false}"))
-                .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("ai_service_not_connected"));
+                .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("ai_service_unavailable"));
     }
 }

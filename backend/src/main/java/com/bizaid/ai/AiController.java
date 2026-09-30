@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * React가 호출하는 AI 기능 입구. React는 FastAPI를 직접 부르지 않고 항상 이 API를 거친다.
- * 현재는 AiGateway가 미연결이라 두 API 모두 503 ai_service_not_connected를 돌려준다.
+ * 판단 결과(NO_CANDIDATES·INSUFFICIENT_EVIDENCE·NEEDS_MORE_INFO·INELIGIBLE 등)는 정상 응답(200)이고, AI 호출 실패만 5xx 오류다.
  */
 @RestController
 public class AiController {
@@ -24,8 +24,8 @@ public class AiController {
     }
 
     @PostMapping("/api/ai/query")
-    public AiDtos.AiQueryResult query(@AuthenticationPrincipal AuthUser user, @Valid @RequestBody AiDtos.AiQueryRequest request) {
-        return aiQueryService.query(request.query());
+    public AiDtos.AiQueryResponse query(@AuthenticationPrincipal AuthUser user, @Valid @RequestBody AiDtos.AiQueryRequest request) {
+        return aiQueryService.query(user.id(), request);
     }
 
     @PostMapping("/api/programs/{pblancId}/eligibility")

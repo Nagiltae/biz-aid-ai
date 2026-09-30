@@ -18,8 +18,8 @@
 | check-comments.sh | Python tokenize / AST docstring·Bash comment의 한글 여부 | 주석 WHY의 적절성·누락은 AGY / 사용자 검토 |
 | check-harness.sh | 정적 문서 링크·Registry·Skill·명령·실제 module / Compose / CI·Workspace 제어·Review metadata | AGY 독립 Architecture 판단·저자 신원 인증 |
 | check-all.sh | 위 검사 전부 실행, 전체 적용 범위 요약 | 제품 Unit·Component·E2E·AI Eval·Build |
-| (서비스 V1) backend | `docker run --rm -v "$PWD/backend":/app -v bizaid-gradle-cache:/home/gradle/.gradle -w /app gradle:8.14-jdk21 gradle test` — H2 격리 DB의 인증·기업정보·QueryDSL 검색·대화·AI 미연결 흐름 | check-all에 포함되지 않음. 실제 MySQL은 Compose E2E로 확인 |
-| (서비스 V1) frontend | `cd frontend && npm ci && npm run typecheck && npm test && npm run build` — 인증 routing·목록·기업정보 저장·AI 미연결 표시 | check-all에 포함되지 않음 |
+| (서비스 V1) backend | `docker run --rm -v "$PWD/backend":/app -v bizaid-gradle-cache:/home/gradle/.gradle -w /app gradle:8.14-jdk21 gradle test` — H2 격리 DB의 인증·기업정보·QueryDSL 검색·대화와 가짜 FastAPI(JDK HttpServer)로 AI 결과 전달·저장·제한시간·내부 인증 오류 | check-all에 포함되지 않음. 실제 MySQL은 Compose E2E로 확인 |
+| (서비스 V1) frontend | `cd frontend && npm ci && npm run typecheck && npm test && npm run build` — 인증 routing·목록·기업정보 저장·SEARCH_LIST 카드·DOCUMENT_QA 근거·자격 판정 상태 | check-all에 포함되지 않음 |
 
 0 = 해당 진입점의 **현재 명시된 범위** 통과, 1 = 실패, 2 = CLI 사용 오류.
 check-all은 모든 적용 검사를 실행한 후 하나라도 실패하면 1을 반환한다.

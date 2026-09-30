@@ -189,3 +189,13 @@
 - Revisit trigger: 운영 배포 전, 또는 refresh_tokens 크기가 조회 성능에 영향을 줄 때
 - Side effect: 정리 주기는 Refresh Token 수명(14일)보다 길게 잡아야 재사용 탐지가 유지된다.
 - Status: OPEN
+
+## IMP-017 FastAPI가 Compose app profile에 포함되지 않음
+
+- Area: Service infra / Docker Compose
+- Issue: `docker compose --profile app`은 MySQL·Spring·React만 올린다. FastAPI는 호스트에서 `scripts/run_api.py`(127.0.0.1:8000)로 먼저 띄우고 Spring 컨테이너가 `host.docker.internal:8000`으로 호출한다.
+- Evidence: FastAPI 컨테이너화에는 torch·paddle·docling 의존성 설치(수 GB 이미지), BGE-M3 등 3.7GB artifact read-only mount, Qdrant URL loopback 전용 규칙(`qdrant_url_not_loopback`)과 Ollama 주소 정책 변경이 필요했다. 사용자 결정으로 이번에는 호스트 FastAPI 연결로 기능을 먼저 완성했다(`2026-10-01-ai-e2e-v1.md`).
+- Why deferred: 핵심 목표(Spring ↔ FastAPI 기능 연결)를 인프라 변경이 막지 않게 하고, Qdrant·모델 정책 변경은 따로 검토가 필요하다.
+- Revisit trigger: 배포 환경 설계(AWS) 또는 한 명령 실행이 필요할 때
+- Side effect: 컨테이너 안 Qdrant 주소(qdrant:6333) 허용은 기존 loopback 경계 규칙 변경이라 사용자 승인이 필요하다. 모델 artifact identity(해시)는 mount만 하고 바꾸지 않아야 한다.
+- Status: OPEN

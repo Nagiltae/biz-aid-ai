@@ -3,14 +3,17 @@
 판단 로직(후보·검색·RAG·자격 판정)은 기존 서비스에 있고 여기서 다시 구현하지 않는다.
 NO_CANDIDATES·INSUFFICIENT_EVIDENCE·NEEDS_MORE_INFO·INELIGIBLE 같은 결과는 정상 판단이라 HTTP 200으로 돌려준다.
 """
+import hmac
 from contextlib import asynccontextmanager
 from datetime import date
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from biz_aid_pipeline.config.settings import PipelineError
+from biz_aid_pipeline.config.settings import ROOT, PipelineError, profile_values
+
+INTERNAL_KEY_HEADER = "X-Internal-Api-Key"
 
 # 모델 출력이 계약을 어긴 경우(외부 LLM 응답 문제)는 502, 의존 서비스 접속 실패는 503이다.
 MODEL_OUTPUT_ERRORS = ("filter_extraction_", "eligibility_output_", "eligibility_invalid_evidence_id",
@@ -40,7 +43,29 @@ def status_for(code):
     return 500
 
 
-def create_app(runtime_factory=None):
+class InternalAuthError(Exception):
+    def __init__(self, code, status):
+        super().__init__(code)
+        self.code, self.status = code, status
+
+
+def internal_api_key():
+    """서비스 간 인증(Service-to-Service Authentication) 공유 키. OS 환경변수 우선, 없으면 .env.dev에서 읽는다."""
+    return profile_values(ROOT, "dev", {"INTERNAL_AI_API_KEY"}).get("INTERNAL_AI_API_KEY") or None
+
+
+def create_app(runtime_factory=None, api_key=None):
+    key = api_key if api_key is not None else internal_api_key()
+
+    def require_internal_key(request: Request):
+        # BOUNDARY: /internal/v1/*는 서비스 계층(Spring)만 부른다. loopback 바인딩에 더해 공유 키로 호출자를 확인한다.
+        # 키가 설정되지 않았으면 열어 두지 않고 거부한다(fail closed). 응답에는 키·설정 상세를 싣지 않는다.
+        if not key:
+            raise InternalAuthError("internal_auth_not_configured", 503)
+        supplied = request.headers.get(INTERNAL_KEY_HEADER, "")
+        if not hmac.compare_digest(supplied.encode(), key.encode()):
+            raise InternalAuthError("internal_auth_failed", 401)
+
     @asynccontextmanager
     async def lifespan(app):
         # 서버 시작 때 공통 의존 객체를 한 번 만들고, 종료 때 DB pool·Qdrant client를 닫는다. Ollama 서버는 관리하지 않는다.
@@ -55,6 +80,10 @@ def create_app(runtime_factory=None):
             app.state.runtime.close()
 
     app = FastAPI(title="BizAid internal AI API", version="1", lifespan=lifespan)
+
+    @app.exception_handler(InternalAuthError)
+    async def internal_auth_error(request, error):
+        return JSONResponse(status_code=error.status, content={"error": {"code": error.code}})
 
     @app.exception_handler(PipelineError)
     async def pipeline_error(request, error):
@@ -77,11 +106,11 @@ def create_app(runtime_factory=None):
     def health():
         return {"status": "ok"}
 
-    @app.post("/internal/v1/query")
+    @app.post("/internal/v1/query", dependencies=[Depends(require_internal_key)])
     def query(body: QueryRequest, request: Request):
         return request.app.state.runtime.answer_query(body.query, body.as_of)
 
-    @app.post("/internal/v1/eligibility")
+    @app.post("/internal/v1/eligibility", dependencies=[Depends(require_internal_key)])
     def eligibility(body: EligibilityRequest, request: Request):
         from biz_aid_pipeline.eligibility.profile import CompanyProfileSnapshot
         company = CompanyProfileSnapshot.from_dict(body.company_profile)

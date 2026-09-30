@@ -4,7 +4,7 @@ MySQL은 서비스 사실과 구조화 데이터를, Qdrant는 문서 검색 met
 MongoDB는 실제 필요성 확인과 ADR 없이 도입하지 않는다.
 
 Flyway를 사용한다. 적용된 V1~Vn 수정 금지, schema 변경은 신규 Migration으로 작성한다.
-Spring Boot도 공통 `migrations/`와 같은 `flyway_schema_history`를 쓴다(V6: users·refresh_tokens·companies·conversations·messages). 두 번째 migration 체계를 만들지 않는다.
+Spring Boot도 공통 `migrations/`와 같은 `flyway_schema_history`를 쓴다(V6: users·refresh_tokens·companies·conversations·messages, V7: ASSISTANT 메시지 AI 결과 column). 두 번째 migration 체계를 만들지 않는다.
 Spring Boot의 DB 접근은 Spring Data JPA이며 일반 CRUD는 Repository 메서드로, 여러 조건이 조합되는 지원사업 검색만 QueryDSL로 작성한다. MyBatis는 쓰지 않는다.
 Migration은 Git 추적하고 Test / Docs / Contract를 동기화한다.
 Phase 1A 사용자 승인으로 Compose dev MySQL과 공통 `migrations/` Flyway가 도입됐다.

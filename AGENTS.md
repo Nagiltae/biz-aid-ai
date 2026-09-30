@@ -1,7 +1,7 @@
 # Harness Entry Point
 
 기업 프로필과 공고문 근거로 중소기업 지원사업을 탐색·검토하는 프로젝트다.
-최상위 기준은 [PROJECT_DESIGN.md](PROJECT_DESIGN.md). AI 계층(RAG·자격 판단·FastAPI 내부 API)에 이어 **React + Spring Boot 서비스 V1**까지 구현됐다. Spring ↔ FastAPI 실제 연결·LangGraph는 착수 전이다.
+최상위 기준은 [PROJECT_DESIGN.md](PROJECT_DESIGN.md). AI 계층(RAG·자격 판단·FastAPI 내부 API)과 **React + Spring Boot 서비스 V1**이 Spring ↔ FastAPI로 연결됐다(AI E2E V1). LangGraph는 착수 전이다.
 
 ## 먼저 읽기
 
@@ -37,7 +37,7 @@ Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는
 | RAG 변경 요청 | [RAG](harness/docs/rag.md), [AI 경계](harness/rules/ai-boundary-rules.md), [Observability](harness/docs/observability.md) | [rag-change](harness/skills/rag-change/SKILL.md) |
 
 Skill은 현재 Task의 허용 범위를 늘리지 않는다. 구현: dev 구조화 FULL / 문서 수집 / S3 저장 / PDF·HWP·HWPX Parser(OCR 포함) / Chunking / BGE-M3 dense·sparse dev Indexing / read-only Retriever / RAG Answer v1 / MySQL 후보 결합 / 자격 판단 v1 / FastAPI 내부 API / React + Spring Boot 서비스 V1(JWT·JPA·QueryDSL).
-미구현: Spring ↔ FastAPI 실제 연결(명시 승인 후)·Reranker·LangGraph. 단계 경계는 [파일 경계](harness/rules/file-boundaries.md)를 따른다.
+미구현: FastAPI Compose 통합(IMP-017)·Reranker·LangGraph. 단계 경계는 [파일 경계](harness/rules/file-boundaries.md)를 따른다.
 역할: [Codex](harness/agents/codex-developer.md), Claude는 [bootstrap](CLAUDE.md), [AGY](harness/agents/agy-reviewer.md).
 
 ## Validation / DoD

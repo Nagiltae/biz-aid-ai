@@ -38,10 +38,10 @@ class FakeRuntime:
 class InternalApiTests(unittest.TestCase):
     def setUp(self):
         self.runtime = FakeRuntime()
-        self.app = create_app(lambda: self.runtime)
+        self.app = create_app(lambda: self.runtime, api_key="test-internal-key")
 
     def test_query_serializes_search_list_and_document_qa_service_results(self):
-        with TestClient(self.app) as client:
+        with TestClient(self.app, headers={"X-Internal-Api-Key": "test-internal-key"}) as client:
             self.assertEqual(client.get("/health").json(), {"status": "ok"})
             listed = client.post("/internal/v1/query", json={"query": "소상공인 금융 지원사업 찾아줘", "as_of": "2026-09-30"})
             self.assertEqual((listed.status_code, listed.json()), (200, self.runtime.query_result))
@@ -55,20 +55,32 @@ class InternalApiTests(unittest.TestCase):
         self.assertTrue(self.runtime.closed)
 
     def test_eligibility_returns_service_status_unchanged(self):
-        with TestClient(self.app) as client:
+        with TestClient(self.app, headers={"X-Internal-Api-Key": "test-internal-key"}) as client:
             response = client.post("/internal/v1/eligibility", json={
                 "pblanc_id": "PBLN_000000000119801", "as_of": "2026-09-30", "company_profile": {"credit_score": 750}})
         self.assertEqual((response.status_code, response.json()["status"]), (200, "NEEDS_MORE_INFO"))
         self.assertEqual(self.runtime.calls, [("eligibility", "PBLN_000000000119801", 750, date(2026, 9, 30))])
 
     def test_invalid_requests_and_typed_errors_map_to_http_errors_without_internals(self):
-        with TestClient(self.app) as client:
+        with TestClient(self.app, headers={"X-Internal-Api-Key": "test-internal-key"}) as client:
             self.assertEqual(client.post("/internal/v1/query", json={"query": ""}).status_code, 422)
             bad_profile = client.post("/internal/v1/eligibility", json={
                 "pblanc_id": "PBLN_000000000119801", "company_profile": {"credit_score": "high"}})
             self.assertEqual((bad_profile.status_code, bad_profile.json()), (422, {"error": {"code": "company_profile_invalid:credit_score"}}))
             missing = client.post("/internal/v1/eligibility", json={"pblanc_id": "PBLN_000000000000404", "company_profile": {}})
             self.assertEqual((missing.status_code, missing.json()), (404, {"error": {"code": "eligibility_program_not_found_or_inactive"}}))
+
+    def test_internal_endpoints_require_service_key_but_health_does_not(self):
+        with TestClient(self.app) as client:
+            self.assertEqual(client.get("/health").status_code, 200)
+            for headers in ({}, {"X-Internal-Api-Key": "wrong"}):
+                response = client.post("/internal/v1/query", json={"query": "금융"}, headers=headers)
+                self.assertEqual((response.status_code, response.json()), (401, {"error": {"code": "internal_auth_failed"}}))
+        # 키가 설정되지 않은 서버는 열어 두지 않고 거부한다(fail closed).
+        with TestClient(create_app(lambda: FakeRuntime(), api_key="")) as client:
+            response = client.post("/internal/v1/query", json={"query": "금융"}, headers={"X-Internal-Api-Key": ""})
+            self.assertEqual((response.status_code, response.json()), (503, {"error": {"code": "internal_auth_not_configured"}}))
+        self.assertEqual(self.runtime.calls, [])
 
 
 if __name__ == "__main__":

@@ -1,7 +1,15 @@
 {
   "version": 1,
-  "scope": "internal HTTP interface for the service layer (Spring Boot); dev, loopback, no browser clients, no CORS, no auth yet",
+  "scope": "internal HTTP interface for the service layer (Spring Boot); dev, loopback, no browser clients, no CORS; /internal/v1/* requires the shared service key",
   "server": "scripts/run_api.py → uvicorn biz_aid_pipeline.api.app:app on 127.0.0.1:8000 (BIZAID_API_PORT), one worker",
+  "auth": {
+    "header": "X-Internal-Api-Key",
+    "secret": "INTERNAL_AI_API_KEY environment variable (OS env first, then .env.dev); never in code or Git",
+    "applies_to": "/internal/v1/*; GET /health stays open for local health checks",
+    "compare": "constant-time",
+    "missing_config": "503 internal_auth_not_configured (fail closed)",
+    "mismatch": "401 internal_auth_failed; the caller must treat it as a service configuration error, not an end-user login failure"
+  },
   "endpoints": {
     "GET /health": {
       "response": {
@@ -37,9 +45,10 @@
     "422": "request validation (FastAPI) or company_profile_*",
     "404": "eligibility_program_not_found_or_inactive",
     "502": "LLM output violated its contract (filter_extraction_*, eligibility_output_*, invalid evidence/profile field, rag_llm_output_*)",
-    "503": "llm_unavailable, llm_http_error, MySQL OperationalError, Qdrant connection error (dependency_unavailable)",
+    "503": "llm_unavailable, llm_http_error, MySQL OperationalError, Qdrant connection error (dependency_unavailable); internal_auth_not_configured",
     "500": "any other failure (internal_error or other PipelineError code)",
-    "rule": "no stack trace or connection detail in responses"
+    "rule": "no stack trace or connection detail in responses",
+    "401": "internal_auth_failed (service key missing or wrong)"
   },
   "resources": "ServiceRuntime is created once in the FastAPI lifespan: LLM provider, MySQL engine pool and Qdrant client at startup, BGE-M3 Retriever on first use; closed at shutdown; Ollama is external"
 }

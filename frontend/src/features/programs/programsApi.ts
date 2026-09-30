@@ -57,7 +57,7 @@ export const programsApi = {
 };
 
 /** 신청기간 표시: 파생 날짜가 있으면 날짜 범위, 없으면 기업마당 원문(예: "예산 소진시까지")을 그대로 보여 준다. */
-export function periodText(program: ProgramSummary) {
+export function periodText(program: Pick<ProgramSummary, "applicationStartDate" | "applicationEndDate" | "applicationPeriodRaw">) {
   if (program.applicationStartDate || program.applicationEndDate) {
     return `${program.applicationStartDate ?? "?"} ~ ${program.applicationEndDate ?? "?"}`;
   }

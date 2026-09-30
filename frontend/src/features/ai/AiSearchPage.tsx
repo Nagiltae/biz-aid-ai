@@ -1,22 +1,22 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApiError } from "../../shared/api/client";
-import { ErrorMessage } from "../../shared/components/StateViews";
-import { AiNotConnectedNotice } from "./AiNotConnectedNotice";
+import { ErrorMessage, Loading } from "../../shared/components/StateViews";
+import { AiErrorNotice } from "./AiErrorNotice";
 import { AiQueryResultView } from "./AiQueryResultView";
 import { aiApi } from "./aiApi";
 import { conversationApi } from "./conversationApi";
 
-const EXAMPLES = ["소상공인이 받을 수 있는 금융 지원사업 찾아줘", "경기도 제조업 수출 지원사업 알려줘", "창업 3년 이내 기업 기술개발 지원"];
+const EXAMPLES = ["소상공인이 받을 수 있는 금융 지원사업 찾아줘", "비즈플러스카드 지원요건 알려줘", "경기도 제조업 수출 지원사업 알려줘"];
 
 /**
  * 서비스의 첫 화면. 문장으로 지원사업을 찾는다.
- * 질문은 대화(conversation)에 사용자 메시지로 먼저 저장하고, 그다음 Spring AI API를 호출한다.
- * 그래서 AI가 아직 연결되지 않았어도 질문 기록은 남는다.
+ * 한 번의 요청으로 Spring이 질문 저장 → FastAPI 호출 → 성공 시 AI 답변 저장까지 한다.
+ * 대화 기록은 서버에 저장된 메시지로 그리므로, 다른 대화를 열었다 돌아와도 공고 카드·답변·근거가 그대로 복원된다.
  */
 export function AiSearchPage() {
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
+  const [lastQuestion, setLastQuestion] = useState("");
   const [conversationId, setConversationId] = useState<number | null>(null);
   const conversations = useQuery({ queryKey: ["conversations"], queryFn: conversationApi.list });
   const messages = useQuery({
@@ -26,16 +26,16 @@ export function AiSearchPage() {
   });
 
   const ask = useMutation({
+    // 대화를 먼저 정해 두면 AI가 실패해도 "다시 시도"가 같은 대화에 이어진다.
     mutationFn: async (question: string) => {
-      let id = conversationId;
-      if (id === null) {
-        id = (await conversationApi.create(question.slice(0, 40))).id;
-        setConversationId(id);
-      }
-      await conversationApi.addMessage(id, question);
-      await queryClient.invalidateQueries({ queryKey: ["messages", id] });
-      await queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      return aiApi.query(question);
+      const id = conversationId ?? (await conversationApi.create(question.slice(0, 40))).id;
+      setConversationId(id);
+      return aiApi.query(question, id);
+    },
+    // 성공·실패 모두 서버에 저장된 메시지를 다시 읽는다. 실패하면 질문만 있고 AI 답변은 없다(가짜 답변 저장 안 함).
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
   });
 
@@ -43,6 +43,7 @@ export function AiSearchPage() {
     event.preventDefault();
     const question = text.trim();
     if (!question || ask.isPending) return;
+    setLastQuestion(question);
     ask.mutate(question);
     setText("");
   };
@@ -50,14 +51,14 @@ export function AiSearchPage() {
     setConversationId(id);
     ask.reset();
   };
-  const error = ask.error instanceof ApiError ? ask.error : null;
+  const history = conversationId !== null ? messages.data ?? [] : [];
 
   return (
     <div className="page ai-layout">
       <section className="ai-main">
         <div className="hero">
           <h1>기업에 맞는 지원사업을 찾아보세요</h1>
-          <p className="muted">찾고 싶은 지원사업을 문장으로 적으면, 공고 조건과 공고문 근거로 맞는 사업을 찾습니다.</p>
+          <p className="muted">찾고 싶은 지원사업이나 궁금한 공고를 문장으로 적으면, 공고 조건과 공고문 근거로 답합니다.</p>
           <form className="search-row large" onSubmit={submit}>
             <input aria-label="지원사업 질문" placeholder={EXAMPLES[0]} value={text} maxLength={2000} onChange={(event) => setText(event.target.value)} />
             <button className="button primary" type="submit" disabled={ask.isPending || !text.trim()}>
@@ -71,19 +72,29 @@ export function AiSearchPage() {
           </div>
         </div>
 
-        {conversationId !== null && (messages.data?.length ?? 0) > 0 && (
+        {history.length > 0 && (
           <ol className="messages" aria-label="대화 기록">
-            {messages.data?.map((message) => (
+            {history.map((message) => (
               <li key={message.id} className={`message ${message.role === "USER" ? "from-user" : "from-ai"}`}>
                 <span className="message-role">{message.role === "USER" ? "나" : "AI"}</span>
-                <p className="prewrap">{message.content}</p>
+                {message.role === "USER" || !message.result ? (
+                  <p className="prewrap">{message.content}</p>
+                ) : (
+                  <AiQueryResultView result={message.result} />
+                )}
               </li>
             ))}
           </ol>
         )}
-        {error?.code === "ai_service_not_connected" && <AiNotConnectedNotice what="AI 검색 결과" />}
-        {ask.isError && error?.code !== "ai_service_not_connected" && <ErrorMessage error={ask.error} />}
-        {ask.data && <AiQueryResultView result={ask.data} />}
+        {ask.isPending && (
+          <Loading message={`"${lastQuestion}" — 공고 조건과 공고문을 확인하고 있습니다. 1분 가까이 걸릴 수 있습니다.`} />
+        )}
+        {ask.isError && <AiErrorNotice error={ask.error} onRetry={() => ask.mutate(lastQuestion)} />}
+        {/* 새 대화의 첫 응답은 메시지 목록을 다시 읽기 전까지 응답 결과로 바로 보여 준다. */}
+        {ask.data && history.every((message) => message.id !== ask.data.assistantMessage.id) && (
+          <AiQueryResultView result={ask.data.result} />
+        )}
+        {messages.isError && <ErrorMessage error={messages.error} />}
       </section>
 
       <aside className="ai-side card">

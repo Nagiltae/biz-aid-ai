@@ -25,3 +25,9 @@ bizaid:
     path: /api/auth
     secure: false
   service-zone: Asia/Seoul
+  # 기본 테스트는 AI 서버가 없는 주소를 가리킨다(연결 실패 → ai_service_unavailable). AI 연결 테스트는 가짜 서버 주소로 덮어쓴다.
+  ai:
+    base-url: http://127.0.0.1:9
+    connect-timeout: 1s
+    response-timeout: 2s
+    api-key: test-internal-key

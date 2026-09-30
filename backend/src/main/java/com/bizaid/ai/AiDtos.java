@@ -1,7 +1,6 @@
 package com.bizaid.ai;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -11,18 +10,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * AI 검색·자격 판정의 사용자용 요청/응답과, 이후 FastAPI 내부 API로 보낼 요청 형태.
- * 응답 필드는 FastAPI 결과(contracts/schemas/rag-answer·eligibility)를 React가 쓰기 쉬운 camelCase로 옮긴 것이다.
- * 결과 값은 FastAPI가 계산한 것만 담는다. Spring이 판정·답변을 만들거나 고치지 않는다.
+ * AI 검색·자격 판정의 요청/응답 DTO.
+ * FastAPI JSON은 snake_case(request_mode)이고 Java·React는 camelCase(requestMode)다. HttpAiGateway의 전용 ObjectMapper가
+ * 이름 규칙만 기계적으로 바꾸며 field 의미·값은 그대로다(contracts/schemas/internal-api·rag-answer·eligibility).
+ * 결과 값은 FastAPI가 계산한 것만 담는다. Spring은 답변·순위·판정 상태·근거를 만들거나 고치지 않는다.
  */
 public final class AiDtos {
 
     private AiDtos() {
     }
 
+    /** conversationId가 없으면 새 대화를 만들어 질문을 저장한다. */
     public record AiQueryRequest(
             @NotBlank(message = "질문을 입력해 주세요.") @Size(max = 2000, message = "질문은 2000자 이하로 입력해 주세요.")
-            String query) {
+            String query,
+            Long conversationId) {
     }
 
     /**
@@ -36,49 +38,58 @@ public final class AiDtos {
             @Size(max = 20, message = "추가 정보는 20개까지 입력할 수 있습니다.") Map<String, Object> additionalFacts) {
     }
 
-    /** FastAPI POST /internal/v1/eligibility 의 company_profile(CompanyProfileSnapshot)과 같은 이름·의미의 요청 본문. */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record CompanyProfileSnapshot(
-            @JsonProperty("company_name") String companyName,
-            @JsonProperty("business_entity_type") String businessEntityType,
-            @JsonProperty("company_size") String companySize,
-            String region,
-            String industry,
-            @JsonProperty("business_start_date") LocalDate businessStartDate,
-            @JsonProperty("business_status") String businessStatus,
-            @JsonProperty("employee_count") Integer employeeCount,
-            @JsonProperty("annual_revenue_krw") Long annualRevenueKrw,
-            @JsonProperty("credit_score") Integer creditScore,
-            @JsonProperty("tax_delinquent") Boolean taxDelinquent,
-            @JsonProperty("venture_certified") Boolean ventureCertified,
-            @JsonProperty("research_institute") Boolean researchInstitute,
-            Boolean exporter,
-            @JsonProperty("additional_facts") Map<String, Object> additionalFacts) {
+    /** FastAPI POST /internal/v1/eligibility 의 company_profile(CompanyProfileSnapshot)과 같은 field. */
+    public record CompanyProfileSnapshot(String companyName, String businessEntityType, String companySize, String region,
+                                         String industry, LocalDate businessStartDate, String businessStatus,
+                                         Integer employeeCount, Long annualRevenueKrw, Integer creditScore,
+                                         Boolean taxDelinquent, Boolean ventureCertified, Boolean researchInstitute,
+                                         Boolean exporter, Map<String, Object> additionalFacts) {
     }
 
+    /** FastAPI 요청 본문: /internal/v1/query 와 /internal/v1/eligibility. */
+    record QueryPayload(String query) {
+    }
+
+    record EligibilityPayload(String pblancId, CompanyProfileSnapshot companyProfile) {
+    }
+
+    /** Spring 내부에서 AiGateway로 넘기는 판정 요청(공고 ID + 조립된 기업 정보 스냅샷). */
     public record EligibilityCommand(String pblancId, CompanyProfileSnapshot companyProfile) {
     }
 
-    /** 공고문 근거 위치. location은 "p.3" 또는 HWPX section 이름처럼 사람이 읽는 위치다. */
-    public record Citation(String evidenceId, String pblancId, String title, List<Integer> pages, String location,
-                           List<String> headingPath) {
+    /** 공고문 근거(Citation). location은 자격 판정 근거에만 있고(예: "p.3"), 문서 질문 근거는 pages·headingPath로 위치를 보인다. */
+    public record Citation(String evidenceId, Integer rank, String chunkId, String pblancId, String title, List<Integer> pages,
+                           String location, String sourceFormat, List<String> headingPath) {
     }
 
-    public record ProgramItem(String pblancId, String name, String category, String target, String jurisdictionName,
-                              LocalDate applicationStartDate, LocalDate applicationEndDate, String applicationPeriodRaw) {
+    /** SEARCH_LIST의 공고 한 건. rank·rrfScore 등 순위 근거도 FastAPI 값 그대로다. */
+    public record ProgramItem(Integer rank, String pblancId, String name, String category, String target,
+                              String jurisdictionName, String executingOrgName, LocalDate applicationStartDate,
+                              LocalDate applicationEndDate, String applicationPeriodRaw, String announcementUrl,
+                              Double rrfScore, Integer denseRank, Integer sparseRank, String evidenceChunkId) {
     }
 
-    /** requestMode: SEARCH_LIST(공고 목록 찾기) 또는 DOCUMENT_QA(특정 공고 질문). */
-    public record AiQueryResult(String requestMode, String status, String answer, List<ProgramItem> programs,
-                                List<Citation> citations) {
+    /**
+     * FastAPI /internal/v1/query 결과. requestMode는 FastAPI가 정한 값(SEARCH_LIST 또는 DOCUMENT_QA)이다.
+     * SEARCH_LIST는 programs, DOCUMENT_QA는 answer·citations를 채운다. naturalFilter는 적용된 조건 진단 정보로 원본 구조를 그대로 둔다.
+     */
+    public record AiQueryResult(String requestMode, String status, Integer candidateCount, List<ProgramItem> programs,
+                                String answer, List<Citation> citations, JsonNode naturalFilter) {
     }
 
     /** 조건 하나의 판정. result는 MET(충족) / NOT_MET(미충족) / UNKNOWN(판단 불가)이다. */
-    public record Criterion(String criterion, String result, String reason, List<Citation> citations) {
+    public record Criterion(String criterion, String result, String reason, List<String> profileFields,
+                            List<String> missingProfileFields, List<Citation> citations) {
     }
 
     /** status: ELIGIBLE / INELIGIBLE / NEEDS_MORE_INFO / INSUFFICIENT_EVIDENCE (FastAPI가 계산한 값 그대로). */
-    public record EligibilityResult(String pblancId, String programName, String status, List<Criterion> criteria,
-                                    List<String> missingInformation, String disclaimer) {
+    public record EligibilityResult(String pblancId, String programName, LocalDate asOf, String status,
+                                    List<Criterion> criteria, List<String> missingInformation, String disclaimer) {
+    }
+
+    /** React에 돌려주는 AI 검색 응답: 저장된 대화·메시지와 AI 결과. */
+    public record AiQueryResponse(Long conversationId, com.bizaid.conversation.ConversationDtos.MessageResponse userMessage,
+                                  com.bizaid.conversation.ConversationDtos.MessageResponse assistantMessage,
+                                  AiQueryResult result) {
     }
 }
