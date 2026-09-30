@@ -10,6 +10,8 @@ citation(chunk_id·pblanc_id·page·source·provenance)은 application이 이번
 진입점은 dev CLI `scripts/run_rag_answer.py`다(FastAPI 서비스는 아직 없음).
 CLI는 먼저 `candidates.ProgramCandidateService`로 MySQL 후보 pblanc_id(활성 공고 + 선택 필터 category·target·jurisdiction·not_closed_on)를 정하고,
 `RagService.answer(query, candidate_pblanc_ids=...)`가 Retriever에 scope를 넘긴다(Qdrant MatchAny). 후보가 없으면 검색·LLM 없이 NO_CANDIDATES다.
+`--natural-filter`는 `candidates.natural.NaturalLanguageFilterService`가 같은 LlmProvider로 category·target·현재 모집 요청·unapplied 조건을 뽑고,
+활성 공고의 실제 값으로 검증한 뒤 ProgramCandidateFilter를 만든다. 지역·소관기관은 자연어로 적용하지 않고 unapplied로 남기며, 검색 질의는 원문 그대로다.
 
-다음 후보: provider 추가(Gemini), 자연어 → 정형 조건 추출, 표 직렬화 가독성 개선. Reranker·LangGraph는 평가로 필요성이 확인된 후 정한다.
+다음 후보: provider 추가(Gemini), 표 직렬화 가독성 개선, 후보 공고 목록형 응답. Reranker·LangGraph는 평가로 필요성이 확인된 후 정한다.
 지원 자격 판단은 하지 않는다. 날짜·상태 같은 정확한 조건은 MySQL이 결정한다. [AI 경계 규칙](../rules/ai-boundary-rules.md)과 [제품 평가](../../evals/README.md)를 따른다.

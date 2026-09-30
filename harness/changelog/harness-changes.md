@@ -1,5 +1,12 @@
 # Harness 변경 이력
 
+## 2026-09-30 — Natural-language candidate filter
+
+자연어 질문 → 같은 LlmProvider 구조화 추출(category·target·현재 모집 요청·unapplied) → 활성 공고 실제 값 검증 → ProgramCandidateFilter → 기존 scoped RAG.
+규칙 변경(보고): AI 경계의 "자연어→정형 조건 추출 금지"를 해제하고 허용 값 검증·다른 field 오매핑 금지·상대 시간은 application 시간 규칙을 추가했다.
+jurisdiction은 지역명과 겹쳐 자연어로 적용하지 않는다. Retrieval·RAG prompt·citation 변경 없음. Backlog IMP-012 추가, IMP-003·IMP-011 evidence 갱신.
+결과: [Report](../workspace/reports/development/2026-09-30-phase6c-natural-filter.md). AGY 검토 pending.
+
 ## 2026-09-30 — Candidate-scoped RAG (MySQL 정형 후보 → pblanc_id scope)
 
 `candidates/`(support_programs read-only)가 활성 공고 + category·target·jurisdiction·not_closed_on으로 후보 pblanc_id를 정하고, Retriever가 Qdrant MatchAny로 scope를 강제한다.

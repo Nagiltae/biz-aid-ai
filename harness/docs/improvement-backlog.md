@@ -35,6 +35,7 @@
 - Area: RAG / LLM
 - Issue: 현재는 로컬 qwen3.5:9b 하나로만 동작을 확인했다. 핵심 값은 맞지만 조건·기간을 빠뜨리거나 표현이 약간 부정확한 경우가 있다.
 - Evidence: RAG smoke G05에서 금액은 정답이었지만 "최대 12개월"이 누락되고 "한 달에 최대 20만원"으로 표현했다. G06은 표를 해석하지 못했다(`2026-09-30-phase6-rag-answer.md`). provider 경계(`rag.llm.LlmProvider`)는 준비돼 있다.
+  natural-filter smoke B(서울 지역 소상공인 금융)는 "확인할 수 없다"면서 ANSWERED로 E2가 서울 지역 사업임을 "암시한다"고 해석을 덧붙였다. evidence 해석이 과장된 사례다(`2026-09-30-phase6c-natural-filter.md`).
 - Why deferred: V1 흐름과 grounding은 동작한다. 비교는 완성된 동일 서비스에서 해야 공정하다.
 - Revisit trigger: AI 서비스 V1 완료와 프로젝트 정리 후
 - Side effect: 비교 조건을 같게 한다(Retriever, top_k 5, context, prompt, output schema). 볼 항목은 정답성, groundedness, citation 정확도, 확인 불가 판단, 표 이해, latency, API 비용이다. 원격 API는 공고 첨부 내용을 외부로 보낸다.
@@ -119,8 +120,18 @@
 
 - Area: MySQL 정형 후보
 - Issue: `application_start_date`·`application_end_date`는 원문이 유효한 날짜 범위일 때만 파생된다. "예산 소진시까지"·"세부사업별 상이" 같은 원문은 날짜가 없어 `--not-closed-on` 필터가 마감 여부를 판정하지 못하고 남긴다.
-- Evidence: dev support_programs 1,554건 중 951건이 파생 날짜 NULL이다. smoke(금융+소상공인+2026-09-30)에서 후보 67건 중 64건이 period_unknown이었다(`2026-09-30-phase6b-candidate-scoped-rag.md`).
+- Evidence: dev support_programs 1,554건 중 951건이 파생 날짜 NULL이다. smoke(금융+소상공인+2026-09-30)에서 후보 67건 중 64건이 period_unknown이었다(`2026-09-30-phase6b-candidate-scoped-rag.md`). 자연어 "지금 신청 가능" 경로도 같은 결과였다(67 중 64, `2026-09-30-phase6c-natural-filter.md`).
 - Why deferred: 원문 해석 규칙을 새로 만들지 않는다(근거 없는 정규화 금지). 모르는 기간은 제외하지 않는 쪽이 안전하다.
 - Revisit trigger: "지금 신청 가능" 필터가 제품 요구로 확정될 때, 또는 자격 판단 단계에서 기간 판정이 필요할 때
 - Side effect: 기간 원문 분류 규칙은 Structured 정규화 규칙·fingerprint 버전과 함께 결정해야 한다.
+- Status: OPEN
+
+## IMP-012 필터 추출 LLM이 질문에 없는 조건을 만들어냄
+
+- Area: 자연어 정형 조건 추출
+- Issue: qwen3.5:9b 추출 결과에 질문에 없던 조건이 들어간다. 허용 값 검증은 통과하는 bool·자유 문구라 application이 막지 못한다.
+- Evidence: smoke A("…지금 신청 가능한 거")에서 unapplied_constraints에 질문에 없는 "서울/부산/경기도 지역"이 나왔다(추출 prompt 예시가 새어 나온 것으로 보임). smoke B("서울 지역…찾아줘")는 "지금"이 없는데 currently_open_requested=true라 날짜 필터가 적용됐다(후보 69→67)(`2026-09-30-phase6c-natural-filter.md`).
+- Why deferred: 이번 작업은 prompt tuning loop를 하지 않는다. hard filter 오적용 영향이 작고(마감 확정 공고 2건 제외), 자유 문구는 표시용이다.
+- Revisit trigger: 자연어 필터를 사용자 경로(API·UI)에 노출하기 전, 또는 작은 추출 Gold로 정확도를 측정할 때
+- Side effect: 예시 제거·표현 규칙 강화·질문 원문 근거 검사(추출 값이 질문 표현에 근거하는지)는 추출 결과를 바꾸므로 같은 질문 세트로 전후를 비교해야 한다.
 - Status: OPEN

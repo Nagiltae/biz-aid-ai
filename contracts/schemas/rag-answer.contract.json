@@ -72,5 +72,21 @@
     "source": "candidates.ProgramCandidateService (MySQL support_programs, read-only) decides candidate pblanc_ids before retrieval",
     "rule": "RagService passes the candidate set to Retriever.search(pblanc_ids=...) which enforces it as a Qdrant MatchAny payload filter; results outside the set fail with retrieval_scope_violation",
     "empty": "an empty candidate set returns NO_CANDIDATES without query embedding, Qdrant search or LLM call"
+  },
+  "natural_filter": {
+    "service": "candidates.natural.NaturalLanguageFilterService(provider, filter_domain(repository)).extract(query, as_of)",
+    "llm_role": "proposes filter inputs only; SQL, lifecycle, candidate selection, dates and retrieval query stay with the application",
+    "output_schema": [
+      "categories",
+      "targets",
+      "currently_open_requested",
+      "unapplied_constraints"
+    ],
+    "domain": "categories and targets are validated against distinct values of active support_programs; values outside the domain are not applied and are reported as unapplied",
+    "jurisdiction": "not extracted from natural language: 16 jurisdiction_name values are regional governments whose names equal region words, so a region mention cannot be told apart from an agency; manual --jurisdiction stays available",
+    "currently_open": "currently_open_requested=true sets not_closed_on to the application date (Asia/Seoul today or explicit as_of); undated programs stay as period_unknown (IMP-011)",
+    "failure": "non-JSON or schema mismatch raises filter_extraction_* without falling back to an unfiltered candidate set",
+    "query": "the original user query is used unchanged for retrieval and answer generation (no query rewrite)",
+    "cli": "--natural-filter is mutually exclusive with manual filters; --as-of requires --natural-filter"
   }
 }

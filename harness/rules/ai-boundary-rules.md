@@ -7,7 +7,11 @@ DB로 판단 가능한 날짜·지역·기업형태·지원분야·상태를 LLM
 
 승인 범위: dev Qdrant의 FinalChunk dense·sparse 적재(Phase 4-B), read-only Retriever(dense·sparse·RRF hybrid, Phase 5),
 근거 기반 답변 RAG v1(Hybrid top5 → LlmProvider → citation, Phase 6, dev·로컬 Ollama)과 MySQL 정형 후보로 제한한 RAG.
-계속 금지: LangGraph·Reranker·LLM query rewrite·parent/neighbor expansion·지원 자격(eligibility) 판단·자연어→정형 조건 추출.
+자연어 질문에서 정형 후보 조건을 LLM으로 추출하는 것도 승인됐다(`candidates/natural.py`). 추출은 필터 입력 후보일 뿐 SQL·후보 선택·날짜를 정하지 않는다.
+계속 금지: LangGraph·Reranker·LLM query rewrite·parent/neighbor expansion·지원 자격(eligibility) 판단.
+LLM이 추출한 정형 조건은 SQL 실행 전에 application의 허용 canonical 값(활성 공고의 실제 DB 값)으로 검증한다. 허용 값 밖은 적용하지 않고 unapplied로 드러낸다.
+처리할 수 없거나 모호한 hard 조건(예: 지역)을 다른 정형 field(예: 소관기관 jurisdiction_name)로 바꿔 적용하지 않는다.
+"현재·지금" 같은 상대 시간은 LLM이 만든 날짜가 아니라 application 시간(Asia/Seoul 날짜 또는 명시한 as_of)으로 해석한다.
 MySQL이 소유한 정형 조건(공고 lifecycle·분야·대상·소관기관·신청기간)은 의미 검색보다 먼저 적용해 후보 pblanc_id를 정한다.
 Retriever는 정형 계층이 준 후보 scope 밖의 pblanc_id를 반환하지 않는다(Qdrant filter로 강제). LLM·Retriever가 제외된 공고를 되살리지 않는다.
 정형 후보가 비면 query embedding·검색·LLM 생성을 하지 않고 즉시 NO_CANDIDATES로 끝낸다.
