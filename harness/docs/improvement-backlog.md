@@ -165,4 +165,7 @@
 - Why deferred: 이번 작업은 기존 서비스를 HTTP로 노출하는 것이다. discovery 설정(fetch_chunks 20)과 순위 방식은 바꾸지 않았다.
 - Revisit trigger: SEARCH_LIST를 사용자 화면(Spring Boot·React)에 연결하기 전
 - Side effect: fetch_chunks를 늘리면 latency가 는다. Qdrant group 검색(공고별 최고 chunk)으로 바꾸면 순위 규칙이 바뀌므로 discovery 계약과 test를 함께 고친다.
-- Status: OPEN
+- Status: RESOLVED(`2026-10-01-imp014-discovery-diversity.md`).
+  - 진단: 같은 후보에서 hybrid 상위 20 조각의 고유 공고 2개(한 공고가 18개 차지), 상위 50은 3개(39개 차지). 조각 절단 수를 늘리는 것만으로는 해결되지 않았다.
+  - 해결: 목록은 의미·단어 검색마다 공고별 최고 조각 하나(Qdrant `query_points_groups`, group_size 1)로 공고 순위를 만들고 기존 RRF로 합친다. Qdrant 호출은 2회 그대로다.
+  - 결과: 같은 질문에서 공고 2개 → 5개, 중복 0, 범위 밖 0, LLM 호출 1회. 원인이 공고명 context라는 가설은 통제 실험으로 확인하지 않았다(해결에는 불필요).

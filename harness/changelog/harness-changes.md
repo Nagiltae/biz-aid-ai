@@ -1,5 +1,12 @@
 # Harness 변경 이력
 
+## 2026-10-01 — IMP-014 목록 검색 공고 다양성
+
+SEARCH_LIST 순위 단위를 조각에서 공고로 바꿨다. `Retriever.search_programs`가 의미·단어 검색마다 공고별 최고 조각 하나(Qdrant group 검색)를 받고 기존 RRF로 공고 순위를 합친다.
+RAG 계약 discovery 절(fetch_chunks → group_limit_per_mode 50, 공고 단위 규칙, 채우기 금지)과 AI 경계 2줄(공고 단위 결과·조각 독점 금지, 범위 밖·근거 없는 공고로 채우지 않음)을 갱신했다.
+BGE-M3·dense/sparse·RRF·collection·index·DOCUMENT_QA top5는 바꾸지 않았다. IMP-014 RESOLVED.
+결과: [Report](../workspace/reports/development/2026-10-01-imp014-discovery-diversity.md). AGY 검토 pending.
+
 ## 2026-09-30 — 문서 한국어화와 PROJECT_MASTER_GUIDE
 
 루트에 `PROJECT_MASTER_GUIDE.md`(시작부터 현재까지 전체 설명·기술 선택·실험·실패·용어 사전·면접 답변)와 `harness/docs/glossary-ko.md`를 추가했다.

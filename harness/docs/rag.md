@@ -14,8 +14,8 @@ CLI는 먼저 `candidates.ProgramCandidateService`로 MySQL 후보 pblanc_id(활
 `RagService.answer(query, candidate_pblanc_ids=...)`가 Retriever에 scope를 넘긴다(Qdrant MatchAny). 후보가 없으면 검색·LLM 없이 NO_CANDIDATES다.
 `--natural-filter`는 `candidates.natural.NaturalLanguageFilterService`가 같은 LlmProvider로 category·target·현재 모집 요청·unapplied 조건을 뽑고,
 활성 공고의 실제 값으로 검증한 뒤 ProgramCandidateFilter를 만든다. 지역·소관기관은 자연어로 적용하지 않고 unapplied로 남기며, 검색 질의는 원문 그대로다.
-같은 추출 호출이 request_mode(SEARCH_LIST·DOCUMENT_QA)를 낸다. SEARCH_LIST는 `candidates/discovery.py`가 후보 scope 안 hybrid 20 chunk를 공고 단위로 중복 제거해
-상위 5개 공고의 MySQL 정형 정보를 돌려준다(답변 생성 LLM 없음). DOCUMENT_QA는 기존 RagService 그대로다. hard filter는 질문 근거가 있을 때만 적용한다.
+같은 추출 호출이 request_mode(SEARCH_LIST·DOCUMENT_QA)를 낸다. SEARCH_LIST는 `candidates/discovery.py`가 `Retriever.search_programs`로 의미·단어 검색마다 공고별 최고 조각 하나(Qdrant group 검색)를 받아
+공고 순위를 기존 RRF(k=60)로 합치고 상위 5개 공고의 MySQL 정형 정보를 돌려준다(답변 생성 LLM 없음, IMP-014). DOCUMENT_QA는 기존 RagService 그대로다. hard filter는 질문 근거가 있을 때만 적용한다.
 
 Eligibility v1(`eligibility/`, [계약](../../contracts/schemas/eligibility.contract.json)): 공고 1개 + 기업 Profile snapshot → 고정 질의로 그 공고만 hybrid top5 →
 LLM criterion(MET·NOT_MET·UNKNOWN, evidence id, profile field) → application 검증·최종 상태(ELIGIBLE·INELIGIBLE·NEEDS_MORE_INFO·INSUFFICIENT_EVIDENCE)·citation.

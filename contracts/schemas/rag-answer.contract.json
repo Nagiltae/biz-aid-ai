@@ -93,16 +93,18 @@
   },
   "discovery": {
     "request_mode": "SEARCH_LIST (from the same natural-filter extraction call); DOCUMENT_QA keeps the existing grounded answer path",
-    "mode": "hybrid",
-    "fetch_chunks": 20,
+    "mode": "hybrid (program-level)",
     "max_programs": 5,
-    "rule": "scoped hybrid retrieval ranks candidate programs only; chunk results are deduplicated by pblanc_id at their best rank before any program is shown; these settings are separate from the RAG retrieval baseline (hybrid, top_k 5)",
-    "metadata": "support_programs values as stored: pblanc_id, name, category, target, jurisdiction_name, executing_org_name, application_start_date, application_end_date, application_period_raw, announcement_url",
+    "rule": "the output unit is the program: dense and sparse retrieval each return the best chunk per pblanc_id (Qdrant query_points_groups, group_size 1, up to group_limit_per_mode programs, candidate scope filter), and the program rankings are fused by the existing RRF (k=60); chunk-level top-N truncation is not used, so several chunks of one program cannot take several list slots; these settings are separate from the RAG retrieval baseline (hybrid, top_k 5)",
+    "metadata": "support_programs values as stored: pblanc_id, name, category, target, jurisdiction_name, executing_org_name, application_start_date, application_end_date, application_period_raw, announcement_url, plus rrf_score, dense_rank, sparse_rank and evidence_chunk_id as ranking evidence",
     "llm": "no answer-generation LLM call; the list is deterministic",
     "status": {
       "LISTED": "at least one indexed candidate program",
       "NO_CANDIDATES": "empty structured candidate set; no Qdrant call",
       "NO_INDEXED_PROGRAMS": "candidates exist but none has indexed chunks"
-    }
+    },
+    "group_limit_per_mode": 50,
+    "fill_rule": "never add programs outside the candidate scope or without retrieved evidence to reach max_programs; fewer relevant programs are returned instead",
+    "calls": "two Qdrant group queries per request (dense, sparse); no per-candidate queries and no extra LLM call"
   }
 }

@@ -130,3 +130,36 @@ class Retriever:
                 sparse_rank=sparse_hit[0] if sparse_hit else None, sparse_score=sparse_hit[1] if sparse_hit else None,
                 rrf_score=score if mode == "hybrid" else None))
         return results
+
+    def search_programs(self, query, limit, pblanc_ids, group_limit):
+        """공고 단위 hybrid 순위. 의미·단어 검색마다 공고별 최고 조각 하나만 받아(Qdrant group 검색) 공고 순위를 RRF로 합친다.
+
+        WHY: 목록의 출력 단위는 공고다. 조각 상위 N개를 자른 뒤 중복을 지우면 한 공고의 여러 조각이 목록 자리를 독점한다(IMP-014).
+        반환 SearchResult는 각 공고의 대표 조각이며 rank·score는 공고 순위·RRF 점수, dense_rank·sparse_rank는 모드별 공고 순위다.
+        """
+        from qdrant_client import models
+        if not pblanc_ids:
+            return []
+        if not query or not query.strip():
+            raise PipelineError("retrieval_query_empty")
+        dense, sparse = self.embedder.encode([query])[0]
+        query_filter = self._filter(None, None, pblanc_ids)
+        ranked = {}
+        for name, vector in (("dense", dense), ("sparse", models.SparseVector(**sparse))):
+            groups = self.client.query_points_groups(self.collection, query=vector, using=name, group_by="pblanc_id", group_size=1,
+                                                     limit=group_limit, query_filter=query_filter, with_payload=True).groups
+            ranked[name] = [(str(group.id), group.hits[0]) for group in groups if group.hits]
+        positions = {name: {pblanc: (rank, hit) for rank, (pblanc, hit) in enumerate(found, 1)} for name, found in ranked.items()}
+        ordered = rrf([[pblanc for pblanc, _ in ranked[name]] for name in ("dense", "sparse")], self.contract["fusion"]["rrf_k"], limit)
+        results = []
+        for rank, (pblanc, score) in enumerate(ordered, 1):
+            dense_hit, sparse_hit = positions["dense"].get(pblanc), positions["sparse"].get(pblanc)
+            # 대표 조각은 두 검색 중 더 높은 순위에서 나온 조각이다(동순위면 의미 검색 쪽).
+            best = min((hit for hit in (dense_hit, sparse_hit) if hit), key=lambda item: item[0])[1]
+            payload = best.payload or {}
+            results.append(SearchResult(
+                rank=rank, mode="hybrid_program", score=score, **{name: payload.get(name) for name in PAYLOAD_FIELDS},
+                dense_rank=dense_hit[0] if dense_hit else None, dense_score=dense_hit[1].score if dense_hit else None,
+                sparse_rank=sparse_hit[0] if sparse_hit else None, sparse_score=sparse_hit[1].score if sparse_hit else None,
+                rrf_score=score))
+        return results

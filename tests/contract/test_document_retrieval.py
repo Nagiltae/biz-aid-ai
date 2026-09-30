@@ -86,6 +86,26 @@ class DocumentRetrievalContractTests(unittest.TestCase):
         self.assertEqual(retriever.search("업력 3년 이하", "hybrid", top_k=5, pblanc_ids=()), [])
         self.assertEqual(len(embedder.calls), calls)
 
+    def test_program_search_gives_each_program_one_slot_in_scope(self):
+        from qdrant_client import models as qmodels
+        contract = indexing_contract()
+        client, size = QdrantClient(":memory:"), contract["qdrant"]["vectors"]["dense"]["size"]
+        embedder = FakeEmbedder(identity(), size)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            qdrant_store.ensure_collection(client, contract, embedder.identity)
+        # 조각 순위가 A, A, B, A, C, D, E여도(뒤로 갈수록 덜 비슷함) 공고 목록은 A, B, C, D, E 한 칸씩이다(IMP-014).
+        points = [qmodels.PointStruct(id=f"00000000-0000-5000-8000-{index:012d}", payload={"pblanc_id": program, "chunk_id": f"c{index}",
+                  "source_sha256": "s" * 64}, vector={"dense": [1.0, 0.1 * index] + [0.0] * (size - 2),
+                  "sparse": qmodels.SparseVector(indices=[7], values=[1.0 - 0.1 * index])}) for index, program in enumerate("AABACDE")]
+        client.upsert(qdrant_store.collection_name(contract, embedder.identity["embedding_key"]), points)
+        retriever = Retriever(embedder, client, contract)
+        ranked = retriever.search_programs("금융 지원사업", 5, tuple("ABCDEF"), 50)
+        self.assertEqual([(r.rank, r.pblanc_id, r.chunk_id) for r in ranked], [(1, "A", "c0"), (2, "B", "c2"), (3, "C", "c4"), (4, "D", "c5"), (5, "E", "c6")])
+        # BOUNDARY: 후보 범위 밖 공고는 목록을 채우려고 들어오지 않는다.
+        self.assertEqual([r.pblanc_id for r in retriever.search_programs("금융 지원사업", 5, ("B", "E"), 50)], ["B", "E"])
+        self.assertEqual(retriever.search_programs("금융 지원사업", 5, (), 50), [])
+
     def test_rrf_uses_ranks_only_and_breaks_ties_deterministically(self):
         # a는 두 목록 1·2위, b는 2·1위라 점수가 같다. 최고 순위도 같아 point id 순서로 정한다.
         fused = rrf([["a", "b", "c"], ["b", "a", "d"]], 60, 4)

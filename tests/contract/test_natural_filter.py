@@ -77,7 +77,7 @@ class NaturalLanguageFilterTests(unittest.TestCase):
             with self.assertRaises(PipelineError):
                 NaturalLanguageFilterService(FakeProvider(text), DOMAIN).extract("금융 지원")
 
-    def test_search_list_ranks_scoped_programs_once_with_mysql_metadata(self):
+    def test_search_list_returns_program_results_with_mysql_metadata_in_scope(self):
         from biz_aid_pipeline.candidates.discovery import ProgramDiscoveryService
         from test_rag_answer import result as chunk
         repository = ProgramCandidateRepository(engine_with([row("P1"), row("P2"), row("P3", active=False)]))
@@ -85,19 +85,24 @@ class NaturalLanguageFilterTests(unittest.TestCase):
         class Retriever:
             calls = []
 
-            def search(self, query, mode, top_k, pblanc_ids=None):
-                self.calls.append((mode, top_k, tuple(pblanc_ids)))
-                return [chunk(1, "c1", "P2", "a"), chunk(2, "c2", "P2", "b"), chunk(3, "c3", "P1", "c")]
-        retriever = Retriever()
-        contract = {"discovery": {"mode": "hybrid", "fetch_chunks": 20, "max_programs": 5}}
+            def __init__(self, ranked):
+                self.ranked = ranked
+
+            def search_programs(self, query, limit, pblanc_ids, group_limit):
+                self.calls.append((limit, tuple(pblanc_ids), group_limit))
+                return self.ranked
+        contract = {"discovery": {"max_programs": 5, "group_limit_per_mode": 50}}
+        retriever = Retriever([chunk(1, "c1", "P2", "a"), chunk(2, "c3", "P1", "c")])
         programs = ProgramDiscoveryService(repository, retriever, contract).discover("금융 찾아줘", ("P1", "P2"))
-        # 같은 공고의 여러 chunk는 가장 좋은 순위 한 칸만 차지하고, 정형 정보는 MySQL 값이다.
-        self.assertEqual([(p["rank"], p["pblanc_id"], p["best_chunk_rank"]) for p in programs], [(1, "P2", 1), (2, "P1", 3)])
-        self.assertEqual((programs[0]["category"], programs[0]["target"], retriever.calls), ("금융", "소상공인", [("hybrid", 20, ("P1", "P2"))]))
+        # 목록 정보는 MySQL 값이고, 순위 근거는 공고 순위·대표 조각이다.
+        self.assertEqual([(p["rank"], p["pblanc_id"], p["evidence_chunk_id"]) for p in programs], [(1, "P2", "c1"), (2, "P1", "c3")])
+        self.assertEqual((programs[0]["category"], programs[0]["target"], Retriever.calls), ("금융", "소상공인", [(5, ("P1", "P2"), 50)]))
         self.assertEqual(ProgramDiscoveryService(repository, retriever, contract).discover("q", ()), [])
-        self.assertEqual(len(retriever.calls), 1)
-        with self.assertRaisesRegex(PipelineError, "retrieval_scope_violation"):
-            ProgramDiscoveryService(repository, retriever, contract).discover("q", ("P1",))
+        self.assertEqual(len(Retriever.calls), 1)
+        for ranked, code in (([chunk(1, "c1", "P9", "x")], "retrieval_scope_violation"),
+                             ([chunk(1, "c1", "P1", "x"), chunk(2, "c2", "P1", "y")], "discovery_duplicate_program")):
+            with self.assertRaisesRegex(PipelineError, code):
+                ProgramDiscoveryService(repository, Retriever(ranked), contract).discover("q", ("P1", "P2"))
 
     def test_router_uses_list_without_answer_llm_and_qa_through_existing_rag(self):
         from biz_aid_pipeline.rag.router import handle_request
