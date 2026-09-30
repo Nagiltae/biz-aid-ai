@@ -1,5 +1,19 @@
 # Harness 변경 이력
 
+## 2026-09-30 — Phase 6 RAG Answer v1
+
+사용자 승인으로 근거 기반 답변 v1을 추가한다: Hybrid top5 → evidence context → `LlmProvider`(Ollama qwen3.5:9b) → JSON 답 → application citation.
+규칙 변경(보고): AI 경계의 "RAG·LLM·답변 생성 금지"를 dev RAG v1 승인으로 옮겼다. LangGraph·Reranker·query rewrite·expansion·자격 판단·MySQL 결합 금지는 유지한다.
+AI 경계에 evidence 밖 사실 금지, application citation resolve, provider 교체 불변 규칙을 한 줄씩 추가하고 RAG 계약·test로 보호한다. Registry phase는 `phase6-rag-answer`다.
+FastAPI(`ai/`)는 Registry상 미구현이라 만들지 않고 dev CLI를 진입점으로 두었다.
+결과: [Phase 6 Report](../workspace/reports/development/2026-09-30-phase6-rag-answer.md). AGY 검토 pending.
+
+## 2026-09-30 — Retrieval Evaluation (gold-v1)
+
+동결 Gold 12문항으로 dense·sparse·hybrid(top_k 5)를 평가하는 `evals/retrieval/evaluate.py`를 추가했다(Gold hash 불일치 시 실행 거부).
+evals README에 "Gold는 평가 대상 실행 전 확정·동결, 결과를 본 뒤 유리하게 수정 금지(새 버전으로만)" 규칙을 추가했다.
+Retriever·embedding·collection·RRF 설정 변경 없음. 결과: [Evaluation Report](../workspace/reports/development/2026-09-30-retrieval-evaluation.md). AGY 검토 pending.
+
 ## 2026-09-30 — 100-source Retrieval dataset build
 
 사용자 승인으로 기존 100-source parser corpus 중 이전 parse_key인 PDF·HWP 60건을 기존 corpus runner로 재parsing하고 100건을 dev Qdrant에 적재한다.

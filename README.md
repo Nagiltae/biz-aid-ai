@@ -13,7 +13,8 @@ S3 원본 → Parser(PDF·HWP·HWPX) → DoclingDocument → S3 + MySQL(parse ro
 DoclingDocument → HybridChunker(BGE-M3 tokenizer) → FinalChunk              [구현]
 FinalChunk → BGE-M3 dense 1024 + sparse → dev Qdrant                        [구현: 3문서 검증]
 query → BGE-M3 → Qdrant dense·sparse·RRF hybrid → SearchResult              [구현: read-only, 3문서 smoke]
-Reranker · RAG · LangGraph · LLM · MySQL 조건 결합 · 서비스 API · Frontend   [미구현]
+query → Hybrid top5 → Ollama(qwen3.5:9b) → 근거 답변 + citation             [구현: RAG v1, dev CLI]
+Reranker · LangGraph · 자격 판단 · MySQL 조건 결합 · 서비스 API · Frontend    [미구현]
 ```
 
 - canonical 문서 표현은 docling-core DoclingDocument 하나다. Markdown은 chunking 입력이 아니다.
@@ -24,7 +25,7 @@ Reranker · RAG · LangGraph · LLM · MySQL 조건 결합 · 서비스 API · F
 
 | 경로 | 역할 |
 | --- | --- |
-| `data-pipeline/src/biz_aid_pipeline/` | 제품 Pipeline package: `bizinfo`·`ingestion`·`persistence`·`quality`(구조화), `documents`·`storage`(원본 수집·S3), `parsing`, `chunking`, `indexing`, `retrieval` |
+| `data-pipeline/src/biz_aid_pipeline/` | 제품 Pipeline package: `bizinfo`·`ingestion`·`persistence`·`quality`(구조화), `documents`·`storage`(원본 수집·S3), `parsing`, `chunking`, `indexing`, `retrieval`, `rag` |
 | `scripts/` | 얇은 CLI 진입점과 `check-*` 검증 스크립트 |
 | `contracts/` | 단계별 Contract(JSON). [목록](contracts/README.md) |
 | `migrations/` | 공통 Flyway migration(적용된 파일 수정 금지) |
@@ -60,6 +61,7 @@ S3는 boto3 credential chain으로 고정 dev bucket을 쓴다. HWP 변환 이�
 | Chunking | `scripts/run_document_chunking.py --profile dev --source-sha256 <sha>` |
 | Indexing | `scripts/run_document_indexing.py --profile dev --source-sha256 <sha>` |
 | Retrieval | `scripts/run_document_retrieval.py --profile dev --query "..." --mode hybrid --top-k 5` |
+| RAG 답변 | `scripts/run_rag_answer.py --profile dev --query "..."` (Ollama 실행 필요) |
 
 library 진입점: `parsing.orchestration.run_source`, `chunking.cli.chunk_source`, `indexing.pipeline.index_source`, `indexing.embedder.BgeM3Embedder`, `retrieval.retriever.Retriever`.
 

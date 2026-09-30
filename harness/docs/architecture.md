@@ -9,7 +9,7 @@
 | --- | --- | --- |
 | React | UI, 서버 상태 캐시, 선택 기업·채팅 UI 상태 | 미구현 |
 | Spring Boot | 인증·기업·사업·대화·즐겨찾기 Source of Truth, 정확한 DB filtering, FastAPI 호출 | 미구현 |
-| FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 미구현 |
+| FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 미구현(RAG v1은 `data-pipeline` rag package와 dev CLI로 구현) |
 | MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | dev 공고 FULL(V1/V2), 문서 source·S3 위치(V3/V4), parse 상태·identity(V5) 구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | dev dense·sparse 적재(Phase 4-B)와 read-only 검색(Phase 5 Retriever) 구현 |
 | Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 저장·PDF/HWP/HWPX Parser(OCR·PP 표)·Chunking·dense/sparse Indexing 구현 |

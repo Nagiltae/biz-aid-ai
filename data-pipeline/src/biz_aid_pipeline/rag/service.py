@@ -1,0 +1,118 @@
+"""질문 → Hybrid Retriever top5 → evidence context → LlmProvider → 근거 답변 + application이 만든 citation.
+
+LLM은 request-local evidence id(E1..En)만 고른다. citation의 chunk_id·pblanc_id·page·source·provenance는
+모델 출력이 아니라 이번 요청에서 실제로 검색된 SearchResult에서만 가져온다.
+"""
+import json
+from dataclasses import asdict, dataclass, field
+
+from biz_aid_pipeline.config.settings import ROOT, PipelineError, read_json
+from biz_aid_pipeline.rag.llm import LlmRequest
+
+CONTRACT_PATH = ROOT / "contracts/schemas/rag-answer.contract.json"
+
+SYSTEM_PROMPT = """너는 중소기업 지원사업 공고문 근거만으로 답하는 도우미다.
+규칙:
+1. 아래 [E번호] evidence에 적힌 내용만 근거로 답한다. 일반 지식이나 추측으로 빈 내용을 채우지 않는다.
+2. 숫자·날짜·금액·자격 조건은 evidence에 적힌 그대로만 쓰고, 없는 값을 보완하거나 계산해 만들지 않는다.
+3. evidence끼리 내용이 서로 다르면 다르다는 사실과 각각의 evidence 번호를 함께 밝힌다.
+4. 질문에 답할 근거가 evidence에 없으면 insufficient_evidence를 true로 하고 "제공된 공고문 근거만으로는 확인할 수 없습니다"라고 답한다.
+5. 답에 실제로 사용한 evidence 번호만 evidence_ids에 넣는다(예: ["E1", "E3"]). 다른 식별자나 출처 정보를 만들지 않는다.
+6. 한국어로 간결하게 답하고, 결과는 지정된 JSON 형식으로만 출력한다."""
+
+
+def rag_contract(path=CONTRACT_PATH):
+    return read_json(path)
+
+
+@dataclass
+class Citation:
+    evidence_id: str
+    rank: int
+    chunk_id: str
+    pblanc_id: str
+    title: str | None
+    pages: list
+    source_sha256: str
+    source_format: str
+    heading_path: list
+    provenance: list
+
+
+@dataclass
+class RagAnswer:
+    query: str
+    status: str
+    answer: str
+    citations: list
+    used_evidence_ids: list
+    rejected_evidence_ids: list
+    retrieved: list
+    provider: str
+    model: str
+    llm_seconds: float
+    discarded_answer: str | None = None
+    usage: dict = field(default_factory=dict)
+
+    def to_dict(self):
+        return asdict(self)
+
+
+def location(result):
+    """사람이 읽는 위치. page가 있으면 page, HWPX처럼 page가 없으면 section 이름만 쓴다."""
+    if result.pages:
+        return "p." + ", ".join(str(page) for page in result.pages)
+    sections = sorted({entry.get("section") for entry in result.provenance if entry.get("section")})
+    return ("HWPX " + ", ".join(sections)) if sections else "위치 정보 없음"
+
+
+def build_context(results):
+    """검색 결과를 [E1]..[En] 블록으로 만든다. 식별자·점수·원본 payload는 넣지 않는다."""
+    blocks, index = [], {}
+    for number, result in enumerate(results, 1):
+        evidence_id = f"E{number}"
+        index[evidence_id] = result
+        heading = " > ".join(result.heading_path) if result.heading_path else "-"
+        blocks.append(f"[{evidence_id}]\n공고: {result.title or '-'}\n위치: {location(result)}\n문단 제목: {heading}\n내용:\n{result.text}")
+    return "\n\n".join(blocks), index
+
+
+def parse_output(text):
+    try:
+        value = json.loads(text)
+    except ValueError:
+        raise PipelineError("rag_llm_output_not_json") from None
+    if not isinstance(value, dict) or not isinstance(value.get("answer"), str) or not isinstance(value.get("evidence_ids"), list):
+        raise PipelineError("rag_llm_output_schema_mismatch")
+    return value
+
+
+class RagService:
+    def __init__(self, retriever, provider, contract=None):
+        self.retriever, self.provider = retriever, provider
+        self.contract = contract or rag_contract()
+
+    def answer(self, query):
+        spec = self.contract["retrieval"]
+        results = self.retriever.search(query, spec["mode"], spec["top_k"])
+        context, index = build_context(results)
+        user = f"질문: {query}\n\n근거(evidence):\n{context}" if results else f"질문: {query}\n\n근거(evidence): 없음"
+        response = self.provider.generate(LlmRequest(SYSTEM_PROMPT, user, self.contract["output_schema"]))
+        output = parse_output(response.text)
+        chosen = list(dict.fromkeys(str(item) for item in output["evidence_ids"]))
+        # BOUNDARY: 이번 context에 없는 id는 citation으로 만들지 않는다. 모델이 지어낸 출처가 사용자에게 가지 않게 한다.
+        used = [evidence_id for evidence_id in chosen if evidence_id in index]
+        rejected = [evidence_id for evidence_id in chosen if evidence_id not in index]
+        status, answer, discarded = "ANSWERED", output["answer"].strip(), None
+        # RISK: 근거 id 없는 답은 검증할 수 없어 근거 기반 답으로 내보내지 않는다. 모델 원문은 진단용으로만 남긴다.
+        if output.get("insufficient_evidence") or not used:
+            status, discarded, used = "INSUFFICIENT_EVIDENCE", answer or None, []
+            answer = self.contract["status"]["insufficient_message"]
+        citations = [Citation(evidence_id, index[evidence_id].rank, index[evidence_id].chunk_id, index[evidence_id].pblanc_id,
+                              index[evidence_id].title, index[evidence_id].pages, index[evidence_id].source_sha256,
+                              index[evidence_id].source_format, index[evidence_id].heading_path, index[evidence_id].provenance)
+                     for evidence_id in used]
+        retrieved = [{"evidence_id": evidence_id, "rank": result.rank, "chunk_id": result.chunk_id, "pblanc_id": result.pblanc_id}
+                     for evidence_id, result in index.items()]
+        return RagAnswer(query, status, answer, citations, used, rejected, retrieved, response.provider, response.model,
+                         response.elapsed_seconds, discarded, response.usage)

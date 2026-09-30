@@ -91,6 +91,28 @@ class DocumentRetrievalContractTests(unittest.TestCase):
             self.assertFalse({name for name in imported if name and name.startswith(
                 ("biz_aid_pipeline.parsing", "biz_aid_pipeline.chunking", "biz_aid_pipeline.indexing.pipeline"))}, path.name)
 
+    def test_evaluation_refuses_changed_gold_and_judges_source_and_evidence(self):
+        import hashlib
+        import json
+        import tempfile
+        sys.path.insert(0, str(ROOT))
+        from evals.retrieval.evaluate import judge, load_frozen_gold
+        item = {"expected_source_sha256": "s1", "expected_evidence": [{"chunk_id": "c2"}, {"chunk_id": "c3"}]}
+        results = [{"source_sha256": "s1", "chunk_id": "c1"}, {"source_sha256": "s2", "chunk_id": "x"},
+                   {"source_sha256": "s1", "chunk_id": "c3"}]
+        self.assertEqual(judge(item, results), {"source_hit_at_1": True, "source_hit_at_5": True, "evidence_hit_at_5": True,
+                                                "evidence_rank": 3})
+        self.assertFalse(judge(item, results[1:2])["source_hit_at_1"])
+        with tempfile.TemporaryDirectory() as directory:
+            raw = b'{"items": []}\n'
+            Path(directory, "gold.json").write_bytes(raw)
+            Path(directory, "gold.frozen.json").write_text(json.dumps({"sha256": hashlib.sha256(raw).hexdigest()}))
+            load_frozen_gold(directory)
+            # BOUNDARY: 결과를 본 뒤 Gold를 고치면 동결 hash와 달라 평가를 거부한다.
+            Path(directory, "gold.json").write_bytes(b'{"items": [1]}\n')
+            with self.assertRaises(SystemExit):
+                load_frozen_gold(directory)
+
 
 if __name__ == "__main__":
     unittest.main()

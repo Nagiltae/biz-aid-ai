@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "phase": "phase6-rag-answer",
+  "scope": "dev-only grounded answer: query -> read-only Retriever (hybrid, top_k 5) -> evidence context -> LlmProvider -> structured answer -> application-resolved citations; no eligibility decision, no MySQL lookup",
+  "retrieval": {
+    "mode": "hybrid",
+    "top_k": 5,
+    "rule": "uses retrieval.Retriever unchanged; mode and top_k equal the Retrieval Evaluation baseline (gold-v1) and change only with a new evaluation"
+  },
+  "context": {
+    "evidence_id": "request-local E1..En in retrieval rank order",
+    "fields": [
+      "evidence_id",
+      "title",
+      "location (pages, or HWPX section when no page)",
+      "heading_path",
+      "text"
+    ],
+    "excluded": "chunk_id, pblanc_id, source_sha256, parse_key, raw provenance, scores and other payload fields are never sent to the LLM"
+  },
+  "prompt": {
+    "prompt_version": 1,
+    "rule": "one provider-neutral baseline prompt; no model-specific prompt variants"
+  },
+  "grounding_rules": [
+    "answer only from the provided evidence; no general knowledge",
+    "never add or complete numbers, dates, amounts or eligibility conditions that are not in the evidence",
+    "state conflicts between evidence items explicitly",
+    "when the evidence does not answer the question, set insufficient_evidence=true and say it cannot be confirmed from the provided announcements"
+  ],
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string"
+      },
+      "evidence_ids": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "insufficient_evidence": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "answer",
+      "evidence_ids",
+      "insufficient_evidence"
+    ]
+  },
+  "citation_rule": "the LLM returns only evidence ids; the application validates them against the request context and resolves every citation field (chunk_id, pblanc_id, title, pages, source, provenance) from the retrieved SearchResult; unknown ids are dropped and reported, never turned into citations",
+  "status": {
+    "ANSWERED": "answer with at least one valid cited evidence",
+    "INSUFFICIENT_EVIDENCE": "the model reported missing evidence, or returned an answer with no valid evidence id; the answer text is replaced by insufficient_message and the model text is kept only as discarded_answer",
+    "insufficient_message": "제공된 공고문 근거만으로는 확인할 수 없습니다."
+  },
+  "provider": {
+    "rule": "providers implement rag.llm.LlmProvider (generate(LlmRequest) -> LlmResponse); switching provider must not change orchestration, prompt, context or retrieval contract",
+    "settings": [
+      "LLM_PROVIDER",
+      "OLLAMA_BASE_URL",
+      "OLLAMA_MODEL",
+      "OLLAMA_TIMEOUT_SECONDS",
+      "OLLAMA_KEEP_ALIVE"
+    ]
+  }
+}

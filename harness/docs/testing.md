@@ -233,3 +233,9 @@ Retrieval test는 in-memory Qdrant와 가짜 embedder로 collection이 embedding
 검색 전후 point·collection이 변하지 않는지, 다른 identity의 collection이 없으면 만들지 않고 실패하는지 확인한다.
 RRF 순위·동점 결정성과, `retrieval/` 코드가 적재·변환 경로를 호출하거나 별도 모델을 import하지 않는지를 AST로 확인한다.
 실제 BGE-M3 query와 dev Qdrant 검색은 check-all 밖에서 소수 질문 smoke로만 확인하며 검색 품질 수치를 결론내리지 않는다.
+
+## Phase 6 RAG Answer
+
+RAG test는 가짜 Retriever·가짜 LlmProvider로 hybrid top5 호출, evidence id → SearchResult citation 매핑, prompt에 식별자·provenance가 없는지,
+context에 없는 evidence id가 citation이 되지 않는지, 근거 부족·근거 id 없는 답이 고정 확인 불가 문장으로 바뀌는지 확인한다.
+실제 Ollama 모델 호출은 check-all 밖에서 소수 Gold 질문 smoke로만 확인한다.
