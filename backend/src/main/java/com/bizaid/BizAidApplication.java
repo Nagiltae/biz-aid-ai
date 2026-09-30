@@ -1,5 +1,6 @@
 package com.bizaid;
 
+import com.bizaid.ai.application.AiGateway;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;

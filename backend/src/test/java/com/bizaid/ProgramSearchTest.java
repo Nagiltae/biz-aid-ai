@@ -5,10 +5,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.bizaid.program.ProgramSearchCondition;
-import com.bizaid.program.RecruitmentStatus;
-import com.bizaid.program.SupportProgram;
-import com.bizaid.program.SupportProgramRepository;
+import com.bizaid.program.domain.ProgramSearchCondition;
+import com.bizaid.program.domain.RecruitmentStatus;
+import com.bizaid.program.domain.SupportProgram;
+import com.bizaid.program.infrastructure.SupportProgramRepository;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;

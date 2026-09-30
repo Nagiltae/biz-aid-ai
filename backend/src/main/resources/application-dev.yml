@@ -1,0 +1,18 @@
+# 로컬 개발. IntelliJ 직접 실행은 저장소 루트 .env.dev 값을 그대로 쓰고(MYSQL_HOST=127.0.0.1, 호스트 FastAPI 127.0.0.1:8000),
+# Docker Compose(app profile)는 MYSQL_HOST=mysql, AI_BASE_URL=http://host.docker.internal:8000만 덮어쓴다.
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:biz_aid_dev}?characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+  flyway:
+    locations: ${FLYWAY_LOCATIONS:filesystem:../migrations}
+
+bizaid:
+  refresh-cookie:
+    # 로컬은 http라 Secure Cookie를 쓰면 브라우저가 Cookie를 보내지 않는다.
+    secure: ${REFRESH_COOKIE_SECURE:false}
+  ai:
+    base-url: ${AI_BASE_URL:http://127.0.0.1:8000}
+
+logging:
+  level:
+    com.bizaid: DEBUG

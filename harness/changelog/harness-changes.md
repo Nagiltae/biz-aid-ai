@@ -1,5 +1,14 @@
 # Harness 변경 이력
 
+## 2026-10-01 — V1 코드 마감
+
+Spring을 도메인 중심 package + 내부 계층(presentation·application·domain·infrastructure)으로 정리하고 역방향 의존(도메인·서비스 → HTTP DTO)을 없앴다. API·React·FastAPI 계약과 DB 의미는 바꾸지 않았다.
+설정을 application.yml(공통, 기본 dev)·application-dev.yml·application-prod.yml(주소 기본값 없음, DB TLS, Secure Cookie 고정)로 나눴다. Compose는 SPRING_PROFILES_ACTIVE=dev.
+V8 activity_logs(회원가입·로그인 성공/실패·로그아웃·기업정보·대화 생성·AI 검색·자격 판정)를 추가했다. ActivityLogService를 서비스에서 명시 호출하고 REQUIRES_NEW로 저장한다.
+IMP-013 RESOLVED(평가 근거를 source+chunk_index로 판정), Backlog를 V1/V2/운영/장기로 분류했다.
+규칙 변경(보고, 완화 없음): 파일 경계(Spring 도메인·계층 배치와 의존 방향, common 범위, DDD 패턴 비도입), Safety(profile 파일 비밀값 금지, activity_logs 민감정보 금지), DB 규칙(MySQL 사용 범위, V8). 새 contract test 1개(profile 규칙), 기존 평가 test fixture에 IMP-013 경우 추가.
+결과: [Report](../workspace/reports/development/2026-10-01-v1-code-closing.md). AGY 검토 pending.
+
 ## 2026-10-01 — Spring Boot ↔ FastAPI 연결 + React AI E2E V1
 
 `UnconnectedAiGateway`를 `HttpAiGateway`(동기 RestClient, 연결 3s·응답 90s 환경설정, 자동 재시도 없음)로 바꿨다. Spring은 FastAPI 결과를 계약 검증 후 그대로 전달하고, 성공한 AI 응답만 ASSISTANT 메시지(V7 `ai_result_type`·`ai_result_json`)로 저장한다.

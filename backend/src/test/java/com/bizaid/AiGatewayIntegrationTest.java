@@ -130,6 +130,11 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
                 .andExpect(jsonPath("$[1].content").value(""))
                 .andExpect(jsonPath("$[1].resultType").value("SEARCH_LIST"))
                 .andExpect(jsonPath("$[1].result.programs[0].pblancId").value("PBLN_000000000000002"));
+        // 활동 기록에는 결과 종류·공고 수만 남기고 질문 본문은 넣지 않는다(대화 기준 저장소는 messages).
+        String logged = jdbc.queryForObject("SELECT metadata_json FROM activity_logs WHERE action = 'AI_QUERY' AND target_id = ?",
+                String.class, String.valueOf(conversationId));
+        assertThat(read(logged).get("programCount").asInt()).isEqualTo(2);
+        assertThat(logged).contains("SEARCH_LIST").doesNotContain("소상공인 금융");
     }
 
     @Test
@@ -192,6 +197,8 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
         // 실패하면 질문만 남고 ASSISTANT 메시지는 저장하지 않는다.
         mvc.perform(get("/api/conversations/" + conversationId + "/messages").header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].role").value("USER"));
+        assertThat(jdbc.queryForObject("SELECT error_code FROM activity_logs WHERE action = 'AI_QUERY' AND success = false"
+                + " AND target_id = ?", String.class, String.valueOf(conversationId))).isEqualTo("ai_service_timeout");
 
         // FastAPI 내부 인증 실패(401)는 사용자 로그인 실패가 아니라 서비스 설정 오류(502)다.
         reply = new Reply(401, "{\"error\":{\"code\":\"internal_auth_failed\"}}", 0);

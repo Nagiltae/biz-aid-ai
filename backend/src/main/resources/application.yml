@@ -1,12 +1,12 @@
-# 접속정보·JWT secret은 코드에 두지 않고 환경변수로만 주입한다.
-# IntelliJ 직접 실행은 저장소 루트 .env.dev 값을 그대로 쓰고(MYSQL_HOST=127.0.0.1),
-# Docker Compose(app profile)는 MYSQL_HOST=mysql, MYSQL_PORT=3306만 덮어쓴다.
-# AWS RDS로 옮길 때도 MYSQL_* 값만 바꾸면 같은 코드로 동작한다.
+# 모든 환경의 공통 설정. 환경마다 달라지는 값(DB 주소·AI 주소·Cookie 보안·로그 수준)은 application-{dev,prod}.yml에 둔다.
+# 비밀값(DB 비밀번호·JWT_SECRET·INTERNAL_AI_API_KEY)은 어떤 설정 파일에도 쓰지 않고 환경변수로만 받는다.
+# profile을 지정하지 않으면 dev로 실행한다(IntelliJ 직접 실행·Compose 개발 흐름 유지). 운영은 SPRING_PROFILES_ACTIVE=prod.
 spring:
   application:
     name: bizaid-backend
+  profiles:
+    default: dev
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT:3306}/${MYSQL_DATABASE}?characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
     username: ${MYSQL_USER}
     password: ${MYSQL_PASSWORD}
   jpa:
@@ -20,7 +20,6 @@ spring:
         default_batch_fetch_size: 100
   flyway:
     # 공통 migrations/ 계보(flyway_schema_history)를 그대로 쓴다. 두 번째 migration 체계를 만들지 않는다.
-    locations: ${FLYWAY_LOCATIONS:filesystem:../migrations}
     clean-disabled: true
     validate-migration-naming: true
   jackson:
@@ -32,6 +31,7 @@ server:
   port: ${BACKEND_PORT:8080}
   error:
     include-stacktrace: never
+    include-message: never
 
 bizaid:
   jwt:
@@ -41,12 +41,9 @@ bizaid:
   refresh-cookie:
     name: bizaid_refresh
     path: /api/auth
-    secure: ${REFRESH_COOKIE_SECURE:false}
   service-zone: Asia/Seoul
-  # FastAPI 내부 AI API. IntelliJ 직접 실행은 호스트 FastAPI(127.0.0.1:8000), Compose는 host.docker.internal:8000을 쓴다.
-  # 응답 제한시간이 긴 이유: 로컬 Qwen이 목록 검색 10~16초, 자격 판정 25~36초 걸린다. 자동 재시도는 하지 않는다.
+  # FastAPI 내부 AI API. 응답 제한시간이 긴 이유: 로컬 Qwen이 목록 검색 10~16초, 자격 판정 25~36초 걸린다. 자동 재시도는 하지 않는다.
   ai:
-    base-url: ${AI_BASE_URL:http://127.0.0.1:8000}
     connect-timeout: ${AI_CONNECT_TIMEOUT:3s}
     response-timeout: ${AI_RESPONSE_TIMEOUT:90s}
     # 서비스 간 인증 공유 키. FastAPI와 같은 값을 환경변수로만 받는다.

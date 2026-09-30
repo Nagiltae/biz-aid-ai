@@ -1,0 +1,22 @@
+# 향후 운영(AWS). 실제 RDS·FastAPI 주소는 아직 없으므로 기본값을 두지 않고 환경변수로만 받는다(없으면 시작 실패).
+# 로컬 기본값(127.0.0.1 등)이 운영에 조용히 섞이지 않게 하는 것이 목적이다.
+spring:
+  datasource:
+    # 운영 DB 연결은 TLS를 요구한다(MYSQL_SSL_MODE로 조정 가능).
+    url: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}?characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=${MYSQL_SSL_MODE:REQUIRED}
+  flyway:
+    locations: ${FLYWAY_LOCATIONS}
+
+bizaid:
+  refresh-cookie:
+    # 운영은 https만 쓴다. Refresh Token Cookie를 암호화되지 않은 연결로 보내지 않는다(환경변수로 끌 수 없게 고정).
+    secure: true
+  ai:
+    base-url: ${AI_BASE_URL}
+
+logging:
+  level:
+    root: INFO
+    com.bizaid: INFO
+    # SQL·요청 본문이 로그에 남지 않도록 프레임워크 상세 로그를 올리지 않는다.
+    org.hibernate.SQL: WARN

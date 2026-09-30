@@ -25,14 +25,26 @@ def load_frozen_gold(directory):
     return json.loads(raw), frozen
 
 
+EVIDENCE_MATCH = "source_sha256+chunk_index"
+
+
 def judge(item, results):
-    """한 질문의 결과 목록(SearchResult dict)에서 세 지표를 판정한다."""
-    evidence = {entry["chunk_id"] for entry in item["expected_evidence"]}
+    """한 질문의 결과 목록(SearchResult dict)에서 세 지표를 판정한다.
+
+    WHY(IMP-013): chunk_id는 chunk identity(chunker_version·embedding 입력 등)가 바뀌면 경계가 같아도 전부 바뀐다.
+    근거는 (정답 문서 SHA, 문서 안 조각 순번)으로 판정해 Gold를 고치지 않고 다음 평가에도 쓴다.
+    RISK: 조각 경계 자체가 바뀌면(조각 규칙 변경) 같은 순번이 다른 내용이 되므로 새 Gold 버전이 필요하다.
+    """
+    evidence = {(item["expected_source_sha256"], entry["chunk_index"]) for entry in item["expected_evidence"]}
     sources = [result["source_sha256"] for result in results]
+
+    def hit(result):
+        return (result["source_sha256"], result["chunk_index"]) in evidence
+
     return {"source_hit_at_1": bool(sources) and sources[0] == item["expected_source_sha256"],
             "source_hit_at_5": item["expected_source_sha256"] in sources[:5],
-            "evidence_hit_at_5": any(result["chunk_id"] in evidence for result in results[:5]),
-            "evidence_rank": next((rank for rank, result in enumerate(results[:5], 1) if result["chunk_id"] in evidence), None)}
+            "evidence_hit_at_5": any(hit(result) for result in results[:5]),
+            "evidence_rank": next((rank for rank, result in enumerate(results[:5], 1) if hit(result)), None)}
 
 
 def summarize(rows):
@@ -68,7 +80,8 @@ def main(argv=None):
                          "top": [{key: result[key] for key in ("rank", "chunk_id", "source_sha256", "chunk_index", "pblanc_id", "pages",
                                                                "score", "dense_rank", "sparse_rank")} for result in results]}
         rows.append(row)
-    report = {"gold_version": gold["gold_version"], "gold_sha256": frozen["sha256"], "collection": retriever.collection,
+    report = {"gold_version": gold["gold_version"], "gold_sha256": frozen["sha256"], "evidence_match": EVIDENCE_MATCH,
+              "collection": retriever.collection,
               "embedding_key": embedder.identity["embedding_key"], "top_k": args.top_k,
               "run_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "summary": summarize(rows), "questions": rows}
     output = Path(args.gold_dir) / f"results-top{args.top_k}.json"

@@ -9,6 +9,15 @@
 - 같은 문제는 새 ID를 만들지 않고 Evidence·Revisit만 갱신한다. 해결·폐기 항목은 지우지 않고 Status와 근거 report를 남긴다.
 - Evidence의 report는 `harness/workspace/reports/development/` 아래 파일이다.
 
+## 단계 분류 (2026-10-01 V1 코드 마감)
+
+| 단계 | 항목 | 기준 |
+| --- | --- | --- |
+| V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
+| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
+| 운영/AWS 단계 | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
+| 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
+
 ## IMP-001 chunk에 문서 제목·사업명 context 없음
 
 - Area: Chunking / Retrieval
@@ -155,7 +164,7 @@
 - Why deferred: 이번 작업은 IMP-001 확인 3건만 한다. Gold 동결 규칙상 gold-v1은 수정하지 않는다.
 - Revisit trigger: 다음 Retrieval Evaluation 실행 전
 - Side effect: (source_sha256, chunk_index) 판정은 chunk 경계가 같을 때만 유효하다. 경계가 바뀌면 새 gold 버전(gold-v2)이 필요하다.
-- Status: OPEN
+- Status: RESOLVED(`2026-10-01-v1-code-closing.md`). `evals/retrieval/evaluate.py`가 근거를 (정답 문서 SHA, chunk_index)로 판정하고 결과에 `evidence_match`를 기록한다. Gold-v1은 수정하지 않았다. IMP-001은 embedding 입력만 바꿔 조각 경계가 같으므로 유효하다. 평가 재실행은 다음 작업(기준선 고정)에서 한다.
 
 ## IMP-014 SEARCH_LIST가 공고 5개를 채우지 못함(IMP-001 이후)
 

@@ -134,9 +134,12 @@ class DocumentRetrievalContractTests(unittest.TestCase):
         import tempfile
         sys.path.insert(0, str(ROOT))
         from evals.retrieval.evaluate import judge, load_frozen_gold
-        item = {"expected_source_sha256": "s1", "expected_evidence": [{"chunk_id": "c2"}, {"chunk_id": "c3"}]}
-        results = [{"source_sha256": "s1", "chunk_id": "c1"}, {"source_sha256": "s2", "chunk_id": "x"},
-                   {"source_sha256": "s1", "chunk_id": "c3"}]
+        item = {"expected_source_sha256": "s1", "expected_evidence": [{"chunk_id": "c2", "chunk_index": 2},
+                                                                      {"chunk_id": "c3", "chunk_index": 3}]}
+        # IMP-013: 근거는 (정답 문서, 조각 순번)으로 판정한다. chunk identity가 바뀌어 chunk_id가 달라도(new-c3) 적중이고,
+        # 다른 문서의 같은 순번(s2, 3)은 근거가 아니다.
+        results = [{"source_sha256": "s1", "chunk_index": 1, "chunk_id": "c1"}, {"source_sha256": "s2", "chunk_index": 3, "chunk_id": "c3"},
+                   {"source_sha256": "s1", "chunk_index": 3, "chunk_id": "new-c3"}]
         self.assertEqual(judge(item, results), {"source_hit_at_1": True, "source_hit_at_5": True, "evidence_hit_at_5": True,
                                                 "evidence_rank": 3})
         self.assertFalse(judge(item, results[1:2])["source_hit_at_1"])

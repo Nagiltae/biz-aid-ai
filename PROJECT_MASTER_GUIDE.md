@@ -230,7 +230,7 @@ React(화면) ─► Spring Boot(서비스 서버) ─► FastAPI(내부 AI 서�
 | `api/` | FastAPI 내부 API |
 
 실행 스크립트는 `scripts/`에 있고, 모두 `--profile dev`만 허용한다.
-서비스 코드는 `backend/`(Spring Boot, 기능별 package: auth·company·program·conversation·ai·common)와 `frontend/`(React, features/·shared/)다. 자세한 내용은 §14.
+서비스 코드는 `backend/`(Spring Boot, 도메인 중심 package + 내부 계층: auth·company·program·conversation·ai·activity·common)와 `frontend/`(React, features/·shared/)다. 자세한 내용은 §14.
 
 ---
 
@@ -1000,6 +1000,78 @@ React ◄── {conversationId, userMessage, assistantMessage, result} ──�
 - 이유(사용자 결정): FastAPI 이미지를 만들려면 torch·paddle·docling(수 GB)과 모델 artifact 3.7GB mount, "Qdrant는 loopback 주소만" 규칙 변경이 필요하다. 기능 연결을 인프라 작업이 막지 않도록 호스트 연결로 먼저 완성하고 Compose 통합은 IMP-017로 남겼다.
 - Ollama(Qwen)는 기존 로컬 runtime을 그대로 쓰고 모델을 다시 받거나 이미지에 넣지 않았다.
 
+### V1 코드 마감 — 구조 정리·환경 분리·활동 기록 (10-01)
+
+V2 기능을 넣기 전에, 빠르게 만든 V1 Spring 코드를 오래 관리할 수 있는 모양으로 정리했다. **API 동작·React 계약·FastAPI 계약·DB 의미는 바꾸지 않았다.**
+
+#### 왜 다시 정리했나
+
+- V1은 기능별 package(auth·company …) 하나에 Controller·Service·Entity·Repository·DTO가 모두 섞여 있었다. 파일이 늘면 "이 클래스가 HTTP 쪽인지, 규칙인지, DB 구현인지"가 이름으로만 구분된다.
+- 실제로 의존 방향이 거꾸로 된 곳이 있었다. 도메인 모델 `Company`가 HTTP 요청 DTO(`CompanyRequest`)를 받았고, 인증 서비스가 HTTP 응답 DTO를 만들었다. V2에서 같은 기능을 다른 입구(예: 배치·관리 기능)로 부르면 HTTP 형식에 묶이게 된다.
+
+#### 도메인 중심 + 내부 계층형 구조란
+
+먼저 **업무 영역(도메인)** 으로 크게 나누고, 각 영역 안에서 **역할(계층)** 로 다시 나눈다.
+
+```text
+com.bizaid
+├─ auth/          presentation · application · domain · infrastructure
+├─ company/       presentation · application · domain · infrastructure
+├─ program/       presentation · application · domain · infrastructure
+├─ conversation/  presentation · application · domain · infrastructure
+├─ ai/            presentation · application · infrastructure   (자체 도메인 규칙 없음: FastAPI 결과를 전달)
+├─ activity/      application · domain · infrastructure         (활동 기록, HTTP 입구 없음)
+└─ common/        error · web · config                          (여러 도메인이 실제로 같이 쓰는 것만)
+```
+
+| 계층 | 하는 일 | 예 |
+| --- | --- | --- |
+| presentation(외부 요청·응답) | HTTP를 받고 입력을 검증하고 응답 형식으로 바꾼다 | `AuthController`, `CompanyRequest`, `AiRequests` |
+| application(사용 흐름) | "로그인한다", "AI에 묻고 저장한다" 같은 유스케이스와 트랜잭션 | `AuthService`, `AiQueryService`, 조회 결과 모델 |
+| domain(핵심 모델·규칙) | Entity와 값, 업무 규칙 | `Company`, `CompanyDetails`, `RecruitmentStatus`(모집 상태 계산) |
+| infrastructure(실제 구현) | DB·JWT·외부 HTTP 같은 기술 구현 | JPA·QueryDSL Repository, `JwtTokenProvider`, `HttpAiGateway` |
+
+- 의존은 presentation → application → domain 한 방향이다. application·domain은 presentation을 import하지 않는다.
+- 새 기능은 해당 도메인 아래에 넣는다. 도메인 전용 DTO·예외·Repository는 도메인 안에 두고, `common`에는 오류 코드·공통 오류 응답·페이지 응답·공통 Bean만 둔다.
+
+#### 완전한 DDD 패턴을 넣지 않은 이유
+
+- Aggregate(묶음 단위 일관성), Domain Event(도메인 사건 발행), Port/Adapter(모든 외부 의존을 인터페이스로 뒤집기)는 규칙이 복잡하고 사건이 많은 도메인에서 값을 낸다.
+- 지금 BizAid Spring의 업무 규칙은 작다(모집 상태 계산, 소유자 확인, 토큰 교체 정도). 판단이 복잡한 AI 규칙은 FastAPI에 있다.
+- 그래서 **폴더와 의존 방향만 분명히** 하고, Spring Data Repository는 infrastructure에 두어 application이 바로 쓰게 했다(별도 인터페이스 층 없음). 예외는 이미 있던 `AiGateway` 하나다. 외부 AI 서버라 테스트에서 가짜 서버로 바꿔야 해서 인터페이스가 실제로 필요했다.
+- Entity에는 JPA 표시(@Entity)를 그대로 둔다. 순수 도메인 객체와 DB 객체를 따로 만들면 지금 규모에서는 변환 코드만 늘어난다.
+
+#### dev / prod 설정 분리
+
+| 파일 | 내용 |
+| --- | --- |
+| `application.yml` | 공통: JPA·Jackson·JWT 수명·AI 제한시간·오류 상세 숨김. **profile 미지정 시 dev** |
+| `application-dev.yml` | 로컬: DB 기본값(127.0.0.1·biz_aid_dev), 호스트 FastAPI 127.0.0.1:8000, Secure Cookie 끔(http), 로그 DEBUG |
+| `application-prod.yml` | 운영 준비: DB·FastAPI·migration 경로 **기본값 없음**(없으면 시작 실패), DB TLS(`sslMode=REQUIRED`), Refresh Cookie Secure 고정, 로그 INFO |
+
+- 왜 나눴나: 로컬 편의 기본값(127.0.0.1, http Cookie)이 운영에 조용히 섞이면 가장 위험하다. prod는 값이 없으면 아예 시작하지 않게 했다.
+- 비밀값(DB 비밀번호·JWT_SECRET·INTERNAL_AI_API_KEY)은 어떤 profile에도 없다. 테스트가 이 규칙(비밀값은 환경변수 참조만, prod에 로컬 주소 없음, Secure Cookie)을 검사한다.
+- 실제 AWS 주소는 아직 없으므로 넣지 않았다. Compose는 `SPRING_PROFILES_ACTIVE=dev`로 기존 실행 방식을 그대로 유지한다.
+
+#### 사용자 활동 기록(activity_logs)
+
+- 무엇을: 회원가입, 로그인 성공·실패, 로그아웃, 기업정보 등록·수정, 대화 생성, AI 검색, 지원 자격 판정
+- 구조(V8): `user_id`(모르면 NULL), `action`, `target_type`/`target_id`(USER·COMPANY·CONVERSATION·PROGRAM), `success`, `error_code`, `metadata_json`, `created_at`. 실패면 error_code가 반드시 있다(CHECK).
+- 저장하지 않는 것: 비밀번호, JWT, Refresh Token 원문, 내부 API 키, 입력한 이메일(로그인 실패 시), 질문·답변 전문, 기업정보 값·신용점수. AI 검색은 `{requestMode, status, programCount}`만 남긴다. 대화 내용의 기준은 `messages`다.
+- 어떻게: 각 Application Service가 결과를 아는 지점에서 `ActivityLogService`를 **명시적으로 호출**한다.
+  - AOP(자동 가로채기) 대신 명시 호출을 고른 이유: 무엇이 언제 기록되는지 서비스 코드에 그대로 보인다. 로그인 실패 사유·AI 결과 종류처럼 흐름 안에서만 아는 값을 넣기 쉽다.
+  - 별도 트랜잭션(REQUIRES_NEW): 로그인 실패는 예외로 본 트랜잭션이 되돌려지지만 기록은 남아야 한다.
+  - 기록 실패는 사용자 요청을 실패시키지 않는다(서버 로그만).
+- 왜 MySQL인가: 기록은 사용자·대화와 같은 id로 연결해 보는 운영 데이터이고 양이 작다. 이미 운영하는 MySQL·Flyway·COMMENT 규칙을 그대로 쓰면 된다.
+- 왜 MongoDB를 추가하지 않았나: 문서형 DB가 필요한 비정형·대용량 데이터가 없다. DB를 하나 더 두면 백업·연결·권한·일관성 관리 대상이 늘어난다. 유연한 부가 정보는 MySQL JSON column(`metadata_json`)으로 충분하다.
+
+#### Backlog 정리(이번에 한 것과 미룬 것)
+
+- 지금 해결: **IMP-013**. 다음 작업(V1 AI 평가 기준선 고정)을 직접 막는다. 평가 도구가 근거를 조각 ID 대신 (정답 문서, 문서 안 조각 순번)으로 판정하게 했다. Gold 파일은 고치지 않았다.
+- V2: IMP-002(표 가독성), IMP-003(LLM 비교), IMP-004(검색 후처리), IMP-011(신청기간). 기준선을 고정한 뒤 비교해야 효과를 잴 수 있다.
+- 운영/AWS: IMP-005·006·007(배포 이미지·실행 환경·전체 문서 처리), IMP-015(Flyway 경고), IMP-016(토큰 정리), IMP-017(FastAPI Compose).
+- 장기: IMP-009(미지원 형식), IMP-010(Parser 품질).
+
 ### 개발 중 문제와 해결
 
 - **Spring 기본 오류 형식이 섞임**: E2E에서 이상한 URL(`//`)을 보냈더니 Spring 기본 오류 JSON(timestamp·path)이 나왔다. React가 오류 형식을 두 가지로 처리해야 하므로 `/error`와 없는 주소·잘못된 method도 공통 오류 본문으로 바꿨다.
@@ -1186,6 +1258,25 @@ React ◄── {conversationId, userMessage, assistantMessage, result} ──�
 - 선택지: Spring이 "찾았습니다" 같은 문장 생성 / content를 비우고 결과 JSON 보존 / 대화 도메인 재설계
 - 선택: content는 빈 문자열, 결과는 V7 `ai_result_json`. 서비스가 AI 답변을 지어내지 않는다는 경계를 지켰다.
 
+
+### 16.28 Spring은 도메인 중심 + 내부 계층형으로 정리한다 (V1 마감)
+- 문제: 기능 package 하나에 모든 역할이 섞였고, 도메인 모델이 HTTP DTO에 의존하는 역방향 의존이 생겼다.
+- 선택지: 계층별 거대 package(controller/·service/…) / 도메인별 + 내부 계층 / 완전한 DDD(Aggregate·Event·Port/Adapter)
+- 선택: 도메인별 + 내부 계층(presentation·application·domain·infrastructure), 의존 한 방향.
+- 이유: 도메인 경계가 먼저 보여 V2 기능을 어디에 넣을지 분명하다. 완전한 DDD는 지금 규칙 규모에 비해 코드만 늘린다.
+
+### 16.29 dev / prod profile 분리, prod는 기본값 없음
+- 이유: 로컬 기본값이 운영에 섞이는 사고를 막는다. 운영 필수 값이 없으면 시작 실패로 바로 드러난다.
+- 결과: 비밀값은 어떤 profile에도 없고, 테스트가 prod 설정 규칙을 검사한다. 개발 실행 방식은 그대로다.
+
+### 16.30 활동 기록은 MySQL, 명시적 서비스 호출, 별도 트랜잭션
+- 선택지: MongoDB·로그 파일·AOP 자동 기록·메시지 큐
+- 선택: MySQL `activity_logs` + 각 Application Service의 명시 호출 + REQUIRES_NEW.
+- 이유: 사용자·대화와 같은 id로 연결하는 작은 운영 데이터다. 명시 호출이 무엇을 기록하는지 가장 잘 보인다. 실패로 되돌려지는 흐름(로그인 실패)도 기록이 남아야 한다.
+
+### 16.31 IMP-013만 V1 마감에서 해결
+- 이유: 다음 작업(V1 AI 평가 기준선 고정)을 직접 막는 문제는 IMP-013뿐이다. 나머지는 기능을 막지 않아 V2·운영·장기로 분류했다.
+
 ---
 
 ## 17. 실험 결과
@@ -1255,6 +1346,14 @@ React ◄── {conversationId, userMessage, assistantMessage, result} ──�
 | backend test | 11/11(새 4개: 목록 순위 그대로·저장, 답변+근거, 판정 상태·근거·요청 본문, 제한시간·내부 인증 오류) |
 | frontend test | 6/6(새 3개: 목록 카드 순위, 답변+근거, 추가 정보 필요 표시) |
 | check-all | exit 0(Contract 409, Integration 64, V7 COMMENT 검사 포함) |
+
+### V1 코드 마감
+
+| 항목 | 결과 |
+| --- | --- |
+| backend test | 12/12(새 1: 활동 기록 성공·실패·비밀값 없음 + 기존 AI 테스트에 기록 검사 추가). 구조 변경 후 기존 11개 그대로 통과 |
+| Python contract | 새 profile 규칙 test 1개, 기존 평가 test에 IMP-013 경우 추가 |
+| E2E 1회(nginx → Spring dev profile → 호스트 FastAPI) | 로그인 200 → "소상공인 금융 지원사업 찾아줘" SEARCH_LIST 5개(순위 1~5, 중복 0, 17초) → 대화 재조회 USER+ASSISTANT(공고 5개 복원), 활동 기록 LOGIN·CONVERSATION_CREATE·AI_QUERY |
 
 ### 서비스 V1 (React + Spring Boot)
 
@@ -1366,6 +1465,22 @@ React ◄── {conversationId, userMessage, assistantMessage, result} ──�
 - 문제: 실제 화면 smoke 캡처에서 "판단 불가" 뱃지가 세로로 깨졌다.
 - 해결: 뱃지는 줄바꿈하지 않고 줄어들지 않게 CSS를 고쳤다.
 
+### 18.21 package 이동으로 드러난 역방향 의존 (V1 마감)
+- 문제: 파일을 계층 package로 옮기자 compile 오류가 났다. 같은 package라서 보이던 것들이 서로 다른 계층이 되며 드러났다: 인증 서비스가 HTTP 응답 DTO를 만들고, `Company.apply`가 HTTP 요청 DTO를 받았다.
+- 해결: 인증 서비스는 `IssuedTokens`(application)를 돌려주고 Controller가 응답 DTO로 바꾼다. 기업정보는 domain 값 `CompanyDetails`를 받는다. AI·대화 요청 DTO는 presentation으로 옮기고 FastAPI 전송 형식은 `HttpAiGateway` 안에만 둔다.
+
+### 18.22 활동 기록 트랜잭션이 적용되지 않을 뻔함
+- 문제: 처음에는 같은 클래스 안 메서드에 `@Transactional(REQUIRES_NEW)`를 붙였다. Spring은 같은 객체 안 호출에는 트랜잭션을 적용하지 않는다(self-invocation). 저장 실패를 잡아도 commit 단계에서 다시 예외가 날 수 있었다.
+- 해결: `TransactionTemplate`(REQUIRES_NEW)로 저장하고 전체를 try/catch로 감쌌다. 테스트로 "로그인 실패로 본 트랜잭션이 되돌려져도 실패 기록은 남는다"를 확인했다.
+
+### 18.23 prod 설정 검사가 주석까지 읽음
+- 문제: "prod에 127.0.0.1이 없어야 한다" 검사가 설명 주석의 "127.0.0.1"에 걸렸다.
+- 해결: 설정 검사는 주석 줄을 빼고 한다. 규칙 자체는 그대로다.
+
+### 18.24 기존 평가 test가 새 판정 방식과 맞지 않음
+- 문제: check-all에서 기존 평가 contract test가 실패했다(fixture에 조각 순번이 없음). 먼저 grep으로 찾지 못한 test였다.
+- 해결: 단언을 약화하지 않고 fixture에 조각 순번을 넣고 "조각 ID가 바뀌어도 적중" 경우를 더했다. 중복이 된 새 test 파일은 지웠다.
+
 ---
 
 ## 19. 개발 타임라인
@@ -1395,7 +1510,8 @@ React ◄── {conversationId, userMessage, assistantMessage, result} ──�
 | 문서 한국어화 | 이해·포트폴리오 문서 | 마스터 가이드, 용어집 | 문서만 변경 | 목록 개선 |
 | IMP-014(10-01) | 목록 공고 다양성 | 공고 단위 그룹 검색 | 2개 → 5개 | 서비스 화면 |
 | 서비스 V1(10-01) | React + Spring Boot | JWT 인증·기업정보·지원사업 조회(QueryDSL)·대화·AI 경계, V6, Compose app | E2E 5개 흐름, AI는 미연결 안내 | Spring ↔ FastAPI 연결 |
-| AI E2E V1(10-01) | 화면에서 실제 AI | HttpAiGateway·공유 키 인증·제한시간·오류 변환, V7 AI 결과 저장, 결과 화면 | 목록 5개·자격 판정 화면 표시 | 다음 기능 결정 |
+| AI E2E V1(10-01) | 화면에서 실제 AI | HttpAiGateway·공유 키 인증·제한시간·오류 변환, V7 AI 결과 저장, 결과 화면 | 목록 5개·자격 판정 화면 표시 | V1 마감 |
+| V1 코드 마감(10-01) | V2 전 구조 정리 | 도메인 중심 + 내부 계층, dev/prod profile, V8 activity_logs, IMP-013 해결, Backlog 단계 분류 | API 변경 0, E2E 1회 통과 | V1 AI 평가 기준선 고정 |
 
 ---
 
@@ -1438,7 +1554,6 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | IMP-009 | ZIP·XLSX·OTHER·UNKNOWN 305개 미지원 | 정보 누락 가능 | 해당 형식에만 정보가 있는 사례가 나올 때 |
 | IMP-010 | OCR 오인식, 읽기 순서 역전, 그림 해석 보류 | 일부 문서 품질 | RAG 실패가 반복될 때 |
 | IMP-011 | 신청기간 날짜가 1,554건 중 951건 없음("예산 소진시까지") → "모집 중" 필터가 대부분 판정 불가(67건 중 64건) | "지금 신청 가능" 정확도 | 모집 여부가 제품 요구로 확정될 때 |
-| IMP-013 | 평가 Gold가 조각 ID로 고정돼, 조각 식별값이 바뀌면 평가 스크립트를 그대로 못 씀 | 다음 검색 평가 | 다음 평가 전 |
 | IMP-015 | Spring 내장 Flyway가 "MySQL 8.4는 검증 안 됨"을 경고(동작은 정상) | migration 도구 호환 | RDS 이전·Spring 업그레이드 때 |
 | IMP-016 | refresh_tokens의 폐기·만료 row를 지우는 정책이 없어 로그인마다 row가 쌓임 | 테이블 크기 | 운영 배포 전 |
 | IMP-017 | FastAPI가 Compose app profile에 없음(호스트에서 먼저 실행) | 한 명령 실행 | 배포 설계 때 |
@@ -1451,6 +1566,16 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | IMP-008 | 비활성·삭제 공고가 검색될 수 있음 | MySQL 후보가 활성 공고만, Qdrant scope 강제 |
 | IMP-012 | 질문에 없는 조건을 LLM이 만듦 | 질문 원문 근거 검사(Grounding Guard) |
 | IMP-014 | 목록에서 한 공고의 조각이 자리를 독점(5 → 2) | 공고 단위 그룹 검색, 2개 → 5개 |
+| IMP-013 | 평가 Gold가 조각 ID로 고정돼 조각 식별값이 바뀌면 평가를 못 씀 | 근거를 (정답 문서, 조각 순번)으로 판정(V1 마감) |
+
+### 단계 분류 (V1 마감 기준)
+
+| 단계 | 항목 |
+| --- | --- |
+| V1 마감 전 해결 | IMP-013(완료) |
+| V2 | IMP-002, IMP-003, IMP-004, IMP-011 |
+| 운영/AWS | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017 |
+| 장기 | IMP-009, IMP-010 |
 
 ---
 
@@ -1582,6 +1707,10 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | Retry | 자동 재시도 | AI POST는 하지 않음(중복 실행·이중 저장 방지) |
 | Service-to-Service Authentication | 서비스 간 인증 | 공유 키 헤더 `X-Internal-Api-Key` |
 | TanStack Query | 서버 데이터 cache 도구 | 목록·상세·기업정보의 loading·error·cache |
+| Layered Architecture | 계층 구조 | 도메인마다 presentation → application → domain, infrastructure는 기술 구현 |
+| Profile | 실행 환경별 설정 묶음 | dev(로컬 기본)·prod(운영, 기본값 없음) |
+| Activity Log | 사용자 활동 기록 | activity_logs, 비밀값·전문 저장 안 함 |
+| REQUIRES_NEW | 새 트랜잭션으로 실행 | 본 흐름이 실패해도 활동 기록은 남김 |
 | Idempotency | 반복 실행해도 같은 결과 | 재적재해도 point 중복 없음 |
 | Provenance | 근거 위치·출처 | page·bbox·HWPX 경로·표 판정 |
 | LangChain | LLM 연결 도구 | **미적용** |
@@ -1698,13 +1827,10 @@ DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았�
 
 현재 상태 기준 후보(사용자 결정 필요):
 
-1. **FastAPI Compose 통합(IMP-017)**: 한 명령 전체 실행(모델 mount·Qdrant 주소 정책 결정 필요)
-2. **Gemini 비교(IMP-003)**: 같은 검색·context·prompt로 Qwen과 비교
-3. **표 가독성(IMP-002)**: 표 직렬화 개선(재조각·재적재 필요)
-4. **평가 확장**: 다음 검색 평가 전 IMP-013 해소, 자격 판정 소규모 Gold
-5. **전체 corpus(IMP-007)**: 2,926개 처리 계획(시간·메모리·세션)
-6. **LangGraph 필요성 판단**: 다단계 흐름이 생길 때
-7. **운영 배포**(AWS RDS 이전 포함, IMP-015·IMP-016 확인)
+1. **V1 AI 평가 기준선 고정**: 동결 Gold로 현재 검색·답변 기준선 측정(IMP-013 해결로 가능)
+2. **V2 품질 개선**: Gemini 비교(IMP-003), 표 가독성(IMP-002), 검색 후처리(IMP-004), 자격 판정 소규모 Gold — 기준선 대비로 측정
+3. **LangGraph 필요성 판단**: 다단계 흐름이 생길 때
+4. **운영/AWS**: FastAPI Compose 통합(IMP-017), 전체 corpus(IMP-007, 약 29~35시간 추정), 배포·RDS 이전(IMP-015·IMP-016 확인)
 
 ---
 

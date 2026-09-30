@@ -15,7 +15,9 @@ PDF 변환은 `parsing/pdf.py`의 `convert_pdf` 하나이며 HWP 경로도 이�
 3-B.1 표 engine benchmark 코드는 `evals/table_engine/`에 두며 제품 parsing route를 대신하지 않는다. 결과는 ignored `data/parsed/table-engine-eval/`에 둔다.
 Chunking은 `data-pipeline/src/biz_aid_pipeline/chunking/`, Embedding·dev Qdrant 적재는 `indexing/`, 검색은 `retrieval/`, 근거 답변은 `rag/`, MySQL 정형 후보 선택은 `candidates/`(support_programs read-only, 자연어 조건 추출은 `candidates/natural.py`, 공고 목록은 `candidates/discovery.py`)에 두고, request_mode 분기는 `rag/router.py`다. 단일 공고 자격 판단은 `eligibility/`(Profile snapshot 입력, DB·schema 없음)에 둔다.
 `rag/`는 `retrieval.Retriever`를 그대로 호출하고 검색·embedding을 다시 구현하지 않는다. ai/ 생성은 현재 범위 밖이다.
-서비스 V1은 `backend/`(Spring Boot, 기능별 package: auth·company·program·conversation·ai·common)와 `frontend/`(React, features/·shared/)다.
+서비스 V1은 `backend/`(Spring Boot)와 `frontend/`(React, features/·shared/)다.
+Spring은 도메인 중심 package(auth·company·program·conversation·ai·activity) 안에 계층을 둔다: presentation(Controller·HTTP 요청/응답 DTO·입력 검증) → application(유스케이스·조회 결과) → domain(Entity·도메인 규칙·값) / infrastructure(JPA·QueryDSL Repository·JWT·외부 HTTP·설정 Properties).
+의존은 presentation → application → domain 한 방향이며 application·domain은 presentation을 import하지 않는다. 신규 기능은 해당 도메인 아래에 두고, `common/`에는 여러 도메인이 실제로 공유하는 오류·페이지·설정만 둔다. Aggregate·Domain Event·Port/Adapter 같은 패턴은 실제 필요 전에는 들이지 않는다.
 Spring의 AI 기능은 `ai.AiGateway` 경계 뒤에 두고 AI 검색·자격 판정 로직을 Java로 다시 구현하지 않는다.
 Spring → FastAPI 호출은 `ai.HttpAiGateway`(동기 RestClient, 연결·응답 제한시간 환경설정) 한 곳에서만 한다. `/internal/v1/*`는 공유 키 헤더(`X-Internal-Api-Key`, 환경변수 `INTERNAL_AI_API_KEY`)로 서비스 간 인증을 한다.
 FastAPI 내부 인증 실패(401/403)는 최종 사용자 로그인 실패가 아니라 서비스 설정 오류이므로 사용자 401로 전달하지 않는다(`ai_service_auth_failed`). FastAPI 내부 오류 상세는 React에 보내지 않는다.
