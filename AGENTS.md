@@ -1,7 +1,7 @@
 # Harness Entry Point
 
 기업 프로필과 공고문 근거로 중소기업 지원사업을 탐색·검토하는 프로젝트다.
-최상위 기준은 [PROJECT_DESIGN.md](PROJECT_DESIGN.md). AI 계층(RAG·자격 판단·FastAPI 내부 API)과 **React + Spring Boot 서비스 V1**이 Spring ↔ FastAPI로 연결됐다(AI E2E V1). LangGraph는 착수 전이다.
+현재 상태의 기준은 production code·Harness·[PROJECT_MASTER_GUIDE](PROJECT_MASTER_GUIDE.md)다. [PROJECT_DESIGN.md](PROJECT_DESIGN.md)는 최초 목표와 배경을 보존한다. AI 계층(RAG·자격 판단·FastAPI 내부 API)과 **React + Spring Boot 서비스 V1**이 Spring ↔ FastAPI로 연결됐다(AI E2E V1). LangGraph는 착수 전이다.
 
 ## 먼저 읽기
 
@@ -11,7 +11,7 @@
 
 ## Project Map
 
-경계: React(`frontend/`) → Spring Boot(`backend/`) → FastAPI(연결 예정). React는 Spring만 호출한다.
+경계: React(`frontend/`) → Spring Boot(`backend/`) → FastAPI(`data-pipeline/`)로 연결됐다. React는 Spring만 호출한다.
 Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는 AI와 문서 근거를 담당한다.
 제품 데이터 코드는 `data-pipeline/`, 공통 Flyway는 `migrations/`(Spring도 같은 계보)다. Phase 0 도구와 검증 증거는 보존한다.
 [Architecture](harness/docs/architecture.md), [기계 Registry](harness/registry.json)가 실제 구현 상태를 기록한다.

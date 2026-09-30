@@ -1,6 +1,6 @@
 # 작업 절차와 Human Review
 
-1. PROJECT_DESIGN.md → AGENTS.md → current-task.md 순으로 범위를 확인한다.
+1. AGENTS.md → current-task.md → Registry와 관련 Rule / Skill / Contract 순으로 범위를 확인한다. 현재 구현은 production code·Harness·PROJECT_MASTER_GUIDE를 기준으로 하고 PROJECT_DESIGN.md는 최초 목표와 배경으로 읽는다.
 2. Registry에서 필요한 Context / Rules / Skills를 읽는다.
 3. 충돌·큰 기술 변경·규칙 완화는 구현 전에 보고한다.
 4. dev에서 허용된 변경을 작성하고 관련 Unit / Contract / Integration을 검증한다.

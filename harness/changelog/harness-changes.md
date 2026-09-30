@@ -1,5 +1,12 @@
 # Harness 변경 이력
 
+## 2026-10-01 — V1 Finalization
+
+production code·Harness·PROJECT_MASTER_GUIDE를 현재 상태의 기준으로 명시하고 PROJECT_DESIGN은 최초 목표와 배경으로 구분했다.
+FastAPI 연동 전, RAG 미구현, 후보 제한 향후 계획처럼 남아 있던 상태 문구를 실제 V1 구조로 갱신했다. 별도 최상위 `ai/` 금지는 유지하되 Registry key를 `forbidden_top_level_modules`로 바꿔 AI 기능 미구현으로 오해되지 않게 했다.
+check-all의 검증 범위 표시는 offline Contract·MySQL Integration과 별도 Backend/Frontend·Browser E2E·Live AI Eval을 구분하도록 수정했다. 검사 항목과 강도는 줄이지 않았다.
+V1 AI frozen baseline 10건(7 PASS / 3 FAIL)은 변경하거나 재실행하지 않았다. 결과: [Report](../workspace/reports/development/2026-10-01-v1-finalization.md). AGY 검토는 이번 Task 범위 밖이다.
+
 ## 2026-10-01 — V1 코드 마감
 
 Spring을 도메인 중심 package + 내부 계층(presentation·application·domain·infrastructure)으로 정리하고 역방향 의존(도메인·서비스 → HTTP DTO)을 없앴다. API·React·FastAPI 계약과 DB 의미는 바꾸지 않았다.

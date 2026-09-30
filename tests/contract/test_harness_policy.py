@@ -584,11 +584,11 @@ class HarnessPolicyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("profile secret files must be ignored", result.stderr)
 
-    def test_unimplemented_module_cannot_be_silently_added(self):
+    def test_forbidden_top_level_module_cannot_be_silently_added(self):
         (self.directory / "ai").mkdir()
         result = self.check("harness")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("product module added", result.stderr)
+        self.assertIn("forbidden top-level product module added", result.stderr)
 
     def test_ci_branch_drift_is_detected(self):
         path = self.directory / ".github/workflows/ci.yml"

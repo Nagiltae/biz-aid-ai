@@ -20,7 +20,7 @@
     "backend",
     "frontend"
   ],
-  "unimplemented_modules": [
+  "forbidden_top_level_modules": [
     "ai"
   ],
   "rules": [
@@ -207,7 +207,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-10-01-v1-ai-baseline.md",
+  "report": "harness/workspace/reports/development/2026-10-01-v1-finalization.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",

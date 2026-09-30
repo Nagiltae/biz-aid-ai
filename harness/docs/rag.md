@@ -9,7 +9,7 @@ Retrieval Evaluation(gold-v1, 12문항, top_k 5) 결과 baseline은 Hybrid RRF�
 답변 v1([RAG 계약](../../contracts/schemas/rag-answer.contract.json)): `rag/service.py`의 `RagService`가 Hybrid top5를 [E1]..[E5] context로 만들고
 `rag/llm.py`의 `LlmProvider`(현재 `OllamaLlmProvider`)에 공통 prompt와 JSON schema를 보낸다. 모델은 answer·evidence_ids·insufficient_evidence만 돌려주고,
 citation(chunk_id·pblanc_id·page·source·provenance)은 application이 이번 요청의 SearchResult에서 resolve한다. 유효 근거가 없으면 고정 확인 불가 문장을 돌려준다.
-진입점은 dev CLI `scripts/run_rag_answer.py`다(FastAPI 서비스는 아직 없음).
+진입점은 dev CLI `scripts/run_rag_answer.py`와 FastAPI 내부 API다. Spring Boot는 `HttpAiGateway`를 통해 같은 `ServiceRuntime`을 호출한다.
 CLI는 먼저 `candidates.ProgramCandidateService`로 MySQL 후보 pblanc_id(활성 공고 + 선택 필터 category·target·jurisdiction·not_closed_on)를 정하고,
 `RagService.answer(query, candidate_pblanc_ids=...)`가 Retriever에 scope를 넘긴다(Qdrant MatchAny). 후보가 없으면 검색·LLM 없이 NO_CANDIDATES다.
 `--natural-filter`는 `candidates.natural.NaturalLanguageFilterService`가 같은 LlmProvider로 category·target·현재 모집 요청·unapplied 조건을 뽑고,
@@ -24,7 +24,7 @@ LLM criterion(MET·NOT_MET·UNKNOWN, evidence id, profile field) → application
 CLI와 같은 `ServiceRuntime`을 호출한다.
 
 다음 후보: provider 추가(Gemini), 표 직렬화 가독성 개선. Reranker·LangGraph는 평가로 필요성이 확인된 후 정한다.
-지원 자격 판단은 하지 않는다. 날짜·상태 같은 정확한 조건은 MySQL이 결정한다. [AI 경계 규칙](../rules/ai-boundary-rules.md)과 [제품 평가](../../evals/README.md)를 따른다.
+RAG 답변 경로는 지원 자격의 최종 상태를 결정하지 않는다. Eligibility v1에서 LLM은 조건별 비교만 하고 application이 최종 상태를 계산한다. 날짜·상태 같은 정확한 조건은 MySQL이 결정한다. [AI 경계 규칙](../rules/ai-boundary-rules.md)과 [제품 평가](../../evals/README.md)를 따른다.
 
 V1 종료 기준선은 `evals/v1_baseline/cases-v1.json` 10건이다. 최초 1회 결과는 검색 4/4, DOCUMENT_QA 2/3,
 Eligibility 1/3으로 전체 7/10 PASS였다. QA 1건은 12개월 조건을 빠뜨렸고 Eligibility 2건은 model field 이름이 계약과 달라

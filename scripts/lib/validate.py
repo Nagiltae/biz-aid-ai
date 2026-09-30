@@ -268,7 +268,7 @@ def setup_check():
         if importlib.util.find_spec("qdrant_client") is None:
             raise ValueError("qdrant-client missing; install data-pipeline/requirements.txt")
         print("PASS: qdrant-client available; dev Qdrant server is tested outside check-all")
-    print("N/A: Java/Node/product APIs; live upstream, Qdrant server and LLM (Ollama) calls are separate")
+    print("N/A: Java/Node builds and live upstream, Qdrant server, LLM calls; separate service validation")
 
 
 def format_check():
@@ -309,18 +309,16 @@ def lint_check():
 
 def contract_check():
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/contract", "-p", "test_*.py", "-v")
-    print("PASS: snapshot/report, upstream Probe, API-quality and bounded document mock-transport Unit and Contract tests")
-    print("PASS: Phase 3 parsing contract, detected-format router, HWPX adapter and Docling PDF route (do_ocr=false) with synthetic fixtures")
-    print("N/A in offline validation: live HTTP, full provider specification, product API and Qdrant contracts; HWP to PDF conversion")
+    print("PASS: offline Contract tests from Phase 0 through parsing, indexing, retrieval, RAG, Eligibility, internal API and V1 baseline helpers")
+    print("N/A in offline validation: live HTTP/AWS/Qdrant/LLM, real HWP conversion and Browser E2E")
 
 
 def integration_check():
     if registry()["phase"] in DATABASE_PHASES:
         run(sys.executable, "-B", "infra/dev_mysql.py")
     run(sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests/integration", "-p", "test_*.py", "-v")
-    print("PASS: local CLI integration including credential-missing Probe/API-quality and bounded document failure exits; no live HTTP")
-    print("PASS: structured dev MySQL integration (Phase 1A/1B) and parse persistence metadata; no live upstream HTTP")
-    print("N/A: live API/document HTTP, HWP to PDF conversion, real S3 parsed-artifact persistence, product APIs")
+    print("PASS: local CLI and dev/test MySQL integration for structured ingestion, document metadata and parse persistence")
+    print("N/A: live API/document HTTP, AWS, real HWP conversion, Backend/Frontend and Browser E2E")
 
 
 def database_comment_problem(name, comment):
@@ -628,8 +626,8 @@ def harness_check():
     for name in spec["validation_commands"]:
         if name not in actual_code or not os.access(ROOT / name, os.X_OK):
             raise ValueError(f"missing validation command: {name}")
-    if any((ROOT / name).exists() for name in spec["unimplemented_modules"]):
-        raise ValueError("product module added outside current phase; update scope and validation first")
+    if any((ROOT / name).exists() for name in spec["forbidden_top_level_modules"]):
+        raise ValueError("forbidden top-level product module added; use the registered product boundary")
     workflows = {str(path.relative_to(ROOT)) for path in (ROOT / ".github/workflows").glob("*") if path.is_file()}
     if workflows != {".github/workflows/ci.yml"}:
         raise ValueError("workflow/deployment drift")

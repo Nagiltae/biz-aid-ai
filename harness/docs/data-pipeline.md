@@ -3,7 +3,7 @@
 처음 보는 용어의 한국어 뜻은 [용어집](glossary-ko.md)을, 프로젝트 전체 흐름은 [PROJECT_MASTER_GUIDE](../../PROJECT_MASTER_GUIDE.md)를 본다.
 
 최종 Pipeline 계획은 API → Raw → Normalize → MySQL Upsert → 변경 판단 →
-Download → Checksum → Parse → Chunk → Embedding → Qdrant다. Qdrant 적재와 read-only 검색(Retriever)까지 dev에서 구현됐고 답변(RAG)은 미구현이다.
+Download → Checksum → Parse → Chunk → Embedding → Qdrant다. dev에서 Qdrant 적재·read-only 검색·RAG·자격 판단·FastAPI 내부 API까지 구현됐으며 Spring Boot 서비스가 이를 호출한다.
 
 ## 현재 도구
 
@@ -97,7 +97,7 @@ Supplementary는 @ token count만 비교한다. 의미상 pairing·Primary 본�
 canonical source fingerprint는 DB lifecycle을 포함하지 않는다. 동일 원본은 content NOOP / last_seen 갱신이다.
 SAMPLE/PARTIAL의 미관측은 삭제 근거가 아니다. FULL 완전성 검사·run 성공·DB lock을 모두 통과해야 soft-delete한다.
 복원은 관측 근거로 SAMPLE에서도 가능하며 source_active는 접수 상태를 뜻하지 않는다.
-FULL은 controlled test만 실행한다. 운영 접근·증분 parameter·본문 Parser·Document 제품화·AI는 미구현이다.
+Phase 1A 당시 FULL은 controlled test만 실행했다. 이후 Phase 1B FULL, 문서 수집·Parser·검색·AI가 별도 계약과 검증을 거쳐 추가됐으며 이 절의 SAMPLE/PARTIAL lifecycle 규칙은 그대로 유지한다.
 [품질 계약](../../contracts/schemas/structured-data-quality.contract.json)은 적재 품질과 completeness를 기록하며 GO/DROP을 판단하지 않는다.
 
 ## Phase 1B Full Structured Data Sync(정형 데이터 전체 동기화)
@@ -178,7 +178,7 @@ corpus 실행은 `parsing/corpus.py`(`scripts/run_corpus_parsing.py --profile de
 
 [Indexing 계약](../../contracts/schemas/document-indexing.contract.json)을 따른다. `indexing/pipeline.py`가 `chunk_source`의 FinalChunk를 content_key별로 한 번만
 `indexing/embedder.py`(BGE-M3 dense CLS·L2 1024 + sparse, batch 추론)로 embedding하고 `indexing/qdrant_store.py`가 embedding_key별 collection에 batch upsert한다.
-`docker compose --profile dev-vector up -d qdrant` 후 `scripts/run_document_indexing.py --profile dev --source-sha256 <sha>`로 실행한다. Retriever·query embedding은 구현하지 않는다.
+`docker compose --profile dev-vector up -d qdrant` 후 `scripts/run_document_indexing.py --profile dev --source-sha256 <sha>`로 실행한다. 검색은 Phase 5의 같은 BGE-M3 identity를 재사용한다.
 
 ## Phase 5 Document Retrieval(근거 검색)
 

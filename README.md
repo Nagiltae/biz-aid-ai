@@ -1,94 +1,169 @@
 # BizAid AI
 
-기업 프로필과 지원사업 공고문 근거를 결합해 중소기업이 신청 가능한 지원사업과 상세 조건을 찾도록 돕는 AI 서비스 프로젝트다.
-최상위 설계는 [PROJECT_DESIGN.md](PROJECT_DESIGN.md), 작업 규칙 진입점은 [AGENTS.md](AGENTS.md)다.
-시작부터 현재까지의 전체 설명·기술 선택 이유·실험 결과는 [PROJECT_MASTER_GUIDE.md](PROJECT_MASTER_GUIDE.md) 한 파일에 정리돼 있다.
-이 README는 길잡이다. 세부 규칙은 아래 링크의 Harness 문서가 기준이다.
+기업 정보와 실제 공고문 근거를 함께 사용해 중소기업 지원사업을 찾고, 질문하고, 지원 가능성을 검토하는 서비스입니다.
 
-## 현재 상태
+## 해결하려는 문제
 
-```text
-기업마당 API → Raw 보존 → MySQL(공고)          [구현: dev FULL]
-공고 첨부 → S3 원본(content SHA)                [구현]
-S3 원본 → Parser(PDF·HWP·HWPX) → DoclingDocument → S3 + MySQL(parse row)   [구현: v1, 100문서 corpus 검증]
-DoclingDocument → HybridChunker(BGE-M3 tokenizer) → FinalChunk              [구현]
-FinalChunk → BGE-M3 dense 1024 + sparse → dev Qdrant                        [구현: 3문서 검증]
-query → BGE-M3 → Qdrant dense·sparse·RRF hybrid → SearchResult              [구현: read-only, 3문서 smoke]
-query → Hybrid top5 → Ollama(qwen3.5:9b) → 근거 답변 + citation             [구현: RAG v1, dev CLI]
-질문 → MySQL 후보 → 목록(SEARCH_LIST)/문서 QA · 자격 판단 v1 · FastAPI 내부 API  [구현]
-React → Spring Boot(JWT·기업정보·지원사업 조회·대화) → MySQL                 [구현: 서비스 V1]
-React → Spring → FastAPI(AI 검색·자격 판정) → 대화 저장                      [구현: AI E2E V1]
-FastAPI Compose 통합 · Reranker · LangGraph                                   [미구현]
+지원사업 공공 API에는 공고명·분야·대상·기관·신청기간 같은 정형 정보가 있습니다. 하지만 업력, 매출,
+신용점수, 제외 조건처럼 신청 판단에 필요한 내용은 PDF·HWP·HWPX 공고문 안에 흩어져 있습니다.
+
+BizAid AI는 두 데이터의 역할을 나눕니다.
+
+- MySQL은 모집 상태와 분야처럼 정확히 비교할 조건을 다룹니다.
+- Qdrant는 공고문에서 질문과 관련된 근거를 찾습니다.
+- 대규모 언어 모델(LLM)은 검색된 근거를 설명하고 조건별 비교를 수행합니다.
+- 일반 코드는 근거를 검증하고 지원 자격의 최종 상태를 계산합니다.
+
+> 사용자는 우리 회사가 받을 수 있는 지원사업을 찾고, 공고 근거를 확인한 뒤 지원 가능 여부를 검토할 수 있습니다.
+
+## 주요 기능
+
+- 자연어로 지원사업 검색
+- 특정 공고문에 대한 근거 기반 질문
+- 공고 ID·문서 page를 포함한 근거 표시(Citation)
+- 기업 정보와 공고 조건을 비교하는 지원 자격 판정
+- JWT 로그인, 기업정보 관리, 지원사업 목록·상세, 대화 저장
+
+## 아키텍처
+
+```mermaid
+flowchart LR
+    U[사용자] --> R[React]
+    R --> S[Spring Boot]
+    S --> M[(MySQL)]
+    S -->|내부 API| F[FastAPI]
+    F --> M
+    F --> Q[(Qdrant)]
+    F --> L[Ollama / Qwen]
+    P[Data Pipeline] --> M
+    P --> A[(AWS S3)]
+    P --> Q
 ```
 
-- canonical 문서 표현은 docling-core DoclingDocument 하나다. Markdown은 chunking 입력이 아니다.
-- parser·tokenizer·embedding 모델은 저장소 밖 고정 artifact에서만 읽는다. 실행 중 모델 다운로드는 없다.
-- parse_key → chunk_set_key → embedding_key가 단계별 결과 identity다. [Pipeline 문서](harness/docs/data-pipeline.md#identity-요약)를 본다.
-
-## 디렉터리
-
-| 경로 | 역할 |
+| 구성요소 | 역할 |
 | --- | --- |
-| `data-pipeline/src/biz_aid_pipeline/` | 제품 Pipeline package: `bizinfo`·`ingestion`·`persistence`·`quality`(구조화), `documents`·`storage`(원본 수집·S3), `parsing`, `chunking`, `indexing`, `retrieval`, `rag` |
-| `scripts/` | 얇은 CLI 진입점과 `check-*` 검증 스크립트 |
-| `contracts/` | 단계별 Contract(JSON). [목록](contracts/README.md) |
-| `backend/` | Spring Boot 서비스 서버(회원·JWT 인증·기업정보·지원사업 조회·대화·AI 경계) |
-| `frontend/` | React 화면(로그인·기업정보·지원사업·AI 검색·자격 판정 결과·근거 표시) |
-| `migrations/` | 공통 Flyway migration(적용된 파일 수정 금지, Spring도 같은 계보) |
-| `infra/` | dev MySQL 준비, HWP→PDF 변환 Docker 이미지 |
-| `tests/` | contract·integration test |
-| `evals/` | 평가 양식과 Phase 3-B.1 표 engine benchmark(보존용, 제품 경로 아님) |
-| `harness/` | 규칙·문서·Skill·Registry·현재 Task·보고서 |
+| React | 로그인, 기업정보, 지원사업, AI 검색·자격 판정 화면 |
+| Spring Boot | 서비스 API, JWT 인증, JPA·QueryDSL 조회, 대화·활동 기록, FastAPI 호출 경계 |
+| FastAPI | 질문 유형·조건 분석, 검색, 근거 답변, 자격 조건 비교 |
+| MySQL | 공고 정형 데이터와 서비스 데이터의 기준 저장소 |
+| AWS S3 | 원본 공고문과 파싱 결과 JSON 영구 보관 |
+| Qdrant | BGE-M3 dense·sparse 문서 조각 검색 |
+
+React는 Spring Boot만 호출합니다. Spring Boot는 공유 키로 FastAPI 내부 API를 호출하며, AI 결과를 임의로
+재정렬하거나 고쳐 쓰지 않습니다.
+
+## AI 처리 흐름
+
+```text
+사용자 질문
+  → 자연어 조건과 SEARCH_LIST / DOCUMENT_QA 구분
+  → 질문에 실제로 있는 조건만 검증
+  → MySQL에서 활성 공고 후보 선택
+  → 후보 공고 안에서 Qdrant Dense + Sparse 검색
+  → RRF로 검색 순위 결합
+  → 목록은 MySQL 정보로 반환 / 문서 질문은 LLM 답변 생성
+  → 애플리케이션이 실제 검색 결과에서 Citation 연결
+```
+
+지원 자격 판정은 공고 하나와 기업 정보 snapshot을 입력으로 받습니다. LLM은 조건별로 `MET`, `NOT_MET`,
+`UNKNOWN`을 비교하고, 최종 `ELIGIBLE`, `INELIGIBLE`, `NEEDS_MORE_INFO`, `INSUFFICIENT_EVIDENCE` 상태는
+애플리케이션 코드가 계산합니다.
+
+## 핵심 기술 선택
+
+| 선택 | 이유 |
+| --- | --- |
+| 정형 데이터와 문서 지식 분리 | 날짜·상태는 DB로 정확히 판단하고 세부 조건은 원문에서 찾기 위해 |
+| JPA + QueryDSL | 일반 CRUD는 단순하게, 선택 조건이 많은 지원사업 목록은 타입 안전하게 조회하기 위해 |
+| BGE-M3 | 한 모델에서 의미 검색용 dense vector와 단어 검색용 sparse vector를 함께 만들기 위해 |
+| Dense + Sparse + RRF | 의미가 비슷한 문장과 사업명·금액 같은 정확한 단어를 함께 찾기 위해 |
+| Citation을 코드에서 연결 | LLM이 존재하지 않는 page나 출처를 만드는 일을 막기 위해 |
+| 자격 최종 상태를 코드에서 계산 | 누락된 기업정보를 추측하지 않고 일관된 판정 규칙을 유지하기 위해 |
+| React → Spring → FastAPI | 인증·서비스 데이터와 AI 실행 책임을 분리하고 브라우저가 내부 AI API에 직접 의존하지 않게 하기 위해 |
+
+## 주요 문제 해결 사례
+
+1. **일반 제목 조각이 검색에서 밀리는 문제**
+
+   검색용 입력에 공고명을 추가하고 원문 근거 text는 그대로 보존했습니다. 기대 근거가 5위 밖에서 1위로 올랐습니다.
+
+2. **한 공고의 여러 조각이 목록을 독점하는 문제**
+
+   조각을 자른 뒤 중복 제거하는 대신 공고별 최고 조각으로 순위를 매겼습니다. 결과가 2개에서 5개로 회복됐고 중복은 0건이었습니다.
+
+3. **LLM이 질문에 없는 조건을 만드는 문제**
+
+   모델이 낸 조건을 DB의 허용 값과 질문 원문으로 다시 검증하는 Grounding Guard를 두었습니다.
+
+4. **한국 공문서 형식과 표 처리 문제**
+
+   PDF·HWP·HWPX를 DoclingDocument로 통일했습니다. 구조를 증명하지 못한 표는 틀린 행·열을 만들지 않고 원문 글자와 provenance를 보존합니다.
+
+5. **Spring 계층의 역방향 의존 문제**
+
+   도메인별 package 안을 presentation → application → domain / infrastructure로 정리해 HTTP DTO가 도메인으로 새지 않게 했습니다.
+
+## V1 AI 평가
+
+V1 종료 시점의 성능을 이후 변경과 같은 조건으로 비교하기 위해 10개 사례를 고정했습니다.
+
+| 기능 | 결과 |
+| --- | ---: |
+| 지원사업 검색(SEARCH_LIST) | 4 / 4 PASS |
+| 공고문 질문(DOCUMENT_QA) | 2 / 3 PASS |
+| 지원 자격 판정 | 1 / 3 PASS |
+| **전체** | **7 / 10 PASS** |
+
+검색 결과의 중복과 MySQL 후보 범위 밖 공고는 0건이었고, QA·자격 근거에 다른 공고가 섞인 사례도 0건이었습니다.
+실패 3건은 최대 지원기간 누락 1건과 허용되지 않은 기업정보 필드 이름을 모델이 사용한 자격 판정 2건입니다.
+이 결과는 숨기거나 보정하지 않은 V1의 한계이며, V2의 provider·prompt·검색 변경을 비교하는 출발점입니다.
+
+## 기술 스택
+
+- Frontend: React 19, TypeScript, Vite, TanStack Query
+- Backend: Java 21, Spring Boot, Spring Security, JPA, QueryDSL, Flyway
+- AI API / Pipeline: Python 3.11, FastAPI, Docling, PaddleX, BGE-M3
+- Storage: MySQL 8.4, AWS S3, Qdrant
+- LLM: Ollama, Qwen3.5 9B
+- Infrastructure: Docker Compose, GitHub Actions
 
 ## 로컬 실행
 
-필요: Bash, Git, Python 3.11(stdlib `lzma` 포함), Docker Compose v2. 사용자 설정은 Git 밖 `.env.dev`([예시](.env.example)).
+실제 비밀값은 추적되지 않는 `.env.dev`에 둡니다. 필요한 변수 이름은 [.env.example](.env.example)에서 확인합니다.
 
 ```bash
-python3 -m venv .venv && .venv/bin/python -m pip install -r data-pipeline/requirements.txt
-export BIZAID_DOCLING_ARTIFACTS_PATH=~/.cache/biz-aid/docling-artifacts
-.venv/bin/python -B scripts/provision_docling_artifacts.py provision --allow-network   # 최초 1회, 약 3.7GB
-./scripts/setup.sh && ./scripts/check-all.sh
+# Python 의존성과 고정 모델 artifact 준비
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -r data-pipeline/requirements.txt
+export BIZAID_DOCLING_ARTIFACTS_PATH="$HOME/.cache/biz-aid/docling-artifacts"
 
-.venv/bin/python -B infra/dev_mysql.py                    # dev MySQL + Flyway (infra/README.md)
-docker compose --profile dev-vector up -d qdrant          # dev Qdrant 127.0.0.1:6333
+# 저장소와 로컬 전제 검사
+./scripts/setup.sh
+
+# Qdrant
+docker compose --env-file .env.dev --profile dev-vector up -d qdrant
+
+# 호스트 FastAPI (고정 모델 artifact와 Ollama가 준비된 dev 환경)
+.venv/bin/python -B scripts/run_api.py
+
+# MySQL + Spring Boot + React
+docker compose --env-file .env.dev --profile app up --build
 ```
 
-서비스 전체(React + Spring Boot + MySQL + AI)는 호스트 FastAPI를 먼저 띄운 뒤 Compose로 올린다.
-사전 준비: Ollama 실행 + `qwen3.5:9b` 설치, dev Qdrant 실행, `.env.dev`에 `JWT_SECRET`(32byte 이상)·`INTERNAL_AI_API_KEY`·`OLLAMA_MODEL=qwen3.5:9b`.
+- Frontend: `http://127.0.0.1:3000`
+- Spring Boot: `http://127.0.0.1:8080`
+- FastAPI는 현재 호스트 `127.0.0.1:8000`에서 별도로 실행합니다.
 
-```bash
-BIZAID_DOCLING_ARTIFACTS_PATH=~/.cache/biz-aid/docling-artifacts .venv/bin/python -B scripts/run_api.py   # FastAPI 127.0.0.1:8000
-docker compose --env-file .env.dev --profile app up --build   # 화면 http://127.0.0.1:3000, API 127.0.0.1:8080
-```
+개발 검증은 `./scripts/check-all.sh`로 실행합니다. Backend와 Frontend의 개별 build/test 및 실제 AI E2E 범위는
+[Testing](harness/docs/testing.md)을 따릅니다.
 
-IntelliJ에서 backend를 직접 실행할 때는 `.env.dev` 값을 환경변수로 주고(MYSQL_HOST=127.0.0.1) `frontend/`에서 `npm run dev`(5173, /api는 8080으로 proxy)를 쓴다.
+## 현재 상태와 V2
 
-S3는 boto3 credential chain으로 고정 dev bucket을 쓴다. HWP 변환 이미지는 [infra](infra/README.md)의 build 명령으로 만든다.
+V1은 데이터 수집부터 React → Spring Boot → FastAPI AI 흐름과 고정 AI 기준선까지 완성했습니다.
+현재 제약은 전체 문서 corpus 미처리, 일부 표·OCR 품질, FastAPI Compose 미통합, 운영 배포 미완료입니다.
 
-대표 CLI(모두 `--profile dev`만 허용):
+V2에서는 frozen V1 기준선으로 모델 provider·prompt·검색 변경 전후를 먼저 비교합니다. Reranker, LangChain,
+LangGraph는 이름만으로 도입하지 않고 평가에서 필요한 경우에 검토합니다.
 
-| 단계 | 명령 |
-| --- | --- |
-| 구조화 FULL | `scripts/run_full_sync.py collect --profile dev --run-id <id>` |
-| 문서 수집 | `scripts/run_document_acquisition.py collect --profile dev --run-id <id>` |
-| Parsing(명시 SHA 1~3) | `scripts/run_document_parsing.py --profile dev --source-sha256 <sha>` |
-| Corpus parsing | `scripts/run_corpus_parsing.py --profile dev --run-id <id> --max-completed <n>` |
-| Chunking | `scripts/run_document_chunking.py --profile dev --source-sha256 <sha>` |
-| Indexing | `scripts/run_document_indexing.py --profile dev --source-sha256 <sha>` |
-| Retrieval | `scripts/run_document_retrieval.py --profile dev --query "..." --mode hybrid --top-k 5` |
-| RAG 답변 | `scripts/run_rag_answer.py --profile dev --query "..."` (Ollama 실행 필요) |
-| 자격 판단 | `scripts/run_eligibility.py --profile dev --pblanc-id <id> --company-profile company.json` |
-| 내부 API | `scripts/run_api.py` → 127.0.0.1:8000 (`/internal/v1/query`, `/internal/v1/eligibility`) |
-
-library 진입점: `parsing.orchestration.run_source`, `chunking.cli.chunk_source`, `indexing.pipeline.index_source`, `indexing.embedder.BgeM3Embedder`, `retrieval.retriever.Retriever`.
-
-## 문서 지도
-
-- 구조·상태: [Architecture](harness/docs/architecture.md), [Pipeline 상세](harness/docs/data-pipeline.md), [Pipeline 실행 정책](data-pipeline/README.md)
-- 규칙: [Source](harness/rules/data-source-rules.md), [파일 경계](harness/rules/file-boundaries.md), [AI 경계](harness/rules/ai-boundary-rules.md), [DB](harness/rules/database-rules.md), [Safety](harness/rules/safety.md)
-- 검증: [Testing](harness/docs/testing.md), [Workflow](harness/docs/workflow.md)
-- 현재 작업: [current-task](harness/workspace/current-task.md), [Registry](harness/registry.json), [Changelog](harness/changelog/harness-changes.md)
-- 초기 Phase 0 도구(snapshot·Probe·API 품질·Download Gate): [Pipeline 문서의 현재 도구 절](harness/docs/data-pipeline.md)
-
-CI는 dev push에서 `setup.sh`와 `check-all.sh`를 오프라인으로 실행한다. prod 실행·임의 push/merge는 하지 않는다.
+상세한 설계 결정과 실험 결과는 [PROJECT_MASTER_GUIDE](PROJECT_MASTER_GUIDE.md), 미룬 문제는
+[Improvement Backlog](harness/docs/improvement-backlog.md), 개발 규칙은 [AGENTS.md](AGENTS.md)에서 확인할 수 있습니다.

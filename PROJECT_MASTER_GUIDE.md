@@ -1,7 +1,7 @@
 # BizAid AI — 프로젝트 마스터 가이드
 
 > 이 파일 하나로 BizAid AI의 목적, 구조, 기술 선택 이유, 실험 결과, 실패와 해결 과정, 현재 상태를 이해할 수 있게 정리했다.
-> 기준 시점은 저장소 기록(2026-09-27 ~ 2026-10-01)이다. 모든 숫자는 `harness/workspace/reports/` 보고서에 실제로 남은 값이다.
+> 기준 시점은 저장소 기록(2026-09-27 ~ 2026-10-01)이다. 현재 production code·Harness와 실제 Report를 기준으로 하며 PROJECT_DESIGN.md는 최초 목표와 배경이다. 모든 숫자는 `harness/workspace/reports/` 보고서에 실제로 남은 값이다.
 > "당시" 표시는 그 단계의 값이고, 뒤 단계에서 바뀐 값은 "현재"로 구분했다.
 
 ---
@@ -78,6 +78,9 @@
 | FastAPI Compose 통합, 운영 배포 | **예정** |
 | LangChain·LangGraph | **미적용** |
 
+V1 release 후보는 데이터 수집부터 React → Spring Boot → FastAPI 서비스와 고정 AI 기준선까지 포함한다.
+운영 배포 완료를 뜻하지 않으며 FastAPI Compose 통합, 전체 문서 처리, 일부 표·OCR 품질은 Backlog에 남아 있다.
+
 ### 전체 흐름 한눈에 보기
 
 ```text
@@ -134,7 +137,7 @@ Spring Boot ─HttpAiGateway(공유 키)─► FastAPI(위의 질문 처리·자
 ### 아직 남은 작업
 
 - FastAPI Compose 통합(IMP-017), 운영 배포
-- 표를 LLM이 읽기 어려운 문제(IMP-002), 다른 LLM(Gemini)과 비교(IMP-003)
+- 표를 LLM이 읽기 어려운 문제(IMP-002), 다른 LLM provider(Bedrock 등 후보)와 동일 기준선 비교(IMP-003)
 - 전체 2,926개 문서 처리(현재 100개만 처리)
 
 ---
@@ -1087,7 +1090,7 @@ com.bizaid
 | 저장소 | 담는 것 | 특징 |
 | --- | --- | --- |
 | **AWS S3** | 원본 첨부 파일(3,231개), 파싱 결과 JSON | 파일 내용 hash가 key, 덮어쓰기 금지, checksum 검증 |
-| **MySQL** | 공고 정형 정보(1,554), 공고–문서 관계(3,288), 파싱 상태·식별값·S3 위치, 서비스 데이터(회원·Refresh Token 해시·기업정보·대화) | 정확한 조건 검색, 트랜잭션, Flyway로 schema 관리(V1~V6, Spring도 같은 계보) |
+| **MySQL** | 공고 정형 정보(1,554), 공고–문서 관계(3,288), 파싱 상태·식별값·S3 위치, 서비스 데이터(회원·Refresh Token 해시·기업정보·대화·활동 기록) | 정확한 조건 검색, 트랜잭션, Flyway로 schema 관리(V1~V8, Spring도 같은 계보) |
 | **Qdrant** | 문서 조각 벡터와 근거 metadata(3,849 point) | 의미·단어 검색. **다시 만들 수 있는 파생 데이터** |
 
 ### 왜 하나의 DB로 다 하지 않았나
@@ -1357,8 +1360,9 @@ V2의 모델·Prompt·검색 방식을 바꾼 뒤 좋아졌다고 말하려면, 
 
 ### 검사
 
-- 전체 검사(`check-all`) 최신: §17 AI E2E V1 표와 해당 report 참고
+- V1 AI 기준선 Task의 `check-all`: exit 0, Contract 415건·Integration 64건
 - 원격 CI(GitHub Actions)는 Phase 4-B commit에서 2.3GB 추가 모델을 포함해 통과(6분 28초)
+- Backend·Frontend test/build와 실제 AI E2E는 check-all 밖의 별도 Evidence다. 서로의 PASS를 대신하지 않는다.
 
 ### AI E2E V1 (실제 화면 → Spring → FastAPI → Qwen)
 
@@ -1518,10 +1522,10 @@ V2의 모델·Prompt·검색 방식을 바꾼 뒤 좋아졌다고 말하려면, 
 | Phase 2 첨부 수집 | 공고문 확보 | 순차 다운로드·형식 판별(V3) | 3,288 관계 | 영구 보관 |
 | Phase 2.5 S3 | 원본 영구화 | checksum 대조·연결(V4) | 3,231 object | 문서 읽기 |
 | Phase 3 파싱(09-29~30) | 문서 → 구조 | Docling, 표 엔진 비교·PP, HWP 변환, OCR, HWPX, 저장(V5), 일괄 실행 | 100/100 PARSED | 조각 생성 |
-| Phase 4-A 조각 | 검색 단위 | HybridChunker, FinalChunk | 3문서 줄 손실 0 | 벡터 적재 |
-| Phase 4-B 적재 | 벡터 검색 준비 | BGE-M3, Qdrant | 192 point | 검색 |
+| Phase 4-A 조각 | 검색 단위 | HybridChunker, FinalChunk | 초기 3문서 줄 손실 0 | 벡터 적재 |
+| Phase 4-B 적재 | 벡터 검색 준비 | BGE-M3, Qdrant | 초기 3문서 192 point | 검색 |
 | 사전 정리 | 기술부채·Harness 점검 | 문서 최신화, 규칙 충돌 해소 | blocker 0 | 검색 착수 |
-| Phase 5 검색 | 근거 검색 | Retriever(Dense·Sparse·RRF) | 3문서 smoke | 데이터 확대 |
+| Phase 5 검색 | 근거 검색 | Retriever(Dense·Sparse·RRF) | 초기 3문서 smoke | 데이터 확대 |
 | 100개 데이터셋 | 평가용 데이터 | 60개 재파싱, 100개 적재 | 3,849 point | 평가 |
 | 검색 평가 | 기준 결정 | Gold 12 동결 | Hybrid 12/12/11 | 답변 생성 |
 | Phase 6 RAG | 근거 답변 | LlmProvider, Qwen, Citation | G05 정답 | 후보 필터 |
@@ -1533,7 +1537,7 @@ V2의 모델·Prompt·검색 방식을 바꾼 뒤 좋아졌다고 말하려면, 
 | FastAPI v1 | 내부 API | 3개 endpoint, ServiceRuntime | HTTP 200 smoke | 목록 품질 |
 | 문서 한국어화 | 이해·포트폴리오 문서 | 마스터 가이드, 용어집 | 문서만 변경 | 목록 개선 |
 | IMP-014(10-01) | 목록 공고 다양성 | 공고 단위 그룹 검색 | 2개 → 5개 | 서비스 화면 |
-| 서비스 V1(10-01) | React + Spring Boot | JWT 인증·기업정보·지원사업 조회(QueryDSL)·대화·AI 경계, V6, Compose app | E2E 5개 흐름, AI는 미연결 안내 | Spring ↔ FastAPI 연결 |
+| 서비스 V1 기반(10-01) | React + Spring Boot | JWT 인증·기업정보·지원사업 조회(QueryDSL)·대화·AI 경계, V6, Compose app | 당시 E2E 5개 흐름, AI는 미연결 안내 | Spring ↔ FastAPI 연결 |
 | AI E2E V1(10-01) | 화면에서 실제 AI | HttpAiGateway·공유 키 인증·제한시간·오류 변환, V7 AI 결과 저장, 결과 화면 | 목록 5개·자격 판정 화면 표시 | V1 마감 |
 | V1 코드 마감(10-01) | V2 전 구조 정리 | 도메인 중심 + 내부 계층, dev/prod profile, V8 activity_logs, IMP-013 해결, Backlog 단계 분류 | API 변경 0, E2E 1회 통과 | V1 AI 평가 기준선 고정 |
 | V1 AI 평가 기준선(10-01) | V2 전 현재 성능 고정 | 검색 4 + QA 3 + 자격 3, hash 동결, 문장 대신 구조·근거 판정 | 7/10 PASS, 검색 4/4·QA 2/3·자격 1/3 | 같은 baseline으로 V2 비교 |
@@ -1549,8 +1553,8 @@ V2의 모델·Prompt·검색 방식을 바꾼 뒤 좋아졌다고 말하려면, 
 3. **공고 1개 지원 자격 판정**: 기업 정보를 넣으면 조건별 충족·미충족·판단 불가와 최종 상태
 4. **수동 정형 필터 검색**: 분야·대상·소관기관·모집 여부
 5. **내부 HTTP API**: `/health`, `/internal/v1/query`, `/internal/v1/eligibility`
-7. **화면에서 실제 AI 사용(AI E2E V1)**: 문장 질문 → 공고 카드(FastAPI 순위) 또는 답변 + 공고문 근거, 대화 다시 열면 결과 복원, 공고 상세에서 자격 판정(조건별 결과·근거·부족한 정보 → 입력 후 다시 확인)
 6. **서비스 화면(React + Spring Boot V1)**: 회원가입·로그인(JWT), 내 기업정보 등록·수정, 지원사업 목록(검색어·분야·대상·모집 상태·소관기관 필터)·상세, 질문 대화 저장
+7. **화면에서 실제 AI 사용(AI E2E V1)**: 문장 질문 → 공고 카드(FastAPI 순위) 또는 답변 + 공고문 근거, 대화 다시 열면 결과 복원, 공고 상세에서 자격 판정(조건별 결과·근거·부족한 정보 → 입력 후 다시 확인)
 
 ### 아직 할 수 없는 것
 
@@ -1570,8 +1574,8 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 
 | ID | 쉬운 설명 | 영향 | 다시 볼 시점 |
 | --- | --- | --- | --- |
-| IMP-002 | 표를 "열, n = 값" 형태로 풀어 써서 검색 순위가 낮고 LLM이 표를 못 읽음(G06). 62개 문서 358 영역은 표 구조 없음 | 표 질문 답변 | V1 이후, Gemini로도 실패할 때 |
-| IMP-003 | 로컬 Qwen만 확인. 조건·기간 누락, 과장 해석, 중국어 토큰 혼입, 긴 응답 시간(25~36초) | 답변 품질·속도 | V1 완료 후 Gemini와 같은 조건 비교 |
+| IMP-002 | 표를 "열, n = 값" 형태로 풀어 써서 검색 순위가 낮고 LLM이 표를 못 읽음(G06). 62개 문서 358 영역은 표 구조 없음 | 표 질문 답변 | V1 이후, provider 변경 뒤에도 실패할 때 |
+| IMP-003 | 로컬 Qwen만 확인. 조건·기간 누락, 과장 해석, 중국어 토큰 혼입, 긴 응답 시간(25~36초) | 답변 품질·속도 | V1 완료 후 Bedrock 등 후보를 같은 조건으로 비교 |
 | IMP-004 | 같은 문서의 개요 조각이 근거 조각보다 앞서는 경우 | 근거 순위 | 더 큰 Gold에서 반복될 때 |
 | IMP-005 | 모델 검증이 전체 3.7GB 단위라 질문만 처리하는 서버도 파싱 모델까지 필요 | 배포 이미지 크기·시작 시간 | 서비스 배포 전 |
 | IMP-006 | 조각 생성이 파싱 환경(Docker·paddle 버전)에서 현재 parse_key를 다시 계산 | 환경 분리 | 전체 적재 전 |
@@ -1716,7 +1720,7 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | Lifespan | 앱 시작·종료 생명주기 | 시작 때 runtime 생성, 종료 때 정리 |
 | Connection Pool | 연결 재사용 묶음 | MySQL 연결을 매번 새로 열지 않음 |
 | Fallback | 실패 시 대체 처리 | 조용한 대체는 하지 않고 명시적으로 실패 |
-| Flyway | DB schema 변경 관리 도구 | V1~V6 migration, 적용된 파일 수정 금지, Spring도 같은 계보 |
+| Flyway | DB schema 변경 관리 도구 | V1~V8 migration, 적용된 파일 수정 금지, Spring도 같은 계보 |
 | JWT(JSON Web Token) | 서명된 로그인 증표 | Access Token. 서버가 저장하지 않고 서명·만료만 확인 |
 | Access Token / Refresh Token | 짧은 출입증 / 출입증 재발급권 | 15분·메모리 / 14일·HttpOnly Cookie·DB 해시 |
 | Token Rotation | 재발급권 교체 | 재발급마다 이전 Refresh Token 폐기 |
@@ -1852,7 +1856,7 @@ DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았�
 
 현재 상태 기준 후보(사용자 결정 필요):
 
-1. **V2 품질 개선**: V1 기준선 10건을 그대로 사용해 provider·Prompt·검색 변경 전후를 비교(IMP-002·003·004·011)
+1. **V2 품질 개선**: V1 기준선 10건을 그대로 사용해 Bedrock 등 provider·Prompt·검색 변경 전후를 비교(IMP-002·003·004·011)
 2. **LangGraph 필요성 판단**: 다단계 흐름이 생길 때
 3. **운영/AWS**: FastAPI Compose 통합(IMP-017), 전체 corpus(IMP-007, 약 29~35시간 추정), 배포·RDS 이전(IMP-015·IMP-016 확인)
 

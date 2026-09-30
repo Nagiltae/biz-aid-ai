@@ -2,7 +2,7 @@
 
 처음 보는 용어의 한국어 뜻은 [용어집](glossary-ko.md)을, 프로젝트 전체 흐름은 [PROJECT_MASTER_GUIDE](../../PROJECT_MASTER_GUIDE.md)를 본다.
 
-근거: PROJECT_DESIGN.md §1–9, 19–25, 42–43, 48–58.
+근거: 현재 production code·Harness·PROJECT_MASTER_GUIDE. PROJECT_DESIGN.md §1–9, 19–25, 42–43, 48–58은 최초 목표와 배경이다.
 목적은 기업 프로필을 활용해 현재 신청 가능한 사업과 상세 조건을 근거와 함께 제공하는 것이다.
 
 ## 책임 경계
@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | React | UI, 서버 상태 캐시(TanStack Query), 로그인 사용자 상태 | 서비스 V1 구현(`frontend/`): 로그인·기업정보·지원사업 목록/상세·AI 검색·자격 판정 결과·근거 표시. Spring만 호출 |
 | Spring Boot | 인증·기업정보·대화 Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | 서비스 V1 구현(`backend/`): JWT 인증·기업정보·지원사업 조회·대화 저장. `HttpAiGateway`로 호스트 FastAPI 연결(공유 키 인증, 제한시간, 재시도 없음) |
-| FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 내부 API v1 구현(`biz_aid_pipeline/api/`: /health, /internal/v1/query, /internal/v1/eligibility). Spring Boot 연동 전 |
+| FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 내부 API v1 구현(`biz_aid_pipeline/api/`: /health, /internal/v1/query, /internal/v1/eligibility). Spring Boot의 `HttpAiGateway`와 연결 완료 |
 | MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | dev 공고 FULL(V1/V2), 문서 source·S3 위치(V3/V4), parse 상태·identity(V5) 구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | dev dense·sparse 적재(Phase 4-B)와 read-only 검색(Phase 5 Retriever) 구현 |
 | Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 저장·PDF/HWP/HWPX Parser(OCR·PP 표)·Chunking·dense/sparse Indexing 구현 |
@@ -21,7 +21,7 @@
 React는 Spring Boot를 통해 AI를 호출한다. Frontend는 DB에 접근하지 않는다.
 Spring Boot → FastAPI는 연결됐다. FastAPI는 컨테이너가 아니라 호스트에서 `scripts/run_api.py`(127.0.0.1:8000)로 실행하고 Compose의 backend가 `host.docker.internal:8000`으로 호출한다(FastAPI Compose 통합은 IMP-017).
 FastAPI는 서비스 DB의 소유자가 아니다. 정확한 조건은 일반 코드와 MySQL이 결정한다.
-MySQL 후보 pblanc_id로 Qdrant 검색 범위를 제한하는 구조는 향후 계획이다.
+MySQL 활성 공고 후보 pblanc_id로 Qdrant 검색 범위를 제한하며 후보 밖 결과는 Retriever와 application 검증에서 거부한다.
 
 ## 현재 실행 구성
 
@@ -37,19 +37,18 @@ Phase 2.5에서 문서 binary의 영구 저장소는 고정 dev S3이고 MySQL�
 ## Target 구조와 현재 Skill 구조
 
 PROJECT_DESIGN.md §28은 확장 가능한 Target 구조이며 모든 하위 문서의 즉시 생성을 요구하지 않는다.
-현재 Phase 0 준비는 6개 SKILL.md와 data-pipeline-change의 기존 측정 workflow만 사용한다.
+현재 6개 SKILL.md는 작업 유형별 진입점이며 상세 규칙은 연결된 Context / Rule / Contract가 소유한다.
 나머지 Skill은 짧은 본문과 상세 Context / Rule 링크로 충분하므로 추가 workflow/reference가 필요하지 않다.
 복잡한 승인된 Task에서 독립 절차가 실제로 필요할 때만 하위 문서를 추가한다.
 빈 디렉터리·내용 없는 문서를 만들어 Target 구조를 흉내 내지 않는다.
 
-AGY Initial Review는 완료됐고 판정은 PASS WITH FIXES다.
-과거 보완 Targeted Re-review는 PASS다. 현재 Task의 독립 검토·Human Review·Data Gate는 pending이다.
+AGY Initial Review는 PASS WITH FIXES, 과거 보완 Targeted Re-review는 PASS다. 이 결과는 해당 과거 Harness 범위에만 유효하며 현재 Task의 독립 검토와 Human Review는 pending이다.
 Review Lifecycle과 증거 범위는 [workflow.md](workflow.md)에서 관리한다.
 
 ## Phase 해석과 선결정 목록
 
 1. §48·57의 Harness 배치와 이번 요청의 순서가 다르다. 이번 요청에 따라 Gate 준비용 Harness를 먼저 만든다. Phase 1 전체 착수로 간주하지 않는다.
-2. §37·46·49의 전체 서비스 검증은 미구현 상태에 적용할 수 없다. 현재 적용 검증을 실행하고 제품 검증은 N/A로 공개한다. 제품 도입 때 해당 검증을 필수로 추가한다.
+2. §37·46·49의 원래 검증 구상은 현재 `check-all`, 서비스별 test, 실제 E2E와 V1 AI baseline으로 구체화됐다. 각 진입점이 실행하지 않는 Live·Browser·LLM 범위는 N/A로 공개한다.
 3. §5 도식의 문서 Normalize와 §19 API Normalize는 대상이 다르다. API Normalize는 `ingestion/normalizer.py`, 문서 Normalize는 Parsing Contract의 text 정규화(NFC·줄바꿈·제어문자)로 구현됐다.
 4. 사용자 확인 Endpoint / 인증 정보와 실제 Sample의 pagination / envelope / field 타입은 [External API Contract](../../contracts/external-api/README.md)에 있다. Pagination·ID·no-data와 5×20 품질 Run은 OBSERVED다. 공식 정렬·일반 오류 보장은 미확정이다.
 5. §53의 이번 API 품질 Task는 12개 주요 필드·타입/nonblank 기준·실제 행 분모·기본 정렬 선두 100건을 사용한다. API 측정에서 의미·접속은 미측정이었다. 문서 성공률은 별도 Download Gate에서 측정하고 공식 최신순 보장은 미확정이다.
@@ -95,4 +94,4 @@ parsing(S3 원본 → DoclingDocument, S3 + V5 row) ← chunking(현재 parse_ke
 | Qdrant | FinalChunk point(id=chunk_id, dense+sparse, payload=FinalChunk.payload) | S3 parsed artifact + V5 row에서 다시 만들 수 있는 파생 index |
 
 MySQL과 Qdrant는 `pblanc_id`·`source_sha256`으로만 연결한다. collection은 embedding_key별이고 dev loopback Compose Qdrant만 쓴다.
-`retrieval/`은 같은 embedder로 query를 만들어 현재 embedding_key collection을 읽기만 한다(dense·sparse·RRF hybrid). RAG·MySQL 조건 결합은 미구현이며 [AI 경계](../rules/ai-boundary-rules.md)와 [파일 경계](../rules/file-boundaries.md)를 따른다.
+`retrieval/`은 같은 embedder로 query를 만들어 현재 embedding_key collection을 읽기만 한다(dense·sparse·RRF hybrid). `candidates/`가 MySQL 후보를 만들고 RAG가 그 pblanc_id 범위 안에서만 검색한다. [AI 경계](../rules/ai-boundary-rules.md)와 [파일 경계](../rules/file-boundaries.md)를 따른다.

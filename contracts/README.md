@@ -1,11 +1,11 @@
 # Boundary Contracts
 
-활성 계약은 Phase 0 로컬 기록·외부 API Raw 응답부터 Phase 4 Chunking·Indexing까지 단계별 로컬 계약이다.
+활성 계약은 Phase 0 로컬 기록·외부 API Raw 응답부터 Parsing·Chunking·Indexing·Retrieval·RAG·Eligibility·서비스 경계까지 단계별 계약이다.
 
 - [Raw snapshot](schemas/raw-snapshot.contract.json): byte 보존 metadata.
 - [Phase 0 report](schemas/phase0-report.contract.json): 측정 상태·분모·증거·판단 기록.
 - [기업마당 API](external-api/README.md): 사용자 확인 Request·실제 Sample·관찰 타입·명시적인 Local Probe.
-- [Frontend / Backend 경계](frontend-backend/README.md), [Backend / AI 경계](backend-ai/README.md): 미구현.
+- [Frontend / Backend 경계](frontend-backend/README.md), [Backend / AI 경계](backend-ai/README.md): 서비스 V1 구현 계약.
 
 *.contract.json은 이 프로젝트의 로컬 계약 설정이며 JSON Schema 표준을 구현한 파일이 아니다.
 scripts/phase0.py가 로컬 기록의 엄격한 key / type / 상태 / 의미 검증을 수행한다.
