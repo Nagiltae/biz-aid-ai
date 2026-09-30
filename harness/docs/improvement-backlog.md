@@ -1,0 +1,126 @@
+# Improvement Backlog
+
+실제로 관찰했지만 blocker가 아니어서 기능 진행을 위해 **의도적으로 미룬** 개선만 기록한다.
+정상적인 다음 기능, 근거 없는 아이디어, 일반 리팩터링 욕구, 이미 해결된 일은 넣지 않는다. 운영 규칙은 [Workflow](workflow.md#improvement-backlog)에 있다.
+
+- 형식: ID, Area, Issue, Evidence, Why deferred, Revisit trigger, Side effect, Status(OPEN / RESOLVED / DROPPED)
+- 같은 문제는 새 ID를 만들지 않고 Evidence·Revisit만 갱신한다. 해결·폐기 항목은 지우지 않고 Status와 근거 report를 남긴다.
+- Evidence의 report는 `harness/workspace/reports/development/` 아래 파일이다.
+
+## IMP-001 chunk에 문서 제목·사업명 context 없음
+
+- Area: Chunking / Retrieval
+- Issue: FinalChunk의 embedding_text는 heading 경로와 본문뿐이다. "2. 지원 요건" 같은 일반 heading의 chunk는 사업명이 없어 질문의 사업명과 맞지 않는다.
+- Evidence: Retrieval Evaluation G01. 정답 source는 세 mode 모두 1위였지만, 기대 chunk(#2 지원 요건)는 top5 밖이었고 개요 chunk가 1위였다(`2026-09-30-retrieval-evaluation.md`). RAG smoke G01은 같은 이유로 확인 불가였다(`2026-09-30-phase6-rag-answer.md`).
+- Why deferred: Hybrid Source Hit@1 12/12, Evidence Hit@5 11/12로 RAG blocker가 아니다. 1건만으로 Chunking을 바꾸지 않는다.
+- Revisit trigger: 더 큰 Gold에서 같은 유형이 반복될 때, 또는 실제 RAG 실패가 title context 부족으로 반복될 때
+- Side effect: embedding_text와 chunk identity가 바뀐다. re-chunk·re-embedding·re-indexing과 Retrieval Evaluation 재실행이 필요하다.
+- Status: OPEN
+
+## IMP-002 표 직렬화 가독성과 표 구조 보존 범위
+
+- Area: Parsing(표) / Chunking(serializer) / RAG
+- Issue: 표 chunk가 "열, n = 값" triplet으로 직렬화되고 HWPX 병합 cell 값이 반복된다. 검색 순위도 낮고 LLM도 행·열 관계를 읽지 못한다. PP가 구조를 증명하지 못한 PDF 표는 구조 없는 text로 남는다.
+- Evidence
+  - Retrieval G09: HWPX 신청서 표, sparse miss, dense·hybrid 5위
+  - RAG smoke G06: 기대 표 chunk가 top5에 있었는데 qwen3.5:9b가 "등급 → 지원금액"을 읽지 못해 INSUFFICIENT_EVIDENCE
+  - 100-source corpus: 62문서 358 영역이 TABLE_QUALITY_FAILED text(`2026-09-30-phase3-3c-corpus-parsing.md`)
+- Why deferred: hallucination 없이 보수적으로 실패한다. V1 진행 blocker가 아니고, 표 정확도 개선은 serializer·parser 양쪽 결정이다.
+- Revisit trigger: V1 완료 후, 또는 IMP-003에서 Gemini로 같은 context를 줘도 실패할 때, 또는 실제 표 질문 실패가 반복될 때
+- Side effect: serializer 변경은 chunk identity를 바꾼다(re-chunk·re-embedding·re-indexing·Retrieval Evaluation 재확인). 표 engine 변경은 parse_key와 Source 규칙의 evidence 요구를 따른다.
+- Status: OPEN
+
+## IMP-003 LLM provider 비교와 생성 완결성
+
+- Area: RAG / LLM
+- Issue: 현재는 로컬 qwen3.5:9b 하나로만 동작을 확인했다. 핵심 값은 맞지만 조건·기간을 빠뜨리거나 표현이 약간 부정확한 경우가 있다.
+- Evidence: RAG smoke G05에서 금액은 정답이었지만 "최대 12개월"이 누락되고 "한 달에 최대 20만원"으로 표현했다. G06은 표를 해석하지 못했다(`2026-09-30-phase6-rag-answer.md`). provider 경계(`rag.llm.LlmProvider`)는 준비돼 있다.
+- Why deferred: V1 흐름과 grounding은 동작한다. 비교는 완성된 동일 서비스에서 해야 공정하다.
+- Revisit trigger: AI 서비스 V1 완료와 프로젝트 정리 후
+- Side effect: 비교 조건을 같게 한다(Retriever, top_k 5, context, prompt, output schema). 볼 항목은 정답성, groundedness, citation 정확도, 확인 불가 판단, 표 이해, latency, API 비용이다. 원격 API는 공고 첨부 내용을 외부로 보낸다.
+- Status: OPEN
+
+## IMP-004 Retrieval 후처리(baseline 이후)
+
+- Area: Retrieval
+- Issue: 정답 문서를 찾은 뒤 같은 문서의 개요·머리 chunk가 근거 chunk보다 앞서는 경우가 많다.
+- Evidence: Evidence 2위 사례 G04·G07·G08·G10, 5위 G09(`2026-09-30-retrieval-evaluation.md`)
+- Why deferred: Hybrid Source Hit@1 12/12, Evidence Hit@5 11/12다. top5 context로 RAG가 동작하므로 Reranker·Query Rewrite·parent/neighbor expansion의 필요성이 아직 입증되지 않았다.
+- Revisit trigger: 더 큰 Gold에서 evidence 순위·recall 문제가 확인될 때, 또는 실제 RAG 실패가 retrieval 순위 때문에 반복될 때
+- Side effect: 후보마다 latency·모델 artifact가 늘어난다. 같은 Gold로 전후를 비교한다.
+- Status: OPEN
+
+## IMP-005 모델 artifact 검증이 전체 manifest 단위
+
+- Area: Model artifact / 배포
+- Issue: query embedding만 하는 process도 parsing·OCR 모델을 포함한 전체 artifact(약 3.7GB)가 있어야 하고, 시작할 때 전체를 hash한다.
+- Evidence: manifest hash 2.6s, embedder init 4.8s 실측(`2026-09-30-pre-ai-service-cleanup.md` C)
+- Why deferred: 지금은 한 dev 머신에서 모든 단계를 실행하고, 서비스 container가 없다.
+- Revisit trigger: RAG를 FastAPI 등 별도 서비스·container로 배포할 때
+- Side effect: scope별 검증 경로나 파일 digest cache를 도입하더라도 parse_key·chunk·embedding identity 계산은 바뀌면 안 된다.
+- Status: OPEN
+
+## IMP-006 현재 parse_key를 실행 환경에서 다시 계산
+
+- Area: Chunking / Indexing
+- Issue: chunking은 현재 parse_key를 실행 환경(paddle·docling 버전, HWP Docker 변환 이미지 identity)에서 다시 계산해 PARSED row를 찾는다. 그래서 indexing에도 parsing 환경이 필요하다. 같은 로직이 `parsing/corpus.py`와 `chunking/source.py`에 중복돼 있다.
+- Evidence: `2026-09-30-pre-ai-service-cleanup.md` C·B-1(HWP 변환기 부재 시 실패 격리만 보강)
+- Why deferred: 현재는 같은 머신에서 실행해 문제가 없다. B-1로 source 단위 실패 격리는 확보했다.
+- Revisit trigger: indexing이나 서비스를 parsing 환경과 다른 곳에서 실행할 때, 또는 전체 corpus indexing 전
+- Side effect: "최신 PARSED" 선택 규칙을 바꾸면 오래된 parser 결과를 쓰게 될 위험이 있어 identity 규칙과 함께 결정해야 한다.
+- Status: OPEN
+
+## IMP-007 전체 corpus 실행 전 처리량·메모리·운영 조건
+
+- Area: Pipeline 운영
+- Issue: 순차 처리라 전체 2,926건은 수십 시간 걸린다. 큰 PDF 한 건에 약 10분이 걸리고 parser worker peak RSS는 7GB다. indexing은 CPU float32다. AWS login 세션이 만료되면 실행이 멈춘다.
+- Evidence
+  - parsing 추정 30시간 이상(`2026-09-30-phase3-3c-corpus-parsing.md`)
+  - dataset100 실측: parsing p95 66.9s·max 593s, peak RSS 7,168MB, indexing 9.1s/source
+  - 1차 시도가 AWS 세션 만료로 STOPPED_ENVIRONMENT(`2026-09-30-dataset100-build.md`)
+- Why deferred: 사용자 결정으로 전체 corpus는 실행하지 않았다. 100-source로 기능 개발에 충분하다.
+- Revisit trigger: 전체 corpus parsing·indexing을 결정할 때
+- Side effect: 병렬화·MPS/fp16은 embedding identity(dtype·device)와 메모리 경쟁에 영향을 준다.
+- Status: OPEN
+
+## IMP-008 공고 relation이 비활성·삭제 공고를 거르지 않음
+
+- Area: Chunking / MySQL 결합
+- Issue: `chunking/source.announcements()`는 ACQUIRED relation만 보고 공고의 source_active·soft-delete 상태를 보지 않는다. 마감·삭제 공고의 chunk도 적재·검색될 수 있다.
+- Evidence: `2026-09-30-pre-ai-service-cleanup.md` C(현재 soft-delete는 DRY-RUN이라 영향 0)
+- Why deferred: 지금은 삭제된 공고가 없다. 상태 판단은 MySQL hard filter 단계의 책임이다.
+- Revisit trigger: MySQL 구조화 조건 + pblanc_id 후보 filter를 RAG에 결합할 때, 또는 soft-delete 적용을 승인할 때
+- Side effect: 적재에서 거르면 index 재생성 정책이, 검색에서 거르면 MySQL 조회 경계가 필요하다.
+- Status: RESOLVED. `candidates/`가 `source_active=1 AND source_deleted=0`인 공고만 후보로 내고, Retriever가 Qdrant MatchAny로 후보 밖 point를 검색하지 않는다.
+  RAG CLI는 항상 이 경로를 거친다(`2026-09-30-phase6b-candidate-scoped-rag.md`). index에는 비활성 공고 point가 남을 수 있지만 RAG 경로에서는 도달할 수 없다(파생 index).
+  scope 없는 `run_document_retrieval.py`는 dev 진단용이다.
+
+## IMP-009 미지원 문서 형식(ZIP·XLSX·OTHER·UNKNOWN)
+
+- Area: Parsing
+- Issue: enabled route가 PDF·HWP·HWPX뿐이다. ZIP·XLSX·OTHER·UNKNOWN 첨부는 POLICY_PENDING으로 parsing·검색 대상이 아니다.
+- Evidence: 100-source run에서 unsupported 305 relation(ZIP 144 / OTHER 107 / XLSX 50 / UNKNOWN 4)을 집계만 했다(`2026-09-30-phase3-3c-corpus-parsing.md`). ZIP은 member provenance Contract가 먼저 필요하다(Source 규칙).
+- Why deferred: 주요 공고 본문은 PDF·HWP·HWPX에 있고, ZIP 전개는 provenance 계약 결정이 먼저다.
+- Revisit trigger: 공고 핵심 정보가 이 형식에만 있는 사례가 RAG에서 확인될 때, 또는 전체 corpus 전 coverage를 판단할 때
+- Side effect: 새 route는 parse_key route 범위와 Contract·Test를 함께 바꾼다.
+- Status: OPEN
+
+## IMP-010 Parser 품질 한계(OCR·읽기 순서·그림 해석)
+
+- Area: Parsing
+- Issue: OCR 품질은 표본으로만 확인했고 오인식 사례가 있다. Docling layout의 읽기 순서 역전을 그대로 둔다. 그림·차트 내용은 해석하지 않는다(visual VLM 보류).
+- Evidence: `2026-09-30-phase3-3c-corpus-parsing.md` §9, `2026-09-29-phase3-3b5-pp-production.md` §4 Visual 보류
+- Why deferred: 100건에서 반복되는 구조적 parser blocker가 없었다. VLM 출력은 native source text가 아니라 production에서 보류했다.
+- Revisit trigger: RAG 실패가 OCR 오인식·순서·그림 정보 때문에 반복될 때
+- Side effect: parser 변경은 해당 route의 parse_key를 바꿔 재parsing·재indexing이 필요하다.
+- Status: OPEN
+
+## IMP-011 신청기간 파생 날짜가 적어 마감 필터 효과가 작음
+
+- Area: MySQL 정형 후보
+- Issue: `application_start_date`·`application_end_date`는 원문이 유효한 날짜 범위일 때만 파생된다. "예산 소진시까지"·"세부사업별 상이" 같은 원문은 날짜가 없어 `--not-closed-on` 필터가 마감 여부를 판정하지 못하고 남긴다.
+- Evidence: dev support_programs 1,554건 중 951건이 파생 날짜 NULL이다. smoke(금융+소상공인+2026-09-30)에서 후보 67건 중 64건이 period_unknown이었다(`2026-09-30-phase6b-candidate-scoped-rag.md`).
+- Why deferred: 원문 해석 규칙을 새로 만들지 않는다(근거 없는 정규화 금지). 모르는 기간은 제외하지 않는 쪽이 안전하다.
+- Revisit trigger: "지금 신청 가능" 필터가 제품 요구로 확정될 때, 또는 자격 판단 단계에서 기간 판정이 필요할 때
+- Side effect: 기간 원문 분류 규칙은 Structured 정규화 규칙·fingerprint 버전과 함께 결정해야 한다.
+- Status: OPEN

@@ -29,7 +29,7 @@
     "top_k_default": 5,
     "top_k_max": 50,
     "top_k_status": "dev convenience value, not an evaluated production setting",
-    "filters": "optional exact match on payload keyword indexes pblanc_id and source_sha256 only; no MySQL lookup or eligibility filtering"
+    "filters": "optional exact match on payload keyword indexes pblanc_id and source_sha256, and an optional candidate scope pblanc_ids (MatchAny on pblanc_id) supplied by the MySQL candidate layer; an empty scope returns no result without embedding; no MySQL lookup inside retrieval"
   },
   "result": {
     "fields": [

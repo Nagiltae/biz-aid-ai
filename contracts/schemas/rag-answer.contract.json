@@ -54,7 +54,9 @@
   "status": {
     "ANSWERED": "answer with at least one valid cited evidence",
     "INSUFFICIENT_EVIDENCE": "the model reported missing evidence, or returned an answer with no valid evidence id; the answer text is replaced by insufficient_message and the model text is kept only as discarded_answer",
-    "insufficient_message": "제공된 공고문 근거만으로는 확인할 수 없습니다."
+    "insufficient_message": "제공된 공고문 근거만으로는 확인할 수 없습니다.",
+    "NO_CANDIDATES": "the structured MySQL filter produced no candidate announcement; no retrieval and no LLM call",
+    "no_candidates_message": "조건에 맞는 공고가 없습니다."
   },
   "provider": {
     "rule": "providers implement rag.llm.LlmProvider (generate(LlmRequest) -> LlmResponse); switching provider must not change orchestration, prompt, context or retrieval contract",
@@ -65,5 +67,10 @@
       "OLLAMA_TIMEOUT_SECONDS",
       "OLLAMA_KEEP_ALIVE"
     ]
+  },
+  "candidate_scope": {
+    "source": "candidates.ProgramCandidateService (MySQL support_programs, read-only) decides candidate pblanc_ids before retrieval",
+    "rule": "RagService passes the candidate set to Retriever.search(pblanc_ids=...) which enforces it as a Qdrant MatchAny payload filter; results outside the set fail with retrieval_scope_violation",
+    "empty": "an empty candidate set returns NO_CANDIDATES without query embedding, Qdrant search or LLM call"
   }
 }

@@ -1,0 +1,79 @@
+"""MySQL 정형 조건으로 검색 대상 공고(pblanc_id)를 정한다. RAG·Retriever보다 먼저 적용하는 authoritative 후보 집합이다.
+
+실제 schema에서 값이 고정된 정형 column만 hard filter로 쓴다. 자유 텍스트(지역 hashtag·신청기간 원문)는 해석하지 않는다.
+"""
+from dataclasses import dataclass
+from datetime import date
+
+from sqlalchemy import MetaData, Table, and_, create_engine, func, not_, or_, select
+from sqlalchemy.engine import URL
+
+from biz_aid_pipeline.config.settings import PipelineError
+
+
+@dataclass(frozen=True)
+class ProgramCandidateFilter:
+    """값이 여러 개면 OR, 필드끼리는 AND. 빈 필드는 조건 없음이다."""
+
+    categories: tuple = ()        # support_programs.category (지원분야 대분류, 예: 금융·기술)
+    targets: tuple = ()           # support_programs.target (지원대상 구분, 예: 소상공인)
+    jurisdictions: tuple = ()     # support_programs.jurisdiction_name (소관기관, 예: 경기도·중소벤처기업부)
+    not_closed_on: date | None = None  # 파생 신청기간이 이 날짜를 포함하지 않는 공고만 제외
+
+
+@dataclass(frozen=True)
+class CandidateSet:
+    pblanc_ids: tuple
+    period_unknown: int  # not_closed_on을 줬을 때 파생 신청기간이 없어 제외하지 않고 남긴 공고 수
+
+
+class ProgramCandidateRepository:
+    """support_programs read-only 조회. INSERT·UPDATE·DDL을 하지 않는다."""
+
+    def __init__(self, engine):
+        self.engine = engine
+        try:
+            self.programs = Table("support_programs", MetaData(), autoload_with=engine)
+        except Exception:
+            raise PipelineError("support_program_schema_unavailable_run_flyway") from None
+
+    @classmethod
+    def from_config(cls, config):
+        if (config.profile != "dev" or config.database not in ("biz_aid_dev", "biz_aid_test")
+                or config.host not in ("localhost", "127.0.0.1", "mysql") or config.port != 3306):
+            raise PipelineError("dev_database_boundary")
+        return cls(create_engine(URL.create("mysql+pymysql", username=config.user, password=config.password,
+            host=config.host, port=config.port, database=config.database, query={"charset": "utf8mb4"}),
+            hide_parameters=True, echo=False, pool_pre_ping=True,
+            connect_args={"connect_timeout": 5, "read_timeout": 30, "write_timeout": 30}))
+
+    def find(self, candidate_filter):
+        table = self.programs.c
+        # BOUNDARY: 현재 서비스 대상은 API universe에 살아 있는 공고뿐이다(V1 lifecycle: active=1이면 deleted=0).
+        conditions = [table.source_active.is_(True), table.source_deleted.is_(False)]
+        for column, values in ((table.category, candidate_filter.categories), (table.target, candidate_filter.targets),
+                               (table.jurisdiction_name, candidate_filter.jurisdictions)):
+            if values:
+                conditions.append(column.in_(values))
+        unknown = None
+        if candidate_filter.not_closed_on is not None:
+            day = candidate_filter.not_closed_on
+            # WHY: 신청기간 파생 날짜는 원문이 유효한 날짜 범위일 때만 있다. "예산 소진시까지" 같은 원문은 마감을 판정할 수 없어 제외하지 않는다.
+            conditions.append(not_(or_(and_(table.application_end_date.is_not(None), table.application_end_date < day),
+                                       and_(table.application_start_date.is_not(None), table.application_start_date > day))))
+            unknown = and_(table.application_start_date.is_(None), table.application_end_date.is_(None))
+        with self.engine.connect() as connection:
+            ids = connection.execute(select(table.pblanc_id).where(*conditions).distinct().order_by(table.pblanc_id)).scalars().all()
+            undated = connection.execute(select(func.count()).select_from(self.programs).where(*conditions, unknown)).scalar_one() if unknown is not None else 0
+        return CandidateSet(tuple(ids), undated)
+
+    def close(self):
+        self.engine.dispose()
+
+
+class ProgramCandidateService:
+    def __init__(self, repository):
+        self.repository = repository
+
+    def find_candidates(self, candidate_filter):
+        return self.repository.find(candidate_filter)

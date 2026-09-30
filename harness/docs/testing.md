@@ -239,3 +239,5 @@ RRF 순위·동점 결정성과, `retrieval/` 코드가 적재·변환 경로를
 RAG test는 가짜 Retriever·가짜 LlmProvider로 hybrid top5 호출, evidence id → SearchResult citation 매핑, prompt에 식별자·provenance가 없는지,
 context에 없는 evidence id가 citation이 되지 않는지, 근거 부족·근거 id 없는 답이 고정 확인 불가 문장으로 바뀌는지 확인한다.
 실제 Ollama 모델 호출은 check-all 밖에서 소수 Gold 질문 smoke로만 확인한다.
+후보 test는 in-memory SQLite의 V1 subset 표로 정형 필터·lifecycle 제외·기간 판정 불가 보존을, Retriever test는 in-memory Qdrant에서 후보 scope 밖 공고가 세 mode 모두에 없는지와 빈 scope의 embedding 생략을,
+RAG test는 빈 후보의 NO_CANDIDATES(검색·LLM 미호출)와 scope 위반 거부를 확인한다. 실제 MySQL·Qdrant·LLM 경로는 check-all 밖 smoke로 확인한다.

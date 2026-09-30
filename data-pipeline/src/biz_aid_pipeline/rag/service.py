@@ -53,6 +53,7 @@ class RagAnswer:
     llm_seconds: float
     discarded_answer: str | None = None
     usage: dict = field(default_factory=dict)
+    candidate_count: int | None = None
 
     def to_dict(self):
         return asdict(self)
@@ -92,9 +93,22 @@ class RagService:
         self.retriever, self.provider = retriever, provider
         self.contract = contract or rag_contract()
 
-    def answer(self, query):
+    def answer(self, query, candidate_pblanc_ids=None):
+        """candidate_pblanc_ids(MySQL 후보)를 주면 그 공고 안에서만 검색하고 답한다. None은 scope 없는 dev·test 호출이다."""
         spec = self.contract["retrieval"]
-        results = self.retriever.search(query, spec["mode"], spec["top_k"])
+        if candidate_pblanc_ids is not None:
+            candidates = tuple(candidate_pblanc_ids)
+            # BOUNDARY: 정형 조건에 맞는 공고가 없으면 검색·LLM을 호출하지 않는다. 모델에게 후보 없는 답을 만들게 하지 않는다.
+            if not candidates:
+                return RagAnswer(query, "NO_CANDIDATES", self.contract["status"]["no_candidates_message"], [], [], [], [],
+                                 self.provider.name, self.provider.model, 0.0, candidate_count=0)
+            results = self.retriever.search(query, spec["mode"], spec["top_k"], pblanc_ids=candidates)
+            allowed = set(candidates)
+            # RISK: scope는 Qdrant filter가 강제하지만, 후보 밖 결과가 오면 근거로 쓰지 않고 실패시킨다.
+            if any(result.pblanc_id not in allowed for result in results):
+                raise PipelineError("retrieval_scope_violation")
+        else:
+            results = self.retriever.search(query, spec["mode"], spec["top_k"])
         context, index = build_context(results)
         user = f"질문: {query}\n\n근거(evidence):\n{context}" if results else f"질문: {query}\n\n근거(evidence): 없음"
         response = self.provider.generate(LlmRequest(SYSTEM_PROMPT, user, self.contract["output_schema"]))
@@ -115,4 +129,5 @@ class RagService:
         retrieved = [{"evidence_id": evidence_id, "rank": result.rank, "chunk_id": result.chunk_id, "pblanc_id": result.pblanc_id}
                      for evidence_id, result in index.items()]
         return RagAnswer(query, status, answer, citations, used, rejected, retrieved, response.provider, response.model,
-                         response.elapsed_seconds, discarded, response.usage)
+                         response.elapsed_seconds, discarded, response.usage,
+                         len(candidate_pblanc_ids) if candidate_pblanc_ids is not None else None)

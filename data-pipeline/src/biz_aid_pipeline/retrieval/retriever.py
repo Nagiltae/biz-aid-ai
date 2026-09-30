@@ -78,10 +78,13 @@ class Retriever:
         if differences:
             raise PipelineError("retrieval_collection_schema_mismatch:" + ",".join(differences))
 
-    def _filter(self, pblanc_id, source_sha256):
+    def _filter(self, pblanc_id, source_sha256, pblanc_ids=None):
         from qdrant_client import models
         conditions = [models.FieldCondition(key=key, match=models.MatchValue(value=value))
                       for key, value in (("pblanc_id", pblanc_id), ("source_sha256", source_sha256)) if value]
+        if pblanc_ids is not None:
+            # BOUNDARY: MySQL이 정한 후보 밖 point는 Qdrant 검색 후보 자체가 되지 않는다(검색 뒤 자르기가 아니다).
+            conditions.append(models.FieldCondition(key="pblanc_id", match=models.MatchAny(any=list(pblanc_ids))))
         return models.Filter(must=conditions) if conditions else None
 
     def _query(self, vector, using, limit, query_filter):
@@ -89,7 +92,8 @@ class Retriever:
                                           query_filter=query_filter, with_payload=True).points
         return [(str(point.id), point.score, point.payload) for point in points]
 
-    def search(self, query, mode="hybrid", top_k=None, pblanc_id=None, source_sha256=None):
+    def search(self, query, mode="hybrid", top_k=None, pblanc_id=None, source_sha256=None, pblanc_ids=None):
+        """pblanc_ids(후보 scope)를 주면 그 공고의 chunk 안에서만 찾는다. 빈 scope는 embedding·검색 없이 빈 결과다."""
         from qdrant_client import models
         options, fusion = self.contract["options"], self.contract["fusion"]
         top_k = options["top_k_default"] if top_k is None else top_k
@@ -99,8 +103,10 @@ class Retriever:
             raise PipelineError("retrieval_top_k_out_of_range")
         if not query or not query.strip():
             raise PipelineError("retrieval_query_empty")
+        if pblanc_ids is not None and not pblanc_ids:
+            return []
         dense, sparse = self.embedder.encode([query])[0]
-        query_filter = self._filter(pblanc_id, source_sha256)
+        query_filter = self._filter(pblanc_id, source_sha256, pblanc_ids)
         limit = top_k if mode != "hybrid" else max(top_k, fusion["candidate_limit"])
         hits = {}
         if mode in ("dense", "hybrid"):

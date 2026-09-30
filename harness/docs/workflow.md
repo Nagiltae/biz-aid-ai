@@ -54,6 +54,12 @@ static 참조와 accepted mapping의 경로만 갱신하며 checksum·verdict·�
 과거 Generated Report 내부 링크는 수정하지 않고 cleanup manifest의 old/new relocation mapping으로 해석한다.
 cleanup manifest / reference graph의 역사적 Codex 경로는 보존하며 새 Task 산출물은 공동 development 경로를 사용한다.
 
+## Improvement Backlog
+
+기능 진행을 위해 관찰된 non-blocking 문제를 의도적으로 미루면 [Improvement Backlog](improvement-backlog.md)에 Evidence와 Revisit trigger를 기록한다.
+기록 전에 같은 문제가 있는지 확인하고, 있으면 새 ID 대신 Evidence·Revisit만 갱신한다. 정상적인 다음 기능이나 근거 없는 아이디어는 넣지 않는다.
+해결하면 삭제하지 않고 RESOLVED와 근거 report를, 시도 후 가치가 없으면 DROPPED와 이유를 남긴다.
+
 ## 최종 Validation 순서
 
 작업 → Control/Input·Git index 확정 → Test / 최종 check-all → 실제 exit 결과 확인 → Generated Report / Artifact → AGY / 사용자 검토.

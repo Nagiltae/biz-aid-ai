@@ -1,5 +1,17 @@
 # Harness 변경 이력
 
+## 2026-09-30 — Candidate-scoped RAG (MySQL 정형 후보 → pblanc_id scope)
+
+`candidates/`(support_programs read-only)가 활성 공고 + category·target·jurisdiction·not_closed_on으로 후보 pblanc_id를 정하고, Retriever가 Qdrant MatchAny로 scope를 강제한다.
+빈 후보는 검색·LLM 없이 NO_CANDIDATES다. AI 경계에 정형 조건 선적용·scope 밖 반환 금지·빈 후보 short-circuit 3줄을 추가하고 "MySQL 조건 결합 금지"를 해제했다(자격 판단·자연어 조건 추출 금지는 유지).
+Retrieval scoring·prompt·provider·citation 변경 없음. IMP-008 RESOLVED, IMP-011 추가.
+결과: [Report](../workspace/reports/development/2026-09-30-phase6b-candidate-scoped-rag.md). AGY 검토 pending.
+
+## 2026-09-30 — Improvement Backlog
+
+관찰됐지만 blocker가 아니어서 의도적으로 미룬 개선을 기록하는 `harness/docs/improvement-backlog.md`를 추가했다(IMP-001~010, 최근 Retrieval·RAG 4건 + 과거 phase에서 복원한 6건).
+운영 규칙은 Workflow의 Improvement Backlog 절, 진입 링크는 AGENTS 한 줄이다. 제품 코드 변경 없음.
+
 ## 2026-09-30 — Phase 6 RAG Answer v1
 
 사용자 승인으로 근거 기반 답변 v1을 추가한다: Hybrid top5 → evidence context → `LlmProvider`(Ollama qwen3.5:9b) → JSON 답 → application citation.

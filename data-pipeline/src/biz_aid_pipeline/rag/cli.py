@@ -1,27 +1,45 @@
 import argparse
 import json
+from datetime import date
 
 from biz_aid_pipeline.config.settings import PipelineError
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="dev-only grounded answer: hybrid retrieval top5 → LLM → citations (JSON)")
+    parser = argparse.ArgumentParser(description="dev-only grounded answer: MySQL candidates → scoped hybrid top5 → LLM → citations (JSON)")
     parser.add_argument("--profile", choices=["dev"], required=True)
     parser.add_argument("--query", required=True)
+    parser.add_argument("--category", action="append", default=[], help="support_programs.category 정확 일치(반복 시 OR)")
+    parser.add_argument("--target", action="append", default=[], help="support_programs.target 정확 일치(반복 시 OR)")
+    parser.add_argument("--jurisdiction", action="append", default=[], help="support_programs.jurisdiction_name 정확 일치(반복 시 OR)")
+    parser.add_argument("--not-closed-on", type=date.fromisoformat, help="YYYY-MM-DD. 파생 신청기간이 이 날짜를 포함하지 않는 공고 제외")
     args = parser.parse_args(argv)
-    from qdrant_client import QdrantClient
-    from biz_aid_pipeline.indexing.embedder import BgeM3Embedder, indexing_contract
-    from biz_aid_pipeline.indexing.qdrant_store import qdrant_url
+    from biz_aid_pipeline.candidates.service import ProgramCandidateFilter, ProgramCandidateRepository, ProgramCandidateService
+    from biz_aid_pipeline.config.settings import ROOT, DbConfig
     from biz_aid_pipeline.rag.llm import provider_from_settings
     from biz_aid_pipeline.rag.service import RagService
-    from biz_aid_pipeline.retrieval.retriever import Retriever
     try:
         provider = provider_from_settings(args.profile)
-        contract = indexing_contract()
-        retriever = Retriever(BgeM3Embedder(contract), QdrantClient(url=qdrant_url(args.profile)), contract)
-        result = RagService(retriever, provider).answer(args.query)
+        repository = ProgramCandidateRepository.from_config(DbConfig.load(ROOT, args.profile))
+        try:
+            # BOUNDARY: 정형 조건(활성 공고 포함)은 항상 MySQL에서 먼저 적용한다. 필터 인자가 없어도 lifecycle 조건은 적용된다.
+            candidates = ProgramCandidateService(repository).find_candidates(ProgramCandidateFilter(
+                tuple(args.category), tuple(args.target), tuple(args.jurisdiction), args.not_closed_on))
+        finally:
+            repository.close()
+        retriever = None
+        if candidates.pblanc_ids:
+            from qdrant_client import QdrantClient
+            from biz_aid_pipeline.indexing.embedder import BgeM3Embedder, indexing_contract
+            from biz_aid_pipeline.indexing.qdrant_store import qdrant_url
+            from biz_aid_pipeline.retrieval.retriever import Retriever
+            contract = indexing_contract()
+            retriever = Retriever(BgeM3Embedder(contract), QdrantClient(url=qdrant_url(args.profile)), contract)
+        result = RagService(retriever, provider).answer(args.query, candidate_pblanc_ids=candidates.pblanc_ids)
     except PipelineError as error:
         print(json.dumps({"status": "FAILED", "failure_code": str(error)}, ensure_ascii=False))
         return 1
-    print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+    output = result.to_dict()
+    output["candidate_period_unknown"] = candidates.period_unknown
+    print(json.dumps(output, ensure_ascii=False, indent=2))
     return 0

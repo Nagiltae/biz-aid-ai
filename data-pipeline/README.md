@@ -169,5 +169,8 @@ docker compose --profile dev-vector up -d qdrant
 - 출력 첫 줄은 query·mode·collection·embedding_key, 이후 줄은 SearchResult(text는 기본 200자, `--full-text`로 전체).
 - [Retrieval 계약](../contracts/schemas/document-retrieval.contract.json).
 
+RAG 답변: `scripts/run_rag_answer.py --profile dev --query "..." [--category 금융] [--target 소상공인] [--jurisdiction 경기도] [--not-closed-on 2026-09-30]`
+(MySQL 활성 공고 후보 → scope 검색 → Ollama 답변. `OLLAMA_MODEL` 필요)
+
 Bounded corpus indexing: `scripts/run_corpus_indexing.py --profile dev --run-id <id> --sources-file <sha 목록>` (`--status --run-id <id>`로 진행률·ETA).
 먼저 모든 target의 current parse_key PARSED gate를 확인하고, 이미 INDEXED인 source는 같은 run에서 건너뛴다. 결과는 ignored `data/parsed/index-runs/<id>/`.

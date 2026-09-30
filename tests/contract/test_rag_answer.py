@@ -22,8 +22,8 @@ class FakeRetriever:
     def __init__(self, results):
         self.results, self.calls = results, []
 
-    def search(self, query, mode, top_k):
-        self.calls.append((query, mode, top_k))
+    def search(self, query, mode, top_k, pblanc_ids=None):
+        self.calls.append((query, mode, top_k) if pblanc_ids is None else (query, mode, top_k, tuple(pblanc_ids)))
         return self.results
 
 
@@ -74,6 +74,17 @@ class RagAnswerContractTests(unittest.TestCase):
         empty = RagService(FakeRetriever([]), FakeProvider(
             {"answer": "없음", "evidence_ids": [], "insufficient_evidence": True})).answer("아무 질문")
         self.assertEqual((empty.status, empty.retrieved), ("INSUFFICIENT_EVIDENCE", []))
+
+    def test_candidate_scope_short_circuits_when_empty_and_rejects_leaks(self):
+        from biz_aid_pipeline.config.settings import PipelineError
+        retriever, provider = FakeRetriever(RESULTS), FakeProvider({"answer": "x", "evidence_ids": ["E1"], "insufficient_evidence": False})
+        empty = RagService(retriever, provider).answer("보증한도는?", candidate_pblanc_ids=())
+        # BOUNDARY: 정형 후보가 없으면 검색·LLM 호출 없이 고정 결과를 돌려준다.
+        self.assertEqual((empty.status, empty.candidate_count, retriever.calls, provider.requests), ("NO_CANDIDATES", 0, [], []))
+        scoped = RagService(retriever, provider).answer("보증한도는?", candidate_pblanc_ids=("PBLN_1", "PBLN_2"))
+        self.assertEqual((retriever.calls[-1], scoped.candidate_count), (("보증한도는?", "hybrid", 5, ("PBLN_1", "PBLN_2")), 2))
+        with self.assertRaisesRegex(PipelineError, "retrieval_scope_violation"):
+            RagService(FakeRetriever(RESULTS), provider).answer("보증한도는?", candidate_pblanc_ids=("PBLN_1",))
 
 
 if __name__ == "__main__":

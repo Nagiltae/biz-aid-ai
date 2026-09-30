@@ -69,6 +69,23 @@ class DocumentRetrievalContractTests(unittest.TestCase):
             Retriever(FakeEmbedder(identity("f" * 64), 1024), client, contract)
         self.assertEqual([c.name for c in client.get_collections().collections], before[1])
 
+    def test_candidate_scope_is_enforced_in_qdrant_and_empty_scope_skips_embedding(self):
+        contract = indexing_contract()
+        client = QdrantClient(":memory:")
+        embedder = CharEmbedder(identity(), contract["qdrant"]["vectors"]["dense"]["size"])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            index_chunks(chunk_document(sample_document(), SOURCE), SOURCE.source_sha256, embedder, client, contract)
+        retriever = Retriever(embedder, client, contract)
+        for mode in ("dense", "sparse", "hybrid"):
+            scoped = retriever.search("업력 3년 이하", mode, top_k=5, pblanc_ids=("PBLN_2",))
+            # BOUNDARY: 후보 밖 공고(PBLN_1)의 chunk는 점수가 같아도 결과에 없다.
+            self.assertTrue(scoped, mode)
+            self.assertEqual({r.pblanc_id for r in scoped}, {"PBLN_2"})
+        calls = len(embedder.calls)
+        self.assertEqual(retriever.search("업력 3년 이하", "hybrid", top_k=5, pblanc_ids=()), [])
+        self.assertEqual(len(embedder.calls), calls)
+
     def test_rrf_uses_ranks_only_and_breaks_ties_deterministically(self):
         # a는 두 목록 1·2위, b는 2·1위라 점수가 같다. 최고 순위도 같아 point id 순서로 정한다.
         fused = rrf([["a", "b", "c"], ["b", "a", "d"]], 60, 4)
