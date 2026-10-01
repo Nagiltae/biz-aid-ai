@@ -13,6 +13,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -131,7 +132,7 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
                 .andExpect(jsonPath("$[1].resultType").value("SEARCH_LIST"))
                 .andExpect(jsonPath("$[1].result.programs[0].pblancId").value("PBLN_000000000000002"));
         // 활동 기록에는 결과 종류·공고 수만 남기고 질문 본문은 넣지 않는다(대화 기준 저장소는 messages).
-        String logged = jdbc.queryForObject("SELECT metadata_json FROM activity_logs WHERE action = 'AI_QUERY' AND target_id = ?",
+        String logged = jdbc.queryForObject("SELECT metadata_json FROM activity_logs WHERE action = 'AI_QUERY' AND target_type = 'CONVERSATION' AND target_id = ?",
                 String.class, String.valueOf(conversationId));
         assertThat(read(logged).get("programCount").asInt()).isEqualTo(2);
         assertThat(logged).contains("SEARCH_LIST").doesNotContain("소상공인 금융");
@@ -263,6 +264,132 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
                 .andExpect(status().isBadGateway()).andExpect(jsonPath("$.error.code").value("ai_response_invalid"));
     }
 
+    static String workflowState(String status, String step, String next, String evaluations, String missing, String pending) {
+        return "{\"state\":{\"schema_version\":1,\"query\":\"q\",\"as_of\":\"2026-10-01\",\"company_profile\":{\"company_size\":\"소상공인\"},"
+                + "\"temporary_company_facts\":{},\"round\":0,\"status\":\"" + status + "\",\"current_step\":\"" + step + "\","
+                + "\"next_action\":\"" + next + "\",\"failure_code\":null,\"pending\":" + pending + ","
+                + "\"search\":{\"status\":\"LISTED\",\"candidate_count\":9,\"programs\":[{\"rank\":1,\"pblanc_id\":\"PBLN_W\"}]},"
+                + "\"evaluations\":[" + evaluations + "],\"missing_information\":" + missing + "}}";
+    }
+
+    static final String PENDING_W = "{\"rank\":1,\"pblanc_id\":\"PBLN_W\",\"evaluation_status\":\"PENDING\",\"attempts\":0}";
+    static final String NEEDS_W = "{\"rank\":1,\"pblanc_id\":\"PBLN_W\",\"evaluation_status\":\"COMPLETED\",\"attempts\":1,"
+            + "\"eligibility\":{\"pblanc_id\":\"PBLN_W\",\"status\":\"NEEDS_MORE_INFO\",\"criteria\":[],\"missing_information\":[\"credit_score\"]}}";
+
+    private long startWorkflow(String token) throws Exception {
+        mvc.perform(post("/api/company").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"companyName\":\"흐름상사\",\"companySize\":\"소상공인\"}")).andExpect(status().isCreated());
+        reply = new Reply(200, workflowState("IN_PROGRESS", "EVALUATE_PROGRAM", "CONTINUE", PENDING_W, "[]", "[\"PBLN_W\"]"), 0);
+        String body = mvc.perform(post("/api/ai/workflows").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"query\":\"금융 지원사업\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.nextAction").value("CONTINUE"))
+                .andExpect(jsonPath("$.progress.pending").value(1)).andReturn().getResponse().getContentAsString();
+        return read(body).get("workflowId").asLong();
+    }
+
+    @Test
+    void workflowStateIsStoredInMysqlOwnedByUserAndAdvancedOneStepAtATime() throws Exception {
+        String token = signup("flow@example.com");
+        String other = signup("flow-other@example.com");
+        long id = startWorkflow(token);
+        // State는 FastAPI가 돌려준 그대로 JSON으로 저장되고 status·current_step column은 State에서 복사된다.
+        Map<String, Object> row = jdbc.queryForMap("SELECT status, current_step, state_json FROM ai_workflows WHERE id = ?", id);
+        assertThat(row.get("status")).isEqualTo("IN_PROGRESS");
+        assertThat(row.get("current_step")).isEqualTo("EVALUATE_PROGRAM");
+        assertThat(read(String.valueOf(row.get("state_json"))).at("/company_profile/company_size").asText()).isEqualTo("소상공인");
+        // 조회는 저장된 State로만 응답한다(FastAPI 호출 없음). 다른 사용자는 존재 여부도 알 수 없다.
+        int calls = RECEIVED.size();
+        mvc.perform(get("/api/ai/workflows/" + id).header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.evaluations[0].evaluationStatus").value("PENDING"));
+        mvc.perform(post("/api/ai/workflows/" + id + "/continue").header(HttpHeaders.AUTHORIZATION, other))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("workflow_not_found"));
+        assertThat(RECEIVED).hasSize(calls);
+        // 진행 상태가 아니면 답변 제출은 거부한다.
+        mvc.perform(post("/api/ai/workflows/" + id + "/answers").header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"answers\":{\"credit_score\":700}}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("workflow_invalid_state"));
+
+        reply = new Reply(200, workflowState("WAITING_FOR_USER", "AWAIT_ANSWERS", "ANSWER", NEEDS_W,
+                "[{\"field_id\":\"credit_score\",\"source_fields\":[\"credit_score\"],\"programs\":[\"PBLN_W\"]}]", "[]"), 0);
+        mvc.perform(post("/api/ai/workflows/" + id + "/continue").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("WAITING_FOR_USER"))
+                .andExpect(jsonPath("$.missingInformation[0].fieldId").value("credit_score"))
+                .andExpect(jsonPath("$.progress.completed").value(1));
+        // 클라이언트는 상태만 보내고(State 전체는 Spring이 DB에서 꺼내 전달) 무엇을 판정할지는 정하지 않는다.
+        JsonNode sent = read(RECEIVED.get(RECEIVED.size() - 1).body());
+        assertThat(sent.get("command").asText()).isEqualTo("continue");
+        assertThat(sent.at("/state/pending/0").asText()).isEqualTo("PBLN_W");
+        // 지금 묻지 않은 field는 FastAPI를 부르기 전에 거부한다. 답변은 companies에 저장하지 않는다.
+        calls = RECEIVED.size();
+        mvc.perform(post("/api/ai/workflows/" + id + "/answers").header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"answers\":{\"annual_revenue_krw\":1}}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("validation_failed"));
+        assertThat(RECEIVED).hasSize(calls);
+        reply = new Reply(200, workflowState("IN_PROGRESS", "EVALUATE_PROGRAM", "CONTINUE", NEEDS_W, "[]", "[\"PBLN_W\"]"), 0);
+        mvc.perform(post("/api/ai/workflows/" + id + "/answers").header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"answers\":{\"credit_score\":720}}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.nextAction").value("CONTINUE"));
+        assertThat(read(RECEIVED.get(RECEIVED.size() - 1).body()).at("/answers/credit_score").asInt()).isEqualTo(720);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM companies c JOIN users u ON u.id = c.user_id WHERE u.email = 'flow@example.com' AND c.company_name = '흐름상사'", Integer.class)).isOne();
+    }
+
+    static String completedState(String citationOwner) {
+        String citation = "{\"evidence_id\":\"E1\",\"pblanc_id\":\"" + citationOwner + "\",\"title\":\"t\",\"pages\":[2]}";
+        String eligible = "{\"rank\":1,\"pblanc_id\":\"PBLN_W\",\"evaluation_status\":\"COMPLETED\",\"attempts\":1,"
+                + "\"eligibility\":{\"pblanc_id\":\"PBLN_W\",\"status\":\"ELIGIBLE\",\"missing_information\":[],\"criteria\":["
+                + "{\"criterion\":\"소상공인\",\"result\":\"MET\",\"reason\":\"r\",\"citations\":[" + citation + "]}]}}";
+        String finalResult = ",\"final_result\":{\"recommended\":[{\"rank\":1,\"pblanc_id\":\"PBLN_W\",\"eligibility_status\":\"ELIGIBLE\","
+                + "\"reason_code\":\"all_criteria_met\",\"reasons\":[{\"criterion\":\"소상공인\",\"result\":\"MET\",\"reason\":\"r\","
+                + "\"evidence_ids\":[\"E1\"]}],\"missing_information\":[],\"citations\":[" + citation + "]}],"
+                + "\"excluded\":[],\"unresolved\":[],\"counts\":{\"recommended\":1,\"excluded\":0,\"unresolved\":0},\"disclaimer\":\"참고용\"}}}";
+        String state = workflowState("COMPLETED", "DONE", "NONE", eligible, "[]", "[]");
+        return state.substring(0, state.length() - 2) + finalResult;
+    }
+
+    @Test
+    void completedWorkflowReturnsFinalResultAndRejectsCrossProgramCitations() throws Exception {
+        String token = signup("flow-final@example.com");
+        long id = startWorkflow(token);
+        // 다른 공고 근거가 섞인 최종 결과는 저장하지 않고 502로 거부한다(State는 이전 단계 그대로).
+        reply = new Reply(200, completedState("PBLN_OTHER"), 0);
+        mvc.perform(post("/api/ai/workflows/" + id + "/continue").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isBadGateway()).andExpect(jsonPath("$.error.code").value("ai_response_invalid"));
+        assertThat(jdbc.queryForObject("SELECT status FROM ai_workflows WHERE id = ?", String.class, id)).isEqualTo("IN_PROGRESS");
+        reply = new Reply(200, completedState("PBLN_W"), 0);
+        mvc.perform(post("/api/ai/workflows/" + id + "/continue").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.finalResult.recommended[0].pblancId").value("PBLN_W"))
+                .andExpect(jsonPath("$.finalResult.recommended[0].reasons[0].evidenceIds[0]").value("E1"))
+                .andExpect(jsonPath("$.finalResult.counts.recommended").value(1))
+                .andExpect(jsonPath("$.finalResult.excluded").isEmpty());
+        // 조회도 저장된 State의 최종 결과를 그대로 돌려준다.
+        mvc.perform(get("/api/ai/workflows/" + id).header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.finalResult.disclaimer").value("참고용"));
+    }
+
+    @Test
+    void concurrentContinueRequestsRunTheStepOnlyOnce() throws Exception {
+        String token = signup("flow-busy@example.com");
+        long id = startWorkflow(token);
+        int calls = RECEIVED.size();
+        // 한 단계가 0.6초 걸리는 동안 두 번째 진행 요청이 들어온다.
+        reply = new Reply(200, workflowState("WAITING_FOR_USER", "AWAIT_ANSWERS", "ANSWER", NEEDS_W,
+                "[{\"field_id\":\"credit_score\",\"source_fields\":[\"credit_score\"],\"programs\":[\"PBLN_W\"]}]", "[]"), 600);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.Callable<Integer> request = () -> mvc.perform(post("/api/ai/workflows/" + id + "/continue")
+                .header(HttpHeaders.AUTHORIZATION, token)).andReturn().getResponse().getStatus();
+        java.util.concurrent.Future<Integer> first = pool.submit(request);
+        Thread.sleep(150);
+        java.util.concurrent.Future<Integer> second = pool.submit(request);
+        List<Integer> statuses = new ArrayList<>(List.of(first.get(), second.get()));
+        pool.shutdown();
+        statuses.sort(null);
+        assertThat(statuses).containsExactly(200, 409);
+        // FastAPI 단계(=공고 판정)는 한 번만 실행됐다.
+        assertThat(RECEIVED.size() - calls).isOne();
+        assertThat(jdbc.queryForObject("SELECT step_started_at FROM ai_workflows WHERE id = ?", java.sql.Timestamp.class, id)).isNull();
+    }
+
     @Test
     void timeoutAndInternalAuthFailureBecomeServiceErrorsWithoutFakeAssistantMessage() throws Exception {
         String token = signup("fail@example.com");
@@ -278,7 +405,7 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
         mvc.perform(get("/api/conversations/" + conversationId + "/messages").header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].role").value("USER"));
         assertThat(jdbc.queryForObject("SELECT error_code FROM activity_logs WHERE action = 'AI_QUERY' AND success = false"
-                + " AND target_id = ?", String.class, String.valueOf(conversationId))).isEqualTo("ai_service_timeout");
+                + " AND target_type = 'CONVERSATION' AND target_id = ?", String.class, String.valueOf(conversationId))).isEqualTo("ai_service_timeout");
 
         // FastAPI 내부 인증 실패(401)는 사용자 로그인 실패가 아니라 서비스 설정 오류(502)다.
         reply = new Reply(401, "{\"error\":{\"code\":\"internal_auth_failed\"}}", 0);

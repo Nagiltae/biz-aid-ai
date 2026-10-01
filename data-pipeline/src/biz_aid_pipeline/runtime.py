@@ -75,6 +75,38 @@ class ServiceRuntime:
             lambda: ProgramDiscoveryService(self.repository, self.retriever(), rag_contract()))
         return service.search(query, company_profile, as_of)
 
+    def recommendation_graph(self):
+        """V2-3 LangGraph 흐름. 검색·판정은 기존 서비스를 노드에서 그대로 호출한다. 그래프는 한 번 만들어 재사용한다."""
+        with self._lock:
+            graph = getattr(self, "_recommendation_graph", None)
+        if graph is not None:
+            return graph
+        from biz_aid_pipeline.candidates.discovery import ProgramDiscoveryService
+        from biz_aid_pipeline.candidates.natural import NaturalLanguageFilterService, filter_domain
+        from biz_aid_pipeline.candidates.personalized import PersonalizedSearchService
+        from biz_aid_pipeline.candidates.service import ProgramCandidateService
+        from biz_aid_pipeline.eligibility.service import EligibilityService
+        from biz_aid_pipeline.rag.service import rag_contract
+        from biz_aid_pipeline.workflow.recommendation import build_graph
+        search = PersonalizedSearchService(
+            NaturalLanguageFilterService(self.provider, filter_domain(self.repository)), ProgramCandidateService(self.repository),
+            lambda: ProgramDiscoveryService(self.repository, self.retriever(), rag_contract()))
+        graph = build_graph(search.search, lambda pblanc_id, company, day: EligibilityService(
+            self.repository, self.retriever(), self.provider).evaluate(pblanc_id, company, day))
+        with self._lock:
+            self._recommendation_graph = graph
+        return graph
+
+    def workflow_start(self, query, company_profile, as_of=None):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from biz_aid_pipeline.workflow.recommendation import start
+        return start(self.recommendation_graph(), query, company_profile, as_of or datetime.now(ZoneInfo("Asia/Seoul")).date())
+
+    def workflow_advance(self, state, command, answers=None):
+        from biz_aid_pipeline.workflow.recommendation import advance
+        return advance(self.recommendation_graph(), state, command, answers)
+
     def personalized_eligibility(self, query, company_profile, as_of=None):
         """V2-2: 개인화 검색 Top 3 → 공고별 기존 자격 판정. company_profile은 판정용 CompanyProfileSnapshot이다."""
         from datetime import datetime

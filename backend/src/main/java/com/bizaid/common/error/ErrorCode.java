@@ -20,6 +20,9 @@ public enum ErrorCode {
     COMPANY_ALREADY_REGISTERED(HttpStatus.CONFLICT, "company_already_registered", "이미 기업정보가 등록되어 있습니다. 수정 기능을 사용해 주세요."),
     PROGRAM_NOT_FOUND(HttpStatus.NOT_FOUND, "program_not_found", "지원사업을 찾을 수 없거나 더 이상 게시되지 않는 공고입니다."),
     CONVERSATION_NOT_FOUND(HttpStatus.NOT_FOUND, "conversation_not_found", "대화를 찾을 수 없습니다."),
+    WORKFLOW_NOT_FOUND(HttpStatus.NOT_FOUND, "workflow_not_found", "추천 흐름을 찾을 수 없습니다."),
+    WORKFLOW_BUSY(HttpStatus.CONFLICT, "workflow_busy", "이 추천 흐름은 이미 다음 단계를 진행 중입니다. 잠시 후 상태를 다시 확인해 주세요."),
+    WORKFLOW_INVALID_STATE(HttpStatus.CONFLICT, "workflow_invalid_state", "지금 상태에서는 이 요청을 진행할 수 없습니다. 현재 상태를 확인해 주세요."),
     // AI(FastAPI) 호출 오류. 모두 서버 쪽 문제라 사용자 로그인 오류(401)와 구분되는 5xx로 돌려준다.
     AI_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "ai_service_unavailable",
             "AI 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."),

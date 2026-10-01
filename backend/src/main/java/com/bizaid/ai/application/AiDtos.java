@@ -116,6 +116,55 @@ public final class AiDtos {
     public record PersonalizedEligibilityResult(PersonalizedSearchResult search, List<ProgramEvaluation> evaluations) {
     }
 
+    /** V2-3 흐름의 공고별 판정 상태. evaluationStatus: PENDING(아직 판정 전) / COMPLETED / FAILED. */
+    public record WorkflowEvaluation(Integer rank, String pblancId, ProgramItem program, String evaluationStatus,
+                                     EligibilityResult eligibility, String errorCode, Integer attempts) {
+    }
+
+    /** 부족 정보 한 항목(field ID 기준 중복 제거). programs는 이 정보가 필요한 공고들이다. */
+    public record MissingField(String fieldId, List<String> sourceFields, List<String> programs) {
+    }
+
+    /**
+     * FastAPI가 돌려준 LangGraph State 중 Spring이 검증·응답에 쓰는 부분. State 원본은 JSON 그대로 ai_workflows에 저장한다.
+     * status: IN_PROGRESS / WAITING_FOR_USER / COMPLETED / FAILED, nextAction: CONTINUE / ANSWER / NONE.
+     */
+    public record WorkflowState(String status, String currentStep, String nextAction, String failureCode, Integer round,
+                                PersonalizedSearchResult search, List<WorkflowEvaluation> evaluations, List<String> pending,
+                                List<MissingField> missingInformation, Map<String, Object> temporaryCompanyFacts,
+                                FinalResult finalResult) {
+    }
+
+    /** 최종 결과의 이유 한 줄. 기존 판정의 조건·결과·판정 이유를 그대로 옮기고, 근거는 항목 citations의 evidence_id로 가리킨다. */
+    public record FinalReason(String criterion, String result, String reason, List<String> evidenceIds) {
+    }
+
+    /**
+     * 최종 결과의 공고 한 건. rank는 검색 순위 그대로, eligibilityStatus는 기존 판정 상태 그대로다(판정 실패면 null + errorCode).
+     * citations는 그 공고 판정에서 이미 검증된 근거만 담는다.
+     */
+    public record FinalItem(Integer rank, String pblancId, ProgramItem program, String eligibilityStatus, String reasonCode,
+                            String errorCode, List<FinalReason> reasons, List<String> missingInformation, List<Citation> citations) {
+    }
+
+    public record FinalCounts(Integer recommended, Integer excluded, Integer unresolved) {
+    }
+
+    /** V2-4 최종 추천 결과(COMPLETED일 때만). 추천·제외·판단 불가는 기존 판정 상태로만 나누며 추천이 0건이어도 정상이다. */
+    public record FinalResult(List<FinalItem> recommended, List<FinalItem> excluded, List<FinalItem> unresolved, FinalCounts counts,
+                              String disclaimer) {
+    }
+
+    public record WorkflowProgress(int total, int completed, int failed, int pending, int round) {
+    }
+
+    /** workflow API 응답. 클라이언트는 nextAction만 보고 "다음 단계 진행" 또는 "답변 제출"을 요청한다. */
+    public record WorkflowResponse(Long workflowId, String status, String currentStep, String nextAction, WorkflowProgress progress,
+                                   PersonalizedSearchResult search, List<WorkflowEvaluation> evaluations,
+                                   List<MissingField> missingInformation, Map<String, Object> temporaryCompanyFacts,
+                                   String failureCode, FinalResult finalResult) {
+    }
+
     /** React에 돌려주는 AI 검색 응답: 저장된 대화·메시지와 AI 결과. */
     public record AiQueryResponse(Long conversationId, ConversationDtos.MessageResponse userMessage,
                                   ConversationDtos.MessageResponse assistantMessage,

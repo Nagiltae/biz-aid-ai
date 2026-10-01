@@ -1,5 +1,8 @@
 package com.bizaid.ai.application;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Map;
+
 import com.bizaid.ai.infrastructure.HttpAiGateway;
 
 /**
@@ -16,4 +19,10 @@ public interface AiGateway {
     AiDtos.PersonalizedSearchResult personalizedSearch(AiDtos.PersonalizedSearchCommand command);
 
     AiDtos.PersonalizedEligibilityResult personalizedEligibility(AiDtos.PersonalizedEligibilityCommand command);
+
+    /** V2-3 흐름 시작: 개인화 검색과 Top 3 확정까지(판정 없음). 반환값은 저장할 State JSON이다. */
+    JsonNode startWorkflow(AiDtos.PersonalizedEligibilityCommand command);
+
+    /** 저장된 State로 다음 한 단계 실행(command: continue / answer). 판정 LLM 호출은 최대 1건이다. */
+    JsonNode advanceWorkflow(JsonNode state, String command, Map<String, Object> answers);
 }

@@ -77,7 +77,7 @@
 | Spring Boot ↔ FastAPI 실제 연결(AI E2E V1: 화면에서 AI 목록·답변·자격 판정·근거) | 완료(FastAPI는 호스트 실행) |
 | FastAPI Compose 통합, 운영 배포 | **예정** |
 | LangChain(LLM 호출 계층만) | 적용(V2-0) |
-| LangGraph | **미적용** |
+| LangGraph(추천 흐름 단계·분기, State는 MySQL ai_workflows) | 적용(V2-3) |
 | V2 서비스 범위 Qdrant(종료 공고 제외, 문서 2,541개) | 적재 진행 중(V2-0, 별도 collection) |
 
 V1 release 후보는 데이터 수집부터 React → Spring Boot → FastAPI 서비스와 고정 AI 기준선까지 포함한다.
@@ -846,6 +846,57 @@ Spring POST /api/ai/personalized-eligibility {query}
   - 근거: 공고별 근거는 모두 자기 공고뿐이었다.
 - **응답 시간 한계(IMP-020)**: 전체 **161초**(판정 LLM 58·54·33초, 같은 기기에서 V2 적재 batch가 동시에 실행 중)였다. Spring 응답 제한시간 90초를 넘으므로 지금 화면에서 그대로 부르면 시간 초과가 된다. 제한시간을 몰래 늘리거나 작업 큐를 만들지 않고, LangGraph·진행 상태 UI 설계에서 공고별 단계 실행으로 해결하기로 했다.
 
+
+### V2-3 LangGraph 상태 기반 추천 흐름 (단계 실행 · MySQL 상태 저장 · 추가 질문 · 재판정)
+
+V2-2에서 Top 3 판정을 한 요청에 몰아 하니 **161초**가 걸려 Spring 응답 제한(90초)을 넘었다. 원인은 LLM이 느린 것 자체보다, **오래 걸리는 작업 여러 개를 한 HTTP 요청에 묶은 구조**였다. V2-3에서는 흐름을 단계로 나누고, 다음에 무엇을 할지를 **흐름 상태(State)**가 정하게 했다.
+
+```text
+POST /api/ai/workflows {query}            → 검색 + Top 3 확정(판정 0건)            → IN_PROGRESS / CONTINUE
+POST /api/ai/workflows/{id}/continue      → 다음 공고 1건 판정                       → IN_PROGRESS / CONTINUE
+POST …/continue (마지막 공고)             → 판정 1건 + 부족 정보 통합                 → WAITING_FOR_USER / ANSWER (또는 COMPLETED)
+POST /api/ai/workflows/{id}/answers {answers: {credit_score: 720}}
+                                          → 임시 정보 저장 + 재판정 대상 선택(판정 0건) → IN_PROGRESS / CONTINUE
+POST …/continue (필요한 공고만 1건씩)      → 재판정 → 다시 부족 정보 판단                → COMPLETED 또는 WAITING_FOR_USER
+GET  /api/ai/workflows/{id}               → 저장된 상태 조회(FastAPI 호출 없음)
+```
+
+- **LangGraph 그래프**(`workflow/recommendation.py`): 시작 분기(route) → `search`(V2-1 개인화 검색) / `evaluate_next`(기존 단일 판정 1건) → 남은 공고가 없으면 `aggregate`(부족 정보 통합) / `apply_answers`(답변 반영·재판정 대상 선택). 검색·RRF·근거·최종 상태 계산은 기존 서비스를 노드에서 부를 뿐 그래프 안에 다시 만들지 않았다.
+- **State 구조**: 질문, 기준일, 기업정보 snapshot(영구), 임시 기업정보, 검색 결과(Top 3), 공고별 판정(대기·완료·실패, 근거는 위치 요약만), 남은 판정 대상, 부족 정보(field ID 기준 중복 제거, 필요한 공고 목록), 회차, 상태·현재 단계·다음 행동. 문서 원문·prompt·비밀값·요청 입력은 넣지 않는다(실측 약 12.7KB).
+- **State와 MySQL 저장의 차이**: State는 "흐름이 지금 어디까지 왔는지"를 담은 값(무엇을)이고, MySQL `ai_workflows`는 그 값을 요청 사이에 보관하는 곳(어디에)이다. LangGraph의 전용 저장 장치(checkpointer)를 쓰지 않고, Spring이 State를 JSON 그대로 저장했다가 다음 요청에 FastAPI로 돌려준다.
+- **Spring·FastAPI 역할**: Spring은 인증·기업정보·State 저장·소유권·동시 진행 방지, FastAPI는 받은 State로 한 단계만 실행해 새 State를 돌려준다. FastAPI는 ai_workflows·users·companies를 읽지 않는다.
+- **status·current_step column과 State JSON 분리**: 목록 조회·잠금 판단에 필요한 값은 일반 column으로 빠르게 보고, 흐름 전체는 JSON으로 둔다. 두 값은 FastAPI의 `transition()` 한 곳에서 정하고 Spring은 State에서 복사만 해서 어긋나지 않는다.
+- **임시 기업정보**: 사용자가 답한 신용점수 등은 `state_json.temporary_company_facts`에만 두고 companies에 자동 저장하지 않는다. 묻고 있는 field ID만 받는다(Spring이 먼저, FastAPI가 다시 검증).
+- **재판정**: 답한 field 때문에 "추가 정보 필요"였던 공고만 다시 판정한다. 이미 답한 field는 다시 묻지 않는다(반복 방지). 실패 공고는 자동 재시도하지 않는다.
+- **동시 진행 방지**: 짧은 트랜잭션에서 단계 점유(`step_started_at`) + version 저장 → 같은 버전을 읽은 두 번째 요청은 409 `workflow_busy`. FastAPI 호출은 트랜잭션 밖. 결과 저장은 점유한 버전 그대로일 때만. 그래서 같은 공고가 두 번 판정·저장되지 않는다.
+- **실제 Smoke(V1 collection, 기능 확인)**: Spring 컨테이너 → 호스트 FastAPI → MySQL 전체 경로. 시작 14.7초(Top 3 확정), 다음 단계 39.4초(판정 1건, 추가 정보 필요) → 둘 다 90초 안. 저장 상태 IN_PROGRESS, 남은 판정 2, version 2, 점유 해제 확인.
+
+### V2-4 최종 추천 결과 조립 (final_result)
+
+workflow가 필요한 판정을 모두 끝내면(COMPLETED) 클라이언트가 그대로 그릴 수 있는 **최종 결과 계약**을 State에 붙인다. 새 LLM 호출 없이 **검색 순위 + 기존 판정 결과 + 검증된 근거**를 코드로 조립한다(`workflow/recommendation.py`의 `build_final_result`).
+
+```text
+마지막 판정 → aggregate ─ 물어볼 부족 정보 있음 → WAITING_FOR_USER (final_result 없음)
+                        └ 없음 → transition(COMPLETED) → build_final_result(evaluations) → final_result
+final_result = {recommended: [...], excluded: [...], unresolved: [...], counts, disclaimer}
+항목 = {rank(검색 순위), pblanc_id, program, eligibility_status(기존 값), reason_code, error_code, reasons, missing_information, citations}
+```
+
+| 기존 판정 상태 | 최종 묶음 | 이유(reasons)로 보여 주는 것 |
+| --- | --- | --- |
+| ELIGIBLE | recommended(추천) | 충족(MET)한 조건 |
+| INELIGIBLE | excluded(제외) | 실제로 제외를 만든 미충족(NOT_MET) 조건만 |
+| INSUFFICIENT_EVIDENCE | unresolved(판단 불가) | 없음(`insufficient_evidence`: 공고문에서 자격 근거를 찾지 못함) |
+| 판정 실패 | unresolved | 없음(`evaluation_failed` + 실패 코드) |
+| NEEDS_MORE_INFO(물을 수 있는 정보) | — | 최종 결과를 만들지 않고 WAITING_FOR_USER 유지 |
+| NEEDS_MORE_INFO(물을 수 없는 정보만 남음) | unresolved | 모르는(UNKNOWN) 조건 + 부족 정보(`missing_information_unresolved`) |
+
+- **이유 문장은 새로 만들지 않는다**: 조건 문구·결과·판정 이유는 Eligibility가 이미 검증한 값을 그대로 옮기고, 근거는 `evidence_ids`로 항목의 `citations`를 가리킨다(같은 근거는 한 번만 담아 State 크기를 늘리지 않음).
+- **근거 격리**: 항목의 근거가 다른 공고 것이면 걸러 내지 않고 조립을 실패시킨다. Spring도 같은 규칙과 묶음·순위·개수를 다시 검증하고, 어기면 저장하지 않고 502로 거부한다.
+- **순위**: 묶음 안 순서는 V2-1 검색 순위(rank) 그대로다.
+- **추천 0건**: 모두 제외·판단 불가여도 COMPLETED이고 `recommended=[]`다.
+- **버전**: State `schema_version` 1 → 2. 1로 저장된 진행 중 흐름은 그대로 다음 단계를 진행하고 그때 2가 된다(별도 migration 없음). V2-3 때 이미 완료된 흐름은 `finalResult=null`이다.
+
 ---
 
 ## 13. FastAPI 내부 API
@@ -1002,6 +1053,7 @@ Spring Boot(backend/, 서비스 서버) ──► MySQL(users·companies·conver
 | POST | `/api/ai/query` | AI 검색·질문 `{query, conversationId?}` → 저장된 질문·답변 메시지와 AI 결과 |
 | POST | `/api/ai/personalized-search` | V2 기업정보 기반 개인화 검색 Top 3(기업정보는 로그인 사용자 것) |
 | POST | `/api/ai/personalized-eligibility` | V2 Top 3 + 공고별 자격 판정(공고별 COMPLETED/FAILED) |
+| POST · GET | `/api/ai/workflows`, `/{id}`, `/{id}/continue`, `/{id}/answers` | V2-3 추천 흐름 시작·조회·다음 단계(판정 최대 1건)·부족 정보 답변. COMPLETED면 `finalResult`(추천·제외·판단 불가, V2-4) |
 | POST | `/api/programs/{pblancId}/eligibility` | 지원 자격 판정(일시 정보: 신용점수·체납·추가 사실) |
 
 - 정상 응답은 wrapper 없이 DTO 그대로, **오류는 항상** `{"error": {"code", "message", "fieldErrors"?}}` 한 형태다(FastAPI 오류 본문과 같은 모양). React는 code로 분기하고 message를 보여 준다.
@@ -1428,6 +1480,51 @@ com.bizaid
 - 선택지: 제한시간 상향 / 비동기 작업 큐 / 공고별 단계 실행 + 진행 표시(LangGraph 단계)
 - 선택: 이번에는 측정·기록만 하고 다음 LangGraph·진행 상태 UI 설계에서 결정(IMP-020). 제한시간만 늘리면 요청 스레드가 3분 가까이 묶이는 문제를 가리게 된다.
 
+
+### 16.46 LangGraph를 지금 도입했다 (V2-3)
+- 문제: V2 흐름이 "검색 → 공고별 판정 → 부족 정보 → 사용자 답변 → 필요한 공고만 재판정"으로 **조건에 따라 반복·분기**하게 됐다(16.12에서 "다단계 흐름이 생기면 도입"으로 미뤄 둔 조건).
+- 선택: 단계와 분기만 LangGraph 그래프로 표현하고, 각 단계의 일은 기존 서비스를 호출한다.
+- 결과: 다음 행동을 State가 정하므로 클라이언트는 "다음 단계 진행"만 요청한다.
+
+### 16.47 제한시간을 늘리지 않고 단계 실행으로 해결 (IMP-020)
+- 선택지: 제한시간 3분으로 상향 / 비동기 작업 큐(Redis·Kafka) / 단계 실행 + 상태 저장
+- 선택: 단계 실행. 제한시간 상향은 Spring 요청 스레드를 3분 가까이 묶고 진행 상황을 보여 줄 수 없다. 작업 큐는 지금 규모에 비해 새 인프라가 크다.
+- 결과: 한 요청 = 판정 최대 1건. 실측 14.7초·39.4초로 90초 안.
+
+### 16.48 별도 SQLite·PostgreSQL 대신 기존 MySQL에 저장
+- 이유: 흐름 상태는 사용자·기업·대화와 같은 서비스 데이터이고, 이미 Spring·Flyway·COMMENT·백업 대상인 MySQL이 있다. LangGraph 전용 저장소를 추가하면 운영 대상 DB가 늘고 사용자 소유권 확인을 두 곳에서 해야 한다. MySQL JSON 타입이면 State를 그대로 담을 수 있다.
+
+### 16.49 FastAPI는 MySQL(ai_workflows)에 직접 접근하지 않는다
+- 이유: 사용자 소유권·동시성·트랜잭션은 Spring이 이미 책임지는 영역이다. FastAPI가 같은 테이블을 쓰면 두 서버가 같은 행을 다른 규칙으로 바꾸게 된다. FastAPI는 "State를 받아 한 단계 실행 후 돌려주는" 순수 계산으로 남겨 테스트·교체가 쉽다.
+
+### 16.50 임시 기업정보는 companies에 저장하지 않는다
+- 이유: 추가 질문에서 받는 신용점수·체납 등은 민감하고 자주 바뀌며(16.20), 이번 판정을 위한 값이다. 회사 기본정보를 사용자가 모르게 바꾸면 다른 기능의 판단까지 달라진다.
+
+### 16.51 State JSON + 상태 column을 함께 둔다
+- 이유: 조회·잠금·목록에는 status·current_step 같은 짧은 값이 필요하고, 흐름 복원에는 State 전체가 필요하다. 상태 전이는 FastAPI 한 곳에서 정하고 Spring은 복사만 해 서로 모순되지 않는다.
+
+### 16.52 동시 진행은 단계 점유 + 낙관적 잠금
+- 이유: 판정은 수십 초가 걸려 DB 잠금을 그동안 쥐면 연결이 묶인다. 짧은 트랜잭션으로 점유만 기록하고, 결과 저장 때 version을 다시 확인한다. 중단된 점유는 5분 뒤 다시 가져갈 수 있다(IMP-021).
+
+### 16.53 최종 추천에서 LLM을 한 번 더 부르지 않는다 (V2-4)
+- 문제: Top 3 판정이 끝난 뒤 "추천·제외·판단 불가"와 그 이유를 화면에 보여 줄 최종 결과가 필요했다.
+- 선택지: ① LLM에게 판정 결과 3개를 주고 최종 추천·요약을 쓰게 함 ② 기존 판정 상태를 정해진 표로 코드가 나눔
+- 선택: ②.
+- 이유
+  - 자격 상태는 이미 검증된 조건별 결과로 application이 계산했다. LLM이 한 번 더 판단하면 같은 공고에 판정이 두 개 생기고 서로 다를 수 있다.
+  - 새 LLM 출력은 근거 연결·검증을 처음부터 다시 해야 하고, 응답 시간(판정 1건 약 40초)이 다시 늘어난다.
+  - 코드 조립은 같은 입력이면 항상 같은 결과라 테스트로 고정할 수 있다.
+- 결과: 추가 LLM 호출 0건. 이유 문장도 기존 판정 이유를 그대로 쓴다.
+
+### 16.54 검색 순위를 그대로 유지하고, 관련도와 자격을 분리한다
+- 문제: 추천 가능한 공고가 여러 개면 어떤 순서로 보여 줄지 정해야 한다.
+- 선택지: 판정 결과로 새 점수를 만들어 재정렬 / LLM 재정렬 / 검색 순위 유지
+- 선택: 검색 순위 유지.
+- 이유: 검색은 "질문과 얼마나 관련 있나", 자격 판정은 "실제로 신청할 수 있나"를 답한다. 둘을 섞은 점수는 근거를 설명할 수 없고(왜 2위인지), 추천 점수·적합도 순위는 Harness가 금지한 영역이다. 역할을 나누면 "관련도 순으로 보여 주되, 신청 가능 여부로 묶는다"로 설명이 간단하다.
+
+### 16.55 추천할 공고가 없으면 빈 목록을 그대로 돌려준다
+- 이유: 지원 자격이 없는 사업을 "추천"으로 보여 주면 사용자가 신청 준비에 시간을 쓰고 탈락한다. 정책 서비스에서 틀린 추천은 추천이 없는 것보다 해롭다. 대신 제외 이유(어떤 조건이 안 맞는지)와 판단 불가 이유를 함께 보여 준다.
+
 ---
 
 ## 17. 실험 결과
@@ -1706,6 +1803,8 @@ V2의 모델·Prompt·검색 방식을 바꾼 뒤 좋아졌다고 말하려면, 
 | V2-0 기반(10-01) | 출력 계약 안정화 + 서비스 범위 데이터 | 기업정보 field ID·enum, LangChain(LLM 호출만), V2 collection 분리, 서비스 범위 2,541문서 batch | 자격 판정 계약 오류 0/3, V2 Smoke 3문서 207 point | 기업정보 기반 개인화 검색 |
 | V2-1 개인화 검색(10-01) | 기업정보 + 질문 → Top 3 | 승인된 기업정보 코드 매핑, 질문 조건 결합·충돌 상태, 종료 공고 제외, Spring·FastAPI V2 전용 API | Smoke LISTED Top 3(V1 collection, 흐름 확인) | Top 3 자격 판정 |
 | V2-2 Top 3 판정(10-01) | Top 3 각각 자격 판정 | 조합 서비스 + 기존 단일 판정 재사용, 공고별 근거·실패 격리, 저장된 기업정보만 전달 | 3/3 판정 완료(모두 추가 정보 필요), 161초 | LangGraph 추가 질문·재판정 |
+| V2-3 LangGraph 흐름(10-01) | 단계 실행·상태 저장·추가 질문·재판정 | LangGraph 그래프, MySQL ai_workflows(JSON, V9), 단계 점유 + version, 임시 기업정보 분리 | 시작 14.7초·판정 1건 39.4초(90초 안), IMP-020 해결 | 최종 결과 계약 |
+| V2-4 최종 결과(10-01) | 완료 workflow의 추천·제외·판단 불가 | 기존 판정 상태 → 묶음 표, 검색 순위 유지, 공고별 근거 재사용, LLM 추가 호출 없음 | final_result 계약 고정(State v2), 추천 0건 정상 | React V2 |
 
 ---
 
@@ -1753,7 +1852,7 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | IMP-017 | FastAPI가 Compose app profile에 없음(호스트에서 먼저 실행) | 한 명령 실행 | 배포 설계 때 |
 | IMP-018 | V2 collection은 기준일에 종료 전이던 공고로 만든다. 이후 끝난 공고 point는 자동으로 빠지지 않음 | 검색 범위 신선도 | V2 전환 후 주기 갱신 필요 시 |
 | IMP-019 | 개인화 검색에서 기업정보는 후보 필터에만 쓰이고 Top 3 순위에는 반영되지 않음 | 개인화 체감 | V2 collection 전환·cases-v2 뒤 |
-| IMP-020 | Top 3 판정 전체 응답(161초)이 Spring 응답 제한시간 90초를 넘음 | 화면에서 바로 사용 불가 | LangGraph·진행 상태 UI 설계 때 |
+| IMP-021 | ai_workflows 보관·정리 정책 없음, 중단된 단계 점유는 5분 뒤 재점유 | 운영 데이터 관리 | 운영 배포 전 |
 
 ### 해결한 문제(RESOLVED)
 
@@ -1764,26 +1863,27 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | IMP-012 | 질문에 없는 조건을 LLM이 만듦 | 질문 원문 근거 검사(Grounding Guard) |
 | IMP-014 | 목록에서 한 공고의 조각이 자리를 독점(5 → 2) | 공고 단위 그룹 검색, 2개 → 5개 |
 | IMP-013 | 평가 Gold가 조각 ID로 고정돼 조각 식별값이 바뀌면 평가를 못 씀 | 근거를 (정답 문서, 조각 순번)으로 판정(V1 마감) |
+| IMP-020 | Top 3 판정 전체 161초가 Spring 90초 제한 초과 | LangGraph 단계 실행(한 요청 판정 최대 1건), 14.7초·39.4초(V2-3) |
 
 ### 단계 분류 (V1 마감 기준)
 
 | 단계 | 항목 |
 | --- | --- |
 | V1 마감 전 해결 | IMP-013(완료) |
-| V2 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020 |
-| 운영/AWS | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017 |
+| V2 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019 (IMP-020 해결) |
+| 운영/AWS | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017, IMP-021 |
 | 장기 | IMP-009, IMP-010 |
 
 ---
 
 ## 22. LangChain / LangGraph 현재 상태
 
-**LangChain은 LLM 호출 계층에만 적용했고(V2-0), LangGraph는 아직 미적용이다.**
+**LangChain은 LLM 호출 계층에만(V2-0), LangGraph는 추천 흐름의 단계·분기에만(V2-3) 적용했다.**
 
 | 도구 | 쉬운 설명 | 현재 상태 | 대신 직접 만든 것 |
 | --- | --- | --- | --- |
 | LangChain | LLM 호출, prompt, 정해진 출력 형식 등을 연결하는 도구 | **LLM 호출 계층에만 적용(V2-0)**: `rag/llm.py`의 Ollama provider가 `ChatPromptTemplate` + `ChatOllama`(요청별 JSON schema)를 쓴다 | 검색·후보 범위·근거 연결·자격 상태는 계속 직접 만든 코드 |
-| LangGraph | 여러 AI 작업의 분기·반복·상태를 관리하는 도구 | 미적용 | `rag/router.py`의 2갈래 분기(목록 / 문서 질문) |
+| LangGraph | 여러 AI 작업의 분기·반복·상태를 관리하는 도구 | **추천 흐름에 적용(V2-3)**: `workflow/recommendation.py`(검색 → 공고 1건씩 판정 → 부족 정보 → 답변 → 재판정) | 단순 목록/문서 질문 분기는 계속 `rag/router.py`. 검색·판정 규칙은 기존 서비스 |
 
 - 설계서의 목표 구조에는 FastAPI + LangChain/LangGraph가 적혀 있지만, **실제 도입은 필요성이 확인될 때 하기로** 했다.
 - 도입 후보 영역
@@ -1914,7 +2014,10 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | enum(허용값 목록) | 선택 가능한 값을 미리 제한하는 목록 | 기업정보 field ID·근거 번호·분야·대상을 생성 단계에서 제한 |
 | field ID | 바뀌지 않는 항목 식별자 | `credit_score`, `extra_1` 등. 사람이 읽는 이름 대신 LLM과 주고받음 |
 | collection namespace | collection 구분 이름 | 없으면 V1(동결), `v2`면 서비스 범위 collection |
-| LangGraph | AI 작업 흐름·상태 관리 도구 | **미적용** |
+| LangGraph | AI 작업 흐름·상태 관리 도구 | V2-3 추천 흐름의 단계·분기 |
+| State(상태) | 흐름이 지금 어디까지 왔는지 담은 값 묶음 | 질문·기업정보·Top 3·공고별 판정·남은 판정·부족 정보 |
+| 단계 실행 | 긴 작업을 여러 요청으로 나눠 실행 | 한 요청 = 판정 최대 1건(IMP-020 해결) |
+| 낙관적 잠금(Optimistic Lock) | 읽은 뒤 다른 요청이 먼저 바꿨으면 저장을 거부 | ai_workflows.version |
 | AGY | 독립 검토자 | 개발 에이전트와 분리된 리뷰어 |
 
 ---
@@ -1986,6 +2089,12 @@ LLM 호출 계층에만 썼습니다. V1은 직접 만든 LLM 연결 경계(LlmP
 **Q. 본인이 직접 설계했다고 설명할 핵심 의사결정은 무엇인가요?**
 (1) DB·검색·LLM의 역할 분리와 MySQL 후보 → Qdrant 범위 제한, (2) 근거 번호 기반 Citation과 코드가 계산하는 자격 판정, (3) 결과 식별값을 단계별로 나눠 필요한 부분만 재처리하는 구조, (4) 에이전트 개발을 통제하는 Harness입니다. 각 결정은 평가 결과나 실제 실패 사례를 근거로 했습니다.
 
+**Q. 최종 추천은 어떻게 정하나요? LLM이 고르나요?**
+아닙니다. 최종 단계에서는 LLM을 다시 부르지 않습니다. 공고별 자격 판정이 이미 근거와 함께 검증돼 있어서, ELIGIBLE이면 추천, INELIGIBLE이면 제외, 근거 부족이나 판정 실패면 판단 불가로 코드가 나눕니다. 순서는 검색 관련도 순위를 그대로 씁니다. 검색은 관련도, 판정은 신청 가능 여부라는 서로 다른 질문이라 섞어서 새 점수를 만들지 않았습니다. 이유도 판정 때 나온 조건과 근거를 그대로 보여 주고, 추천할 게 없으면 빈 목록을 돌려줍니다. 틀린 추천이 추천 없음보다 해롭기 때문입니다.
+
+**Q. 161초 걸리던 Top 3 판정을 어떻게 해결했나요?**
+LLM을 빠르게 만든 게 아니라 구조를 바꿨습니다. 판정 여러 건을 한 HTTP 요청에 묶은 것이 문제여서, LangGraph로 흐름을 단계로 나누고 한 요청에서는 판정을 최대 1건만 하게 했습니다. 흐름 상태는 Spring이 MySQL에 JSON으로 저장하고, 클라이언트는 "다음 단계 진행"만 요청합니다. 측정해 보니 시작 15초, 판정 단계 39초로 모두 제한시간 안에 들어왔고 제한시간은 늘리지 않았습니다. 같은 흐름을 동시에 두 번 진행하는 것은 단계 점유와 낙관적 잠금으로 막았습니다.
+
 **Q. 인증은 어떻게 설계했나요?**
 JWT를 썼습니다. Access Token은 15분짜리이고 React 메모리에만 둬서 localStorage 탈취 위험을 피했습니다. Refresh Token은 14일짜리 HttpOnly Cookie로 주고, DB에는 원문 대신 SHA-256 해시만 저장합니다. 재발급할 때마다 새 토큰으로 바꾸고, 이미 폐기된 토큰이 다시 오면 그 사용자의 토큰을 모두 폐기합니다. 그래서 JWT인데도 로그아웃이 실제로 효력을 가집니다.
 
@@ -2030,7 +2139,7 @@ DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았�
 
 현재 상태 기준 후보(사용자 결정 필요):
 
-1. **추가 질문 → 재판정(LangGraph, V2 다음 단계)**: V2-2의 missing_information을 입력으로 부족한 정보만 묻고 다시 판정. 공고별 단계 실행·진행 표시로 IMP-020 해결. V2 collection 적재 완료 후 설정 전환
+1. **React V2(다음 단계)**: workflow API로 Top 3 진행 상태·공고별 판정·추가 질문 입력·최종 결과(추천·제외·판단 불가) 화면. V2 collection 적재 완료 후 설정 전환
 2. **V2 품질 개선**: V1 기준선 10건을 그대로 사용해 Bedrock 등 provider·Prompt·검색 변경 전후를 비교(IMP-002·003·004·011)
 2. **LangGraph 필요성 판단**: 다단계 흐름이 생길 때
 3. **운영/AWS**: FastAPI Compose 통합(IMP-017), 전체 corpus(IMP-007, 약 29~35시간 추정), 배포·RDS 이전(IMP-015·IMP-016 확인)

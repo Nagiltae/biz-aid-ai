@@ -16,6 +16,7 @@ import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -44,6 +45,9 @@ public class HttpAiGateway implements AiGateway {
     private static final Set<String> PERSONALIZED_STATUSES =
             Set.of("LISTED", "NO_CANDIDATES", "NO_INDEXED_PROGRAMS", "COMPANY_CLOSED", "CONDITION_CONFLICT");
     private static final int PERSONALIZED_TOP_K = 3;
+    /** 흐름 상태별로 허용되는 다음 행동. 둘이 어긋난 State는 저장하지 않는다. */
+    private static final Map<String, String> WORKFLOW_NEXT =
+            Map.of("IN_PROGRESS", "CONTINUE", "WAITING_FOR_USER", "ANSWER", "COMPLETED", "NONE", "FAILED", "NONE");
     private static final Set<String> ELIGIBILITY_STATUSES = Set.of("ELIGIBLE", "INELIGIBLE", "NEEDS_MORE_INFO", "INSUFFICIENT_EVIDENCE");
 
     private final RestClient client;
@@ -151,11 +155,123 @@ public class HttpAiGateway implements AiGateway {
         return result;
     }
 
+    @Override
+    public JsonNode startWorkflow(AiDtos.PersonalizedEligibilityCommand command) {
+        return checkWorkflow(post("/internal/v2/workflows/start", command, JsonNode.class));
+    }
+
+    @Override
+    public JsonNode advanceWorkflow(JsonNode state, String command, Map<String, Object> answers) {
+        return checkWorkflow(post("/internal/v2/workflows/advance", new WorkflowAdvancePayload(state, command, answers),
+                JsonNode.class));
+    }
+
+    /**
+     * 돌려받은 State가 흐름 계약을 지키는지 확인하고 State JSON을 그대로 돌려준다(Spring은 State를 고치지 않는다).
+     * 상태와 다음 행동의 짝, 판정 목록이 Top 3 순서와 같은지, 완료된 판정의 근거가 그 공고뿐인지 본다.
+     */
+    private JsonNode checkWorkflow(JsonNode body) {
+        JsonNode state = body == null ? null : body.get("state");
+        AiDtos.WorkflowState view;
+        try {
+            view = state == null || !state.isObject() ? null : snakeCase.treeToValue(state, AiDtos.WorkflowState.class);
+        } catch (IOException exception) {
+            view = null;
+        }
+        if (view == null || !Objects.equals(WORKFLOW_NEXT.get(view.status()), view.nextAction()) || view.currentStep() == null) {
+            throw invalid("workflow: unknown status or inconsistent next action");
+        }
+        List<AiDtos.WorkflowEvaluation> evaluations = view.evaluations() == null ? List.of() : view.evaluations();
+        List<AiDtos.ProgramItem> programs = view.search() == null || view.search().programs() == null
+                ? List.of() : view.search().programs();
+        if (evaluations.size() != programs.size() || programs.size() > PERSONALIZED_TOP_K) {
+            throw invalid("workflow: evaluations differ from top programs");
+        }
+        for (int index = 0; index < programs.size(); index++) {
+            AiDtos.WorkflowEvaluation evaluation = evaluations.get(index);
+            if (!programs.get(index).pblancId().equals(evaluation.pblancId())) {
+                throw invalid("workflow: evaluation order differs from search order");
+            }
+            if ("COMPLETED".equals(evaluation.evaluationStatus())) {
+                checkEligibility(evaluation.pblancId(), evaluation.eligibility());
+            } else if (!Set.of("PENDING", "FAILED").contains(evaluation.evaluationStatus())
+                    || ("FAILED".equals(evaluation.evaluationStatus()) && evaluation.errorCode() == null)) {
+                throw invalid("workflow: invalid per-program status");
+            }
+        }
+        checkFinalResult(view, evaluations);
+        return state;
+    }
+
+    /** 최종 결과 묶음별로 허용하는 기존 판정 상태. 판정 실패(null)는 판단 불가에만 들어간다. */
+    private static final Map<String, Set<String>> FINAL_STATUSES = Map.of("recommended", Set.of("ELIGIBLE"),
+            "excluded", Set.of("INELIGIBLE"), "unresolved", Set.of("INSUFFICIENT_EVIDENCE", "NEEDS_MORE_INFO"));
+
+    /**
+     * 최종 결과는 COMPLETED에만 있고, 판정한 공고를 빠짐없이 한 번씩 담으며, 묶음 안 순서는 검색 순위 그대로여야 한다.
+     * 근거는 그 공고 것만, 이유가 가리키는 근거는 항목 citations 안에 있어야 한다.
+     */
+    private void checkFinalResult(AiDtos.WorkflowState view, List<AiDtos.WorkflowEvaluation> evaluations) {
+        AiDtos.FinalResult result = view.finalResult();
+        if (!"COMPLETED".equals(view.status())) {
+            if (result != null) {
+                throw invalid("workflow: final result before completion");
+            }
+            return;
+        }
+        if (result == null || result.counts() == null) {
+            throw invalid("workflow: completed without final result");
+        }
+        Map<String, List<AiDtos.FinalItem>> groups = Map.of("recommended", nullSafe(result.recommended()),
+                "excluded", nullSafe(result.excluded()), "unresolved", nullSafe(result.unresolved()));
+        Set<String> seen = new HashSet<>();
+        for (Map.Entry<String, List<AiDtos.FinalItem>> group : groups.entrySet()) {
+            int previousRank = 0;
+            for (AiDtos.FinalItem item : group.getValue()) {
+                boolean statusFits = item.eligibilityStatus() == null
+                        ? "unresolved".equals(group.getKey()) && item.errorCode() != null
+                        : FINAL_STATUSES.get(group.getKey()).contains(item.eligibilityStatus());
+                if (!statusFits || item.rank() == null || item.rank() <= previousRank || !seen.add(item.pblancId())) {
+                    throw invalid("workflow: final result category, rank order or duplicate");
+                }
+                previousRank = item.rank();
+                Set<String> evidence = new HashSet<>();
+                for (AiDtos.Citation citation : nullSafe(item.citations())) {
+                    // BOUNDARY: 최종 결과도 공고별 근거 격리를 그대로 지킨다.
+                    if (!item.pblancId().equals(citation.pblancId())) {
+                        throw invalid("workflow: final result citation outside the program");
+                    }
+                    evidence.add(citation.evidenceId());
+                }
+                boolean referenced = nullSafe(item.reasons()).stream()
+                        .allMatch(reason -> evidence.containsAll(nullSafe(reason.evidenceIds())));
+                if (!referenced) {
+                    throw invalid("workflow: final reason cites unknown evidence");
+                }
+            }
+        }
+        Set<String> evaluated = new HashSet<>();
+        evaluations.forEach(evaluation -> evaluated.add(evaluation.pblancId()));
+        AiDtos.FinalCounts counts = result.counts();
+        if (!seen.equals(evaluated) || !Objects.equals(counts.recommended(), groups.get("recommended").size())
+                || !Objects.equals(counts.excluded(), groups.get("excluded").size())
+                || !Objects.equals(counts.unresolved(), groups.get("unresolved").size())) {
+            throw invalid("workflow: final result does not cover evaluated programs");
+        }
+    }
+
+    private static <T> List<T> nullSafe(List<T> values) {
+        return values == null ? List.of() : values;
+    }
+
     /** FastAPI 요청 본문(/internal/v1/query, /internal/v1/eligibility). HTTP 전송 형식이라 이 구현 안에만 둔다. */
     private record QueryPayload(String query) {
     }
 
     private record EligibilityPayload(String pblancId, AiDtos.CompanyProfileSnapshot companyProfile) {
+    }
+
+    private record WorkflowAdvancePayload(JsonNode state, String command, Map<String, Object> answers) {
     }
 
     private <T> T post(String path, Object body, Class<T> type) {
@@ -207,6 +323,11 @@ public class HttpAiGateway implements AiGateway {
             case 401, 403 -> ErrorCode.AI_SERVICE_AUTH_FAILED;
             case 404 -> Objects.equals(upstreamCode, "eligibility_program_not_found_or_inactive")
                     ? ErrorCode.PROGRAM_NOT_FOUND : ErrorCode.AI_SERVICE_ERROR;
+            // 사용자 입력(추가 정보 답변·일시 정보)의 형식·field 오류는 사용자에게 고칠 수 있는 400으로 알린다.
+            case 422 -> upstreamCode != null && (upstreamCode.startsWith("company_profile_invalid")
+                    || upstreamCode.startsWith("workflow_answer")) ? ErrorCode.VALIDATION_FAILED : ErrorCode.AI_SERVICE_ERROR;
+            // 흐름 상태와 맞지 않는 진행 요청(이미 완료 등)
+            case 409 -> ErrorCode.WORKFLOW_INVALID_STATE;
             case 502 -> ErrorCode.AI_RESPONSE_INVALID;
             case 503 -> Objects.equals(upstreamCode, "internal_auth_not_configured")
                     ? ErrorCode.AI_SERVICE_AUTH_FAILED : ErrorCode.AI_SERVICE_UNAVAILABLE;

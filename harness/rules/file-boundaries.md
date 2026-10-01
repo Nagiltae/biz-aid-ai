@@ -4,7 +4,8 @@ React는 AI 결과를 포함해 Spring Boot(`/api`)만 호출한다. React → F
 Spring Boot는 회원·인증·기업정보·대화 같은 서비스 데이터의 기준 시스템(Source of Truth)이다.
 support_programs 등 공고·문서 데이터는 데이터 파이프라인이 적재하고 Spring은 조회만 한다(복제·schema 변경 금지).
 FastAPI는 서비스 DB를 임의 변경하지 않고 users·companies 같은 Spring 소유 서비스 데이터를 읽지도 않는다. Spring이 인증·기업정보 조회를 하고 AI에 필요한 값만 snapshot으로 보낸다.
-여러 단계 AI 흐름(검색 → 공고별 판정 등)의 조합은 FastAPI 서비스가 소유한다. React(클라이언트)가 공고를 하나씩 돌며 AI 흐름을 조립하지 않는다.
+여러 단계 AI 흐름(검색 → 공고별 판정 등)의 조합은 FastAPI 서비스가 소유한다. React(클라이언트)가 공고를 하나씩 돌며 AI 흐름을 조립하거나 다음 분기를 정하지 않는다(응답의 nextAction에 따라 진행·답변만 요청).
+LangGraph State의 요청 간 저장은 Spring이 MySQL `ai_workflows`(JSON)로 한다. FastAPI는 받은 State로 한 단계를 실행해 돌려줄 뿐 ai_workflows를 읽거나 쓰지 않으며, 별도 checkpointer·외부 저장소(SQLite·PostgreSQL·Redis 등)를 두지 않는다.
 Data Pipeline은 사용자 인증·채팅 Domain을 수정하지 않는다.
 
 현재 허용 실행 코드는 Phase 0 증거 도구, `data-pipeline/`의 수집·문서·파싱·Chunking·Indexing·Retrieval·RAG·Eligibility·FastAPI, 공통 Flyway, Spring Boot, React, Harness validator와 관련 테스트다.

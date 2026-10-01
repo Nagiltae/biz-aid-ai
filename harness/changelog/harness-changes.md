@@ -1,5 +1,21 @@
 # Harness 변경 이력
 
+## 2026-10-01 — V2-4 최종 추천 결과 조립
+
+FastAPI `workflow/recommendation.py`: COMPLETED 전이 때만 `build_final_result`로 final_result(recommended·excluded·unresolved·counts·disclaimer)를 만든다. 기존 판정 상태 → 묶음 표, 검색 순위 유지, 이유는 기존 조건(MET·NOT_MET·UNKNOWN)과 evidence_id, 근거는 같은 공고의 검증된 Citation만(섞이면 실패). LLM 추가 호출 없음. State schema_version 2(1은 그대로 진행 가능).
+Spring: `AiDtos.FinalResult` 등, `HttpAiGateway.checkFinalResult`(COMPLETED에만 존재, 묶음별 상태, 순위 순서, 판정 공고 전체·개수, 근거 격리, 이유 근거 존재), 응답 `finalResult`.
+규칙 변경(보고): AI 경계에 최종 결과 조립 원칙 1줄 추가(기존 "추천 점수·적합도 순위 금지"와 중복되지 않는 범위). 계약 3개 갱신.
+테스트 보강: Spring 기존 테스트의 activity_logs·companies 조회에 target_type·사용자 조건을 추가(새 테스트와 id가 겹쳐 2건이 잡히던 순서 의존성 제거, assertion 약화 아님).
+결과: [Report](../workspace/reports/development/2026-10-01-v2-4-final-result.md). AGY 검토 pending.
+
+## 2026-10-01 — V2-3 LangGraph 상태 기반 추천 흐름
+
+FastAPI `workflow/recommendation.py`(LangGraph): route → search / evaluate_next(판정 1건) → aggregate / apply_answers. `/internal/v2/workflows/{start,advance}`는 받은 State로 한 단계만 실행한다. requirements에 langgraph==1.2.12(langgraph-sdk 의존성으로 websockets 17.1 → 16.1.1, pip check 정상).
+Spring: V9 `ai_workflows`(state_json JSON, status·current_step, version, step_started_at), `RecommendationWorkflowService`(단계 점유 + 낙관적 잠금, 트랜잭션 밖 AI 호출), `/api/ai/workflows` 시작·조회·continue·answers. 임시 기업정보는 state_json에만 둔다.
+IMP-020 RESOLVED(시작 14.7초, 판정 1건 39.4초, Spring 제한시간 변경 없음). 새 Backlog IMP-021.
+규칙 변경(보고): AI 경계 "계속 금지"에서 LangGraph를 빼고 추천 흐름 단계·분기 소유로 범위를 정함(한 단계 판정 최대 1건). 파일 경계(State 저장은 Spring의 MySQL ai_workflows, FastAPI 비접근, 별도 저장소 금지, 클라이언트 분기 결정 금지), DB 규칙(V9, 임시/영구 기업정보 구분, 상태 column 복사), AGENTS 현황 문구.
+결과: [Report](../workspace/reports/development/2026-10-01-v2-3-langgraph-workflow.md). AGY 검토 pending.
+
 ## 2026-10-01 — V2-2 Top 3 지원사업 자격 판정
 
 FastAPI `eligibility/top_programs.py`가 개인화 검색 Top 3 → 공고별 기존 `EligibilityService.evaluate`를 순서대로 조합한다(`POST /internal/v2/personalized-eligibility`). 공고별 결과는 COMPLETED(기존 판정 결과) 또는 FAILED(고정 오류 코드)다.

@@ -56,6 +56,26 @@
       "response": "{search: personalized-search response, evaluations: [{rank, pblanc_id, program, evaluation_status: COMPLETED|FAILED, eligibility (existing eligibility result) | null, error_code | null}] in the same order as search.programs}",
       "isolation": "each program is evaluated with retrieval scoped to that pblanc_id; a PipelineError or unexpected error marks only that program FAILED with a fixed code; it is never converted to UNKNOWN or a status",
       "latency": "sequential; measured 161s for search + 3 evaluations on local Qwen (IMP-020); exceeds Spring AI_RESPONSE_TIMEOUT 90s, which was intentionally not raised"
+    },
+    "POST /internal/v2/workflows/start": {
+      "request": {
+        "query": "string 1..2000",
+        "as_of": "optional",
+        "company_profile": "CompanyProfileSnapshot (stored values only)"
+      },
+      "delegates": "ServiceRuntime.workflow_start → LangGraph search node (V2-1 PersonalizedSearchService); no eligibility call",
+      "response": "{state: RecommendationState JSON}"
+    },
+    "POST /internal/v2/workflows/advance": {
+      "request": {
+        "state": "RecommendationState JSON as stored by Spring",
+        "command": "continue|answer",
+        "answers": "field_id → value (answer only)"
+      },
+      "delegates": "ServiceRuntime.workflow_advance → LangGraph route: continue → evaluate_next (existing EligibilityService.evaluate, at most one program) → aggregate when no pending; answer → apply_answers (only requested field IDs, Snapshot validation, re-evaluation targets = NEEDS_MORE_INFO programs affected by the answers)",
+      "response": "{state}",
+      "errors": "409 workflow_invalid_transition:*, 422 workflow_answer_field_not_requested / company_profile_invalid:* / workflow_state_version_unsupported",
+      "rule": "no database access; Spring persists the state in MySQL ai_workflows"
     }
   },
   "business_outcomes": "NO_CANDIDATES, NO_INDEXED_PROGRAMS, INSUFFICIENT_EVIDENCE, NEEDS_MORE_INFO, INELIGIBLE, ELIGIBLE, LISTED, ANSWERED, COMPANY_CLOSED, CONDITION_CONFLICT are HTTP 200",
@@ -73,5 +93,38 @@
     "rule": "no stack trace or connection detail in responses",
     "401": "internal_auth_failed (service key missing or wrong)"
   },
-  "resources": "ServiceRuntime is created once in the FastAPI lifespan: LLM provider, MySQL engine pool and Qdrant client at startup, BGE-M3 Retriever on first use; closed at shutdown; Ollama is external"
+  "resources": "ServiceRuntime is created once in the FastAPI lifespan: LLM provider, MySQL engine pool and Qdrant client at startup, BGE-M3 Retriever on first use; closed at shutdown; Ollama is external",
+  "state_contract": {
+    "schema_version": 2,
+    "fields": [
+      "query",
+      "as_of",
+      "company_profile",
+      "temporary_company_facts",
+      "search (without natural_filter)",
+      "evaluations [rank, pblanc_id, program, evaluation_status PENDING|COMPLETED|FAILED, eligibility (compact: no provenance/retrieved/explanation), error_code, attempts]",
+      "pending",
+      "missing_information [field_id, source_fields, programs]",
+      "round",
+      "status IN_PROGRESS|WAITING_FOR_USER|COMPLETED|FAILED",
+      "current_step SEARCH|EVALUATE_PROGRAM|AWAIT_ANSWERS|DONE|FAILED",
+      "next_action CONTINUE|ANSWER|NONE",
+      "failure_code",
+      "final_result (COMPLETED only, else null): {recommended, excluded, unresolved: [rank, pblanc_id, program, eligibility_status, reason_code, error_code, reasons [criterion, result, reason, evidence_ids], missing_information, citations], counts, disclaimer}"
+    ],
+    "excluded": "document text, prompts, secrets, request inputs (command, answers)",
+    "compatible_versions": [
+      1,
+      2
+    ],
+    "final_result_rules": {
+      "classification": "ELIGIBLE → recommended, INELIGIBLE → excluded, INSUFFICIENT_EVIDENCE / NEEDS_MORE_INFO without answerable fields / evaluation FAILED → unresolved",
+      "order": "search rank within each group; no new score or LLM reordering",
+      "reasons": "criteria of the existing eligibility only: MET for recommended, NOT_MET for excluded, UNKNOWN for unresolved NEEDS_MORE_INFO",
+      "citations": "verified citations of the same program only; a cross-program citation fails assembly",
+      "llm": "no LLM call",
+      "empty": "recommended=[] is a normal COMPLETED result",
+      "compatibility": "version 1 states are advanced as-is and become version 2 on the next step; completed version 1 states have final_result null"
+    }
+  }
 }

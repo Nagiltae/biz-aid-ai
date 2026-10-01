@@ -1,7 +1,7 @@
 # Harness Entry Point
 
 기업 프로필과 공고문 근거로 중소기업 지원사업을 탐색·검토하는 프로젝트다.
-현재 상태의 기준은 production code·Harness·[PROJECT_MASTER_GUIDE](PROJECT_MASTER_GUIDE.md)다. [PROJECT_DESIGN.md](PROJECT_DESIGN.md)는 최초 목표와 배경을 보존한다. AI 계층(RAG·자격 판단·FastAPI 내부 API)과 **React + Spring Boot 서비스 V1**이 Spring ↔ FastAPI로 연결됐다(AI E2E V1). LangGraph는 착수 전이다.
+현재 상태의 기준은 production code·Harness·[PROJECT_MASTER_GUIDE](PROJECT_MASTER_GUIDE.md)다. [PROJECT_DESIGN.md](PROJECT_DESIGN.md)는 최초 목표와 배경을 보존한다. AI 계층(RAG·자격 판단·FastAPI 내부 API)과 **React + Spring Boot 서비스 V1**이 Spring ↔ FastAPI로 연결됐다(AI E2E V1). V2는 개인화 검색·Top 3 판정·LangGraph 추천 흐름(V2-3)까지 진행됐다.
 
 ## 먼저 읽기
 
@@ -23,7 +23,7 @@ Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는
 - 설명성 코드 주석은 한글 WHY / BOUNDARY / EXCEPTION / RISK로 작성한다.
 - Codex와 Claude는 같은 Task를 이어서 수행하는 Developer / Generator, AGY는 독립 Reviewer다. Agent handoff로 Harness 제어 파일을 바꾸지 않으며 개발 Producer가 AGY 승인 기록을 작성하지 않는다.
 - Harness 규칙 완화·삭제 또는 큰 Architecture 변경은 먼저 보고하고 사용자 판단을 받는다.
-- 현재 Task가 허용하지 않은 서비스·DB·LangGraph·Reranker·자격 판단을 구현하지 않는다.
+- 현재 Task가 허용하지 않은 서비스·DB·LangGraph 확장·Reranker·자격 판단을 구현하지 않는다.
 
 ## Routing Registry
 
@@ -37,7 +37,7 @@ Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는
 | RAG 변경 요청 | [RAG](harness/docs/rag.md), [AI 경계](harness/rules/ai-boundary-rules.md), [Observability](harness/docs/observability.md) | [rag-change](harness/skills/rag-change/SKILL.md) |
 
 Skill은 현재 Task의 허용 범위를 늘리지 않는다. 구현: dev 구조화 FULL / 문서 수집 / S3 저장 / PDF·HWP·HWPX Parser(OCR 포함) / Chunking / BGE-M3 dense·sparse dev Indexing / read-only Retriever / RAG Answer v1 / MySQL 후보 결합 / 자격 판단 v1 / FastAPI 내부 API / React + Spring Boot 서비스 V1(JWT·JPA·QueryDSL).
-미구현: FastAPI Compose 통합(IMP-017)·Reranker·LangGraph. 단계 경계는 [파일 경계](harness/rules/file-boundaries.md)를 따른다.
+미구현: FastAPI Compose 통합(IMP-017)·Reranker·React V2·LangSmith. 단계 경계는 [파일 경계](harness/rules/file-boundaries.md)를 따른다.
 역할: [Codex](harness/agents/codex-developer.md), Claude는 [bootstrap](CLAUDE.md), [AGY](harness/agents/agy-reviewer.md).
 
 ## Validation / DoD

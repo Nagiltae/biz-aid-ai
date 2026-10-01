@@ -14,8 +14,8 @@
 | 단계 | 항목 | 기준 |
 | --- | --- | --- |
 | V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
-| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
-| 운영/AWS 단계 | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
+| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED) | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
+| 운영/AWS 단계 | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017, IMP-021, IMP-022 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
 | 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
 
 ## IMP-001 chunk에 문서 제목·사업명 context 없음
@@ -241,4 +241,24 @@
 - Why deferred: 지시에 따라 제한시간을 몰래 늘리거나 비동기 작업 큐를 새로 만들지 않았다. 기능 구조(조합·격리)를 먼저 완성했다.
 - Revisit trigger: LangGraph 단계와 진행 상태 UI 설계(공고별 단계 실행·진행 표시) 때
 - Side effect: 제한시간만 늘리면 Spring 요청 스레드가 3분 가까이 묶인다. 단계별 상태 저장이나 공고별 요청 분리와 함께 결정해야 한다.
+- Status: RESOLVED(`2026-10-01-v2-3-langgraph-workflow.md`). LangGraph 단계 실행으로 한 요청의 판정 LLM 호출을 최대 1건으로 나눴다. 실제 측정: 시작(검색·Top 3) 14.7초, 다음 단계(판정 1건) 39.4초로 모두 Spring 90초 안이다. 제한시간은 늘리지 않았다.
+
+## IMP-021 ai_workflows 보관·정리와 중단된 단계 처리
+
+- Area: Service backend / AI 흐름 상태
+- Issue: 흐름 State(실측 약 12.7KB/건)는 완료 뒤에도 지우지 않는다. 단계 실행 중 서버가 죽으면 점유(step_started_at)가 남고, 5분이 지나야 다시 진행할 수 있다.
+- Evidence: V2-3 Smoke workflow 1건 state_json 12,723 bytes. 점유는 5분 경과 시 재점유하고, 늦게 끝난 이전 요청은 version 불일치로 저장을 거부한다(`2026-10-01-v2-3-langgraph-workflow.md`).
+- Why deferred: V2 데모 규모에서는 문제가 없고, 보관 기간은 운영 정책(개인정보·감사)과 함께 정해야 한다.
+- Revisit trigger: 운영 배포 전 또는 ai_workflows 크기가 커질 때
+- Side effect: 정리할 때 진행 중(IN_PROGRESS·WAITING_FOR_USER) 흐름은 지우면 안 된다.
+- Status: OPEN
+
+## IMP-022 activity_logs.target_type COMMENT에 WORKFLOW 누락
+
+- Area: DB 문서(COMMENT)
+- Issue: V8 `activity_logs.target_type` COMMENT는 USER·COMPANY·CONVERSATION·PROGRAM만 적혀 있는데, V2-3부터 workflow 활동 로그가 `WORKFLOW`를 쓴다.
+- Evidence: `RecommendationWorkflowService`의 activityLog 호출. 이미 적용된 V8은 수정할 수 없어 새 migration(COMMENT 변경)이 필요하다(`2026-10-01-v2-4-final-result.md`).
+- Why deferred: 동작에는 영향이 없고 이번 범위(최종 결과 계약)가 아니다.
+- Revisit trigger: 다음 Spring migration을 추가할 때 함께 처리
+- Side effect: 없음(COMMENT만)
 - Status: OPEN

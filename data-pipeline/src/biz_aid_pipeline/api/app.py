@@ -37,6 +37,18 @@ class PersonalizedEligibilityRequest(BaseModel):
     company_profile: dict = Field(description="eligibility.profile.CompanyProfileSnapshot 필드(모두 선택)")
 
 
+class WorkflowStartRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=2000)
+    as_of: date | None = None
+    company_profile: dict = Field(description="eligibility.profile.CompanyProfileSnapshot 필드(저장된 값만)")
+
+
+class WorkflowAdvanceRequest(BaseModel):
+    state: dict = Field(description="Spring이 ai_workflows에 저장해 둔 State JSON 그대로")
+    command: str = Field(pattern=r"^(continue|answer)$")
+    answers: dict = Field(default_factory=dict, description="command=answer일 때 부족 정보 field ID: 값")
+
+
 class PersonalizedSearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=2000)
     as_of: date | None = None
@@ -46,6 +58,9 @@ class PersonalizedSearchRequest(BaseModel):
 def status_for(code):
     if code == "eligibility_program_not_found_or_inactive":
         return 404
+    # 흐름 상태와 맞지 않는 요청(이미 완료된 workflow 진행, 묻지 않은 field 답변 등)은 요청 쪽 문제다.
+    if code.startswith("workflow_"):
+        return 409 if code.startswith("workflow_invalid_transition") else 422
     if code.startswith(("company_profile_", "company_search_profile_")):
         return 422
     if code == "llm_unavailable" or code.startswith("llm_http_error"):
@@ -141,6 +156,18 @@ def create_app(runtime_factory=None, api_key=None):
         from biz_aid_pipeline.eligibility.profile import CompanyProfileSnapshot
         company = CompanyProfileSnapshot.from_dict(body.company_profile)
         return request.app.state.runtime.personalized_eligibility(body.query, company, body.as_of)
+
+    @app.post("/internal/v2/workflows/start", dependencies=[Depends(require_internal_key)])
+    def workflow_start(body: WorkflowStartRequest, request: Request):
+        # 시작 단계는 개인화 검색과 Top 3 확정까지만 한다(판정 LLM 없음). State는 Spring이 MySQL에 저장한다.
+        from biz_aid_pipeline.eligibility.profile import CompanyProfileSnapshot
+        CompanyProfileSnapshot.from_dict(body.company_profile)
+        return {"state": request.app.state.runtime.workflow_start(body.query, body.company_profile, body.as_of)}
+
+    @app.post("/internal/v2/workflows/advance", dependencies=[Depends(require_internal_key)])
+    def workflow_advance(body: WorkflowAdvanceRequest, request: Request):
+        # BOUNDARY: DB를 읽지 않고 받은 State로 한 단계만 실행한다. 다음 행동은 State가 정한다(판정은 최대 1건).
+        return {"state": request.app.state.runtime.workflow_advance(body.state, body.command, body.answers)}
 
     return app
 

@@ -39,6 +39,18 @@ class FakeRuntime:
         self.calls.append(("personalized_eligibility", query, company_profile.credit_score, company_profile.company_size))
         return {"search": {"status": "LISTED", "programs": []}, "evaluations": []}
 
+    def workflow_start(self, query, company_profile, as_of=None):
+        self.calls.append(("workflow_start", query, company_profile.get("company_size")))
+        return {"schema_version": 1, "status": "IN_PROGRESS", "current_step": "EVALUATE_PROGRAM", "next_action": "CONTINUE"}
+
+    def workflow_advance(self, state, command, answers=None):
+        self.calls.append(("workflow_advance", state["status"], command, answers))
+        if command == "continue" and state["status"] != "IN_PROGRESS":
+            raise PipelineError("workflow_invalid_transition:continue_requires_in_progress")
+        if command == "answer" and "ceo_age" in answers:
+            raise PipelineError("workflow_answer_field_not_requested")
+        return dict(state, status="WAITING_FOR_USER")
+
     def close(self):
         self.closed = True
 
@@ -110,6 +122,20 @@ class InternalApiTests(unittest.TestCase):
             self.assertEqual((bad.status_code, bad.json()["error"]["code"]), (422, "company_profile_unknown_field:ceo_age"))
         # 저장되지 않은 신용점수는 기본값으로 만들지 않는다(None 그대로).
         self.assertEqual(self.runtime.calls, [("personalized_eligibility", "금융 지원사업", None, "소상공인")])
+
+    def test_v2_workflow_endpoints_run_one_step_on_the_given_state_without_db_access(self):
+        with TestClient(self.app, headers={"X-Internal-Api-Key": "test-internal-key"}) as client:
+            started = client.post("/internal/v2/workflows/start", json={"query": "q", "company_profile": {"company_size": "소상공인"}})
+            self.assertEqual((started.status_code, started.json()["state"]["status"]), (200, "IN_PROGRESS"))
+            state = started.json()["state"]
+            moved = client.post("/internal/v2/workflows/advance", json={"state": state, "command": "continue"})
+            self.assertEqual(moved.json()["state"]["status"], "WAITING_FOR_USER")
+            # 흐름 상태와 맞지 않는 진행은 409, 묻지 않은 field 답변은 422, 알 수 없는 command는 요청 검증 422다.
+            done = dict(state, status="COMPLETED")
+            self.assertEqual(client.post("/internal/v2/workflows/advance", json={"state": done, "command": "continue"}).status_code, 409)
+            answer = client.post("/internal/v2/workflows/advance", json={"state": state, "command": "answer", "answers": {"ceo_age": 1}})
+            self.assertEqual((answer.status_code, answer.json()["error"]["code"]), (422, "workflow_answer_field_not_requested"))
+            self.assertEqual(client.post("/internal/v2/workflows/advance", json={"state": state, "command": "start"}).status_code, 422)
 
 
 if __name__ == "__main__":
