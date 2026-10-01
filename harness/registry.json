@@ -34,6 +34,7 @@
   ],
   "agents": [
     "harness/agents/agy-reviewer.md",
+    "harness/agents/claude-cloud-advisor.md",
     "harness/agents/codex-developer.md"
   ],
   "skills": [
@@ -227,6 +228,7 @@
     "harness/workspace/artifacts/**/*.log"
   ],
   "required_files": [
+    ".claude/settings.json",
     ".env.example",
     ".github/workflows/ci.yml",
     ".gitignore",
@@ -478,6 +480,7 @@
     "frontend/tsconfig.json",
     "frontend/vite.config.ts",
     "harness/agents/agy-reviewer.md",
+    "harness/agents/claude-cloud-advisor.md",
     "harness/agents/codex-developer.md",
     "harness/changelog/harness-changes.md",
     "harness/docs/architecture.md",

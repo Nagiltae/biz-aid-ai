@@ -38,7 +38,7 @@ Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는
 
 Skill은 현재 Task의 허용 범위를 늘리지 않는다. 구현: dev 구조화 FULL / 문서 수집 / S3 저장 / PDF·HWP·HWPX Parser(OCR 포함) / Chunking / BGE-M3 dense·sparse dev Indexing / read-only Retriever / RAG Answer v1 / MySQL 후보 결합 / 자격 판단 v1 / FastAPI 내부 API / React + Spring Boot 서비스 V1(JWT·JPA·QueryDSL) / V2 맞춤 추천 workflow·화면·선택적 추적.
 미구현·미완료: FastAPI Compose 통합(IMP-017)·Reranker·운영 배포·V2 전체 collection 검증/전환·V2 전체 품질 평가. 단계 경계는 [파일 경계](harness/rules/file-boundaries.md)를 따른다.
-역할: [Codex](harness/agents/codex-developer.md), Claude는 [bootstrap](CLAUDE.md), [AGY](harness/agents/agy-reviewer.md).
+역할: [Codex](harness/agents/codex-developer.md), Claude CLI는 [bootstrap](CLAUDE.md), Claude 클라우드 세션은 [GitHub 읽기·대화](harness/agents/claude-cloud-advisor.md), [AGY](harness/agents/agy-reviewer.md).
 
 ## Validation / DoD
 

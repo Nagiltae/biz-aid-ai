@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$CLAUDE_CODE_REMOTE\" = \"true\" ] && cat \"$CLAUDE_PROJECT_DIR/harness/agents/claude-cloud-advisor.md\" || true"
+          }
+        ]
+      }
+    ]
+  }
+}

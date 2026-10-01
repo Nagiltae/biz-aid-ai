@@ -1,5 +1,11 @@
 # Harness 변경 이력
 
+## 2026-10-01 — Claude 실행 환경별 역할 분리(사용자 결정)
+
+규칙 추가(보고): 같은 `CLAUDE.md`를 읽는 로컬 Claude CLI와 클라우드 세션의 역할을 나눴다. 로컬 CLI는 기존 개발 Producer `claude`로 프롬프트를 받아 개발만 한다. 클라우드 세션(`CLAUDE_CODE_REMOTE=true`)은 개발·리뷰를 하지 않고 GitHub 읽기와 사용자와의 대화만 하며, 파일 수정·삭제·git add·commit·push 등 모든 변경은 예외 없이 사용자 허락을 받는다.
+이유: 클라우드 세션이 자동 stop hook의 커밋·푸시 요구를 승인으로 오인해 허락 전에 push한 일이 있었다. 승인 규칙을 `CLAUDE.md`에 그대로 쓰면 개발을 맡은 로컬 CLI까지 매 수정마다 승인을 받게 되므로, `.claude/settings.json` SessionStart hook이 클라우드 세션에서만 [역할 문서](../agents/claude-cloud-advisor.md)를 주입한다. 별도 실행 스크립트는 만들지 않았다.
+Registry: `agents`·`required_files`에 새 파일 2개 등록. 개발 Producer·독립 Reviewer(AGY) 정의와 Gate는 바꾸지 않았다.
+
 ## 2026-10-01 — Codex 인수인계 문서 검토·보완(Claude)
 
 규칙 변경 없음. 문서 정정만 했다: observability.md(삭제 완료된 `biz_aid` 프로젝트를 "사용자 결정"으로 남긴 문장, 진단 연결과 개인정보 검증 근거 구분, 실제 workflow 추적 미검증 명시), Master Guide(V1과 V2 차이 표, 기획 배경 사용자 작성 칸, LangSmith 진단/실제 추적 상태 구분), current-task(검토 Task·확인한 batch 구조·AWS 만료 위험), Codex 인수인계 Report·checkpoint의 "인덱싱 재개/중단" 지침 정정.

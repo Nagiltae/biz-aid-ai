@@ -17,3 +17,8 @@ Agent handoff는 Registry나 current-task의 Producer 설정을 바꾸지 않고
 Report에는 contributors와 finalized_by를 기록할 수 있지만 이는 Review 권한을 뜻하지 않는다.
 AGY는 독립 Reviewer이며 Claude는 Review 원문·판정·승인 상태를 대신 작성하지 않는다.
 검증 명령과 완료 절차는 AGENTS.md 및 현재 Task를 따른다.
+
+## 실행 환경별 역할
+
+- 로컬 Claude CLI: 위 개발 Producer `claude`다. 사용자 프롬프트를 받아 개발만 담당한다.
+- 클라우드 세션(`CLAUDE_CODE_REMOTE=true`): 개발 Producer가 아니다. GitHub 읽기와 사용자와의 대화만 담당하며 [클라우드 세션 역할](harness/agents/claude-cloud-advisor.md)을 따른다. SessionStart hook이 이 역할을 자동으로 주입한다.
