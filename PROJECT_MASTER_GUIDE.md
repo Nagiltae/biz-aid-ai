@@ -1,7 +1,7 @@
 # BizAid AI — 프로젝트 마스터 가이드
 
 > 이 파일 하나로 BizAid AI의 목적, 구조, 기술 선택 이유, 실험 결과, 실패와 해결 과정, 현재 상태를 이해할 수 있게 정리했다.
-> 기준 시점은 저장소 기록(2026-09-27 ~ 2026-10-01)이다. 현재 production code·Harness와 실제 Report를 기준으로 하며 PROJECT_DESIGN.md는 최초 목표와 배경이다. 모든 숫자는 `harness/workspace/reports/` 보고서에 실제로 남은 값이다.
+> 기준 시점은 저장소 기록(2026-09-27 ~ 2026-10-01)이다. 현재 production code·Harness와 실제 Report를 기준으로 하며 PROJECT_DESIGN.md는 최초 목표와 배경이다. 모든 숫자는 `harness/workspace/reports/` 보고서에 실제로 남은 값이다. 예외로 기획 배경과 마지막 파싱 진행 스냅샷은 사용자·AI 대화 인수인계 문서에서 옮겼다(§29).
 > "당시" 표시는 그 단계의 값이고, 뒤 단계에서 바뀐 값은 "현재"로 구분했다.
 
 ---
@@ -87,11 +87,24 @@ V1 release 후보는 데이터 수집부터 React → Spring Boot → FastAPI �
 ### 현재 상태 구분(2026-10-01)
 
 - **완료**: V1 E2E·고정 평가, V2-0 LangChain 호출 경계부터 V2-6 개인화 workflow·React 화면·선택적 LangSmith 추적까지의 기능 구현.
-- **진행 중**: V2 서비스 범위 문서 2,541개의 파싱이 재개돼 실행 중이다. 18:00 KST 조회 시 runner 기록은 989/2,541(38.9%, PARSED 986, 실패 3)이다. 과거 첫 파싱 중단 뒤 이어진 full indexing 시도는 0건 적재 후 `STOPPED_ENVIRONMENT`였고 별도 V2 collection은 Smoke 207 point 상태다.
-- **미검증**: V2 전체 collection 완전성·서비스 전환, V2 전체 데이터 검색/추천 품질, 실제 전체 workflow의 LangSmith 추적.
+- **진행 중**: V2 서비스 범위 문서 2,541개의 파싱이 재개돼 실행 중이다. 사용자가 마지막으로 공유한 runner 화면은 1,384/2,541(54.5%, PARSED 1,380 · OCR_REQUIRED 1 · 실패 3 · 이전 run 결과 건너뜀 352, RUNNING)이다. 완료 수에는 건너뛴 352건이 포함돼 있어 PARSED와 더하지 않는다(1,380+1+3=1,384). 시점 스냅샷이므로 현재 값은 `--status`로 다시 조회한다. 과거 첫 파싱 중단 뒤 이어진 full indexing 시도는 0건 적재 후 `STOPPED_ENVIRONMENT`였고 별도 V2 collection은 Smoke 207 point 상태다.
+- **미검증**: V2 전체 collection 완전성·서비스 전환, V2 전체 데이터 검색/추천 품질, 실제 전체 workflow의 LangSmith 추적, React 화면에서 Top 3 판정 → 추가 질문 → 재판정 → 최종 결과까지 한 번에 끝까지 진행한 E2E(V2-5는 시작·다음 단계 1회·복원까지 확인), 실제 LLM 결과로 만든 final_result(V2-4는 mock 판정 결과 테스트로 검증).
 - **다음 작업**: 현재 파싱 완료를 확인한다. 기존 실행 명령은 파싱 다음 인덱싱을 잇는 순차 batch이므로 같은 batch의 전환 여부를 먼저 확인하고, 별도 재시작이 필요하다고 미리 단정하지 않는다. 인덱싱 완료 뒤 별도 V2 collection을 완전성 검증한 후 전환·V2 평가한다.
 
 기능 구현 완료와 전체 데이터 검증 완료는 다르다. V2-1~V2-6 Smoke는 V1 collection 또는 3문서 V2 Smoke를 사용했으며 V2 전체 품질 결론이 아니다.
+
+**설명할 때 자주 섞이는 표현**
+
+| 이렇게 말하면 틀림 | 실제 의미 |
+| --- | --- |
+| "파싱 100/100 성공" = 전체 처리 완료 | V1 검증용 100문서. 서비스 범위 2,541문서는 진행 중 |
+| "V2 Qdrant 207 point" = V2 적재 완료 | 3문서 Smoke |
+| "V2 구현 완료" = V2 검증 완료 | 기능 흐름 구현. 전체 데이터 품질·끝까지 완주한 E2E·배포는 아님 |
+| "V1 기준선 7/10"을 V2-0 개선 뒤 9/10으로 고쳐 말함 | 기준선은 동결이다. 개선은 새 평가(cases-v2)로 따로 잰다 |
+| "LangSmith 연결 성공" = 전체 workflow 추적 확인 | 민감정보 없는 진단 실행만 확인 |
+| "check-all exit 0" = AI 품질 보증 | 코드·계약·Harness 검사 통과. 실제 LLM 품질·장시간 batch 완전성은 별도 |
+| 과거 Phase 보고서의 "LangGraph 금지·미구현" = 지금도 미구현 | 그 시점의 승인 범위. V2-3에서 도입됨 |
+| "S3를 쓴다" = AWS에 배포됨 | S3는 원본 보관용으로만 사용. 서비스 배포는 아직 |
 
 ### V1과 V2는 무엇이 다른가
 
@@ -170,14 +183,25 @@ Spring Boot ─HttpAiGateway(공유 키)─► FastAPI(위의 질문 처리·자
 
 ## 2. 프로젝트가 해결하는 문제
 
-### 기획 배경과 범위 설정 (사용자 작성 필요)
+### 기획 배경과 범위 설정
 
-> 이전 프로젝트에서 겪은 데이터 파이프라인 문제와, 그 경험 때문에 이번 범위를 어떻게 정했는지는 저장소 어디에도 기록돼 있지 않다.
-> 사실이 아닌 내용을 만들지 않기 위해 비워 둔다. 면접에서 설명할 수 있도록 사용자가 직접 채운다.
-> - 이전 프로젝트에서 데이터 수집·파싱·적재 중 무엇이 문제였나(예: 원문 유실, 재처리 불가, 형식별 실패)
-> - 그래서 이번에 처음부터 지킨 원칙은 무엇인가
->
-> 저장소에 남은 범위 설정 근거: 데이터 가능성 검증(Phase 0)부터 시작, 원본 보존(S3)·재처리 가능한 결과 식별값(parse_key·chunk_set_key), 형식별 실패 상태 기록, 필요성이 확인된 기술만 도입(아래 절과 §16).
+> 출처: 사용자와 AI의 기획 대화를 정리한 인수인계 문서(2026-10-01). 저장소 Report에는 없는 사용자 기획 기록이다.
+
+**이전 아이디어: ZeroPay Lunch AI**
+- 사용자 위치 반경 500m의 제로페이 가맹 음식점을 예산·취향·최근 식사·날씨로 추천하는 점심 추천 서비스였다.
+- 제로페이 가맹점 데이터와 실제 음식점 정보를 매칭하고 메뉴·가격·영업시간·리뷰를 확보하는 **수집·정제 작업에 시간이 지나치게 들었다**. AI 기능을 만들기 전에 데이터 파이프라인이 프로젝트를 잡아먹었다.
+
+**검토 후 보류한 안: 공공주택·청약 공고 AI**
+- 행복주택·청년 매입임대·통합공공임대마다 데이터와 공고 구조가 달라 범위가 너무 넓었다.
+
+**최종 선택: BizAid AI(중소기업 지원사업)**
+- 같은 실패를 반복하지 않도록 **정형 데이터 출처 1개(기업마당 공공 API) + 문서 출처 1개(그 공고에 연결된 공식 공고문·첨부)** 로 좁혀 시작했다.
+- 데이터 확보보다 **AI 서비스 본연의 문제(질문 이해·검색·근거·판단·개인화·대화 상태)** 에 시간을 쓰는 것이 목표였다.
+- 그래서 데이터가 실제로 확보되는지부터 검증했다(Phase 0, 아래 절).
+
+이 경험에서 처음부터 지킨 원칙(저장소에 구현으로 남은 근거): 데이터 가능성 검증(Phase 0)부터 시작, 원본 보존(S3)·재처리 가능한 결과 식별값(parse_key·chunk_set_key), 형식별 실패 상태 기록, 필요성이 확인된 기술만 도입(아래 절과 §16).
+
+> 별도로 논의한 기업분석 AI(OpenDART·KRX) 설계안은 다른 시점의 탐색이며, 실제 구현된 제품은 기업마당 기반 BizAid 지원사업 AI다.
 
 ### 사용자 문제
 
@@ -250,6 +274,18 @@ React(화면) ─► Spring Boot(서비스 서버) ─► FastAPI(내부 AI 서�
 
 - React가 FastAPI를 직접 호출하지 않는다(파일 경계 규칙).
 - FastAPI는 서비스 DB의 주인이 아니다. 기업 정보는 요청마다 받은 스냅샷만 쓴다.
+
+### 기술 스택(버전은 `backend/build.gradle`, `frontend/package.json` 기준)
+
+| 계층 | 기술 |
+| --- | --- |
+| Frontend | React 19.3, TypeScript 5.9, Vite 7.3, React Router 7.18, TanStack Query 5.104, nginx(Compose) |
+| Backend | Java 21, Spring Boot 3.5.16, Spring Security(JWT), Spring Data JPA, QueryDSL 5.1, Flyway, Gradle |
+| AI·데이터 | Python, FastAPI, Docling, PP-TableMagic·PP-OCRv5(PaddleX), LibreOffice + H2Orestart(Docker), BGE-M3, Qdrant, Ollama `qwen3.5:9b`, LangChain(LLM 호출만), LangGraph, LangSmith(선택) |
+| 저장소 | MySQL 8.4(Docker), AWS S3, Qdrant(Docker) |
+| 검사 | GitHub Actions, `scripts/check-all.sh`(Contract·Integration·Harness) |
+
+쓰지 않는 것: MongoDB, Redis·Kafka 작업 큐, 별도 PostgreSQL, Reranker, Prometheus/Grafana. Gemini·Bedrock은 교체 후보일 뿐 구현되지 않았다.
 
 ### 실제 코드 구조 (`data-pipeline/src/biz_aid_pipeline/`)
 
@@ -379,7 +415,7 @@ HWPX : ZIP 안전 검사 → XML의 명시 정보만 읽는 자체 어댑터(Hwp
 
 ### 주요 실험과 수정 (자세한 내용은 §17, §18)
 
-- 표 엔진 비교: 32개 PDF(916쪽). 핵심 글자 재현율 PP 0.925 vs Docling TableFormer 0.522 → PP 채택
+- 표 엔진 비교: 32개 PDF(916쪽). 핵심 글자 재현율 PP 0.925 vs Docling TableFormer 0.522 → PP 채택(precision은 Docling이 높음, AI 초안 기준표라 사람 검증 미완료 — §16.4)
 - HWP 3개 표본: 3/3 변환·파싱 성공
 - OCR 3개 표본: OCR_REQUIRED → PARSED
 - 100개 문서 일괄: 100/100 PARSED
@@ -901,7 +937,7 @@ GET  /api/ai/workflows/{id}               → 저장된 상태 조회(FastAPI �
 - **status·current_step column과 State JSON 분리**: 목록 조회·잠금 판단에 필요한 값은 일반 column으로 빠르게 보고, 흐름 전체는 JSON으로 둔다. 두 값은 FastAPI의 `transition()` 한 곳에서 정하고 Spring은 State에서 복사만 해서 어긋나지 않는다.
 - **임시 기업정보**: 사용자가 답한 신용점수 등은 `state_json.temporary_company_facts`에만 두고 companies에 자동 저장하지 않는다. 묻고 있는 field ID만 받는다(Spring이 먼저, FastAPI가 다시 검증).
 - **재판정**: 답한 field 때문에 "추가 정보 필요"였던 공고만 다시 판정한다. 이미 답한 field는 다시 묻지 않는다(반복 방지). 실패 공고는 자동 재시도하지 않는다.
-- **동시 진행 방지**: 짧은 트랜잭션에서 단계 점유(`step_started_at`) + version 저장 → 같은 버전을 읽은 두 번째 요청은 409 `workflow_busy`. FastAPI 호출은 트랜잭션 밖. 결과 저장은 점유한 버전 그대로일 때만. 그래서 같은 공고가 두 번 판정·저장되지 않는다.
+- **동시 진행 방지**: 짧은 트랜잭션에서 단계 점유(`step_started_at`) + version 저장 → 같은 버전을 읽은 두 번째 요청은 409 `workflow_busy`. FastAPI 호출은 트랜잭션 밖. 결과 저장은 점유한 버전 그대로일 때만. 그래서 같은 공고가 두 번 판정·저장되지 않는다. 동시 continue 두 건을 보내는 테스트에서 응답은 200과 409였고 실제 판정 단계는 1번만 호출됐다(`AiGatewayIntegrationTest`).
 - **실제 Smoke(V1 collection, 기능 확인)**: Spring 컨테이너 → 호스트 FastAPI → MySQL 전체 경로. 시작 14.7초(Top 3 확정), 다음 단계 39.4초(판정 1건, 추가 정보 필요) → 둘 다 90초 안. 저장 상태 IN_PROGRESS, 남은 판정 2, version 2, 점유 해제 확인.
 
 ### V2-4 최종 추천 결과 조립 (final_result)
@@ -928,6 +964,7 @@ final_result = {recommended: [...], excluded: [...], unresolved: [...], counts, 
 - **근거 격리**: 항목의 근거가 다른 공고 것이면 걸러 내지 않고 조립을 실패시킨다. Spring도 같은 규칙과 묶음·순위·개수를 다시 검증하고, 어기면 저장하지 않고 502로 거부한다.
 - **순위**: 묶음 안 순서는 V2-1 검색 순위(rank) 그대로다.
 - **추천 0건**: 모두 제외·판단 불가여도 COMPLETED이고 `recommended=[]`다.
+- **검증 범위**: 조립 규칙은 mock 판정 결과로 테스트했다. 실제 LLM 판정 3건으로 COMPLETED까지 진행해 만든 final_result는 아직 확인하지 않았다.
 - **버전**: State `schema_version` 1 → 2. 1로 저장된 진행 중 흐름은 그대로 다음 단계를 진행하고 그때 2가 된다(별도 migration 없음). V2-3 때 이미 완료된 흐름은 `finalResult=null`이다.
 
 ---
@@ -983,7 +1020,7 @@ V2-3·V2-4의 workflow API를 사용자가 실제로 쓸 수 있게 React 화면
 - **상태 복원**: workflowId를 주소에 둔다(토큰이 아니므로 탭 저장소에 "마지막 추천 번호"만 편의로 기억). 복원은 GET만 하며 AI 단계를 다시 실행하지 않는다. 409·연결 끊김이면 자동 재시도하지 않고 저장 상태를 다시 읽은 뒤 "이어서 진행"을 보여 준다.
 - **추가 정보 입력**: 서버가 field ID로 중복 제거해 준 항목만 묻는다(저장된 기업정보는 서버가 이미 제외). 입력 형식은 서버 기업정보 검증 규칙(정수·예/아니오·날짜·허용값)과 같고, 비워 둔 항목은 보내지 않는다. "이번 추천에만 쓰이며 기업정보에 저장되지 않음"을 화면에 적었다.
 - **최종 결과**: 추천 가능·지원 불가·판단 불가를 따로 묶고, 공고별 이유(조건·결과·판정 이유)와 그 이유가 가리키는 근거만 보여 준다. 공고 원문 주소는 데이터에 있을 때만 링크한다. 추천 0건이면 "지원 가능으로 확인된 공고가 없습니다"를 정상 화면으로 보여 준다.
-- **실제 확인**: frontend nginx(:3000) → Spring → FastAPI 경로로 시작 18.7초, 다음 단계 48.8초(판정 1건), GET 복원 일치. 실제 브라우저에서 `/recommend/2` 복원 시 AI 요청 0건, "이어서 진행" 표시, 모바일 가로 넘침 없음.
+- **실제 확인**: frontend nginx(:3000) → Spring → FastAPI 경로로 시작 18.7초, 다음 단계 48.8초(판정 1건), GET 복원 일치. 실제 브라우저에서 `/recommend/2` 복원 시 AI 요청 0건, "이어서 진행" 표시, 모바일 가로 넘침 없음. React test 9/9, Spring test 17/17. Top 3 세 건 판정 → 추가 질문 → 재판정 → 최종 결과까지 한 번에 끝까지 진행한 실행은 아직 하지 않았다.
 
 
 ### V2-6 LangSmith 실행 추적 (선택적 추적 · 개인정보 제외)
@@ -1006,7 +1043,7 @@ workflow.start (요청 1)                         workflow.continue (요청 2)  
 - **자동 추적을 끈 방법**: LangSmith SDK는 "현재 실행"이 있으면 그 안의 LangChain·LangGraph 호출을 자동 기록한다(prompt·State 포함). 그래서 우리 기록은 "현재 실행"으로 등록하지 않고 직접 보내며, workflow 실행 전체를 `tracing_context(enabled=False)`로 감싸 환경변수가 켜져 있어도 자동 추적이 꺼지게 했다(테스트로 확인).
 - **장애 격리**: 기록 생성·전송은 SDK 배경 thread가 하고, 실패는 예외 종류만 한 번 경고로 남긴 뒤 무시한다. 추적이 꺼져 있거나 키가 없으면 Client를 만들지 않고 기존 흐름 그대로다. Spring 90초 제한은 바꾸지 않았다.
 - **설정**: 사용자가 `.env.dev`에 `LANGSMITH_API_KEY`와 `BIZAID_TRACING_ENABLED=true` 설정을 완료했다. 실제 키 값은 문서·로그에 남기지 않는다. 선택 항목 `LANGSMITH_PROJECT`의 기본값은 `biz-aid`이며, SDK 자동 추적 변수(`LANGSMITH_TRACING`)와 이름을 일부러 다르게 했다.
-- **실제 연결**: 민감정보 없는 진단 실행(부모 1 + 자식 1)을 보내고 서버에서 다시 읽어 프로젝트 `biz-aid`(ID 928ce4c3…)에 성공 상태로 저장된 것을 확인했다. 개인정보가 빠지는지는 실제 전송 HTTP 본문을 가로채는 테스트로 확인했다. **실제 사용자 workflow 전체의 추적은 아직 실행하지 않았다**(진단 연결 성공과는 별개 상태).
+- **실제 연결**: 민감정보 없는 진단 실행(부모 1 + 자식 1)을 보내고 서버에서 다시 읽어 프로젝트 `biz-aid`(ID 928ce4c3…)에 성공 상태로 저장된 것을 확인했다. 개인정보가 빠지는지는 SDK가 보내려는 HTTP 본문을 가로채는 contract test(`tests/contract/test_tracing.py`, mock 전송)로 확인했다. 실제 LangSmith로 보낸 진단 실행은 민감정보가 없는 값이라, 이것이 개인정보 차단의 증거는 아니다. **실제 사용자 workflow 전체의 추적은 아직 실행하지 않았다**(진단 연결 성공과는 별개 상태).
 - **구현 중 문제와 정리**: 처음 진단은 프로젝트 이름을 `biz_aid`로 보내 동명의 프로젝트가 자동 생성됐다. 기본 이름을 실제 이름 `biz-aid`로 고쳐 다시 확인했고, 잘못 생성된 `biz_aid` 프로젝트는 이후 사용자가 삭제했다. 프로젝트 ID 지정 방식은 SDK가 자식 실행에 ID를 물려주지 않아(기본 프로젝트로 감) 쓰지 않았다.
 - **활용 계획**: 느린 요청은 thread에서 `eligibility`의 시간과 `llm_seconds`를 비교해 LLM 대기인지 검색인지 나눈다. 실패는 오류 코드별로 모아 본다. V2 collection 전환 전후 `qdrant_search`·`eligibility` 시간을 비교하는 데 쓴다.
 
@@ -1341,10 +1378,19 @@ com.bizaid
 ### 16.4 PDF 표는 PP-TableMagic
 - 문제: Docling TableFormer가 표 칸 글자를 잃었다.
 - 후보: Docling TableFormer / PP-TableMagic / Camelot(4 방식)
-- 판단(32개 PDF, 916쪽, 사람 기준표 19개·핵심 글자 226개)
-  - 핵심 글자 재현율: PP **0.925** / Docling 0.522(micro)
-  - 누락 글자: PP 17개 / Docling 108개
-  - 표 검출 재현율: PP 0.895 / Docling 0.789
+- 판단(32개 PDF, 916쪽, 기준표 13쪽·19개 표·핵심 글자 226개)
+
+  | 지표 | Docling TableFormer | PP-TableMagic |
+  | --- | ---: | ---: |
+  | 핵심 숫자·기간 글자 재현율(micro) | 0.522 | **0.925** |
+  | 핵심 글자 누락 | 108 | **17** |
+  | 표 검출 재현율 | 0.789 | **0.895** |
+  | 표 검출 정밀도(precision) | **1.000** | 0.773 |
+  | 칸 글자 정확 일치 재현율 | **0.617** | 0.542 |
+  | 구조 일치 | 0.526 | **0.684** |
+
+- 주의: 기준표는 **AI가 만든 초안이고, 당시 사람 검증은 완료되지 않았다**. 32개 PDF 표본 결과를 전체 성능으로 일반화하지 않는다.
+- trade-off: PP는 금액·기간 같은 핵심 글자를 훨씬 덜 잃지만, 표가 아닌 곳을 표로 잡는 경우(precision)와 칸 글자 정확 일치는 Docling이 낫다. 공고문에서는 숫자 손실이 더 위험하다고 보고 PP를 택했고, 오검출 위험은 표 품질 검사(구조 증명 실패 시 글자만 보존)로 막았다.
 - 선택: 사용자 결정으로 PP-TableMagic을 운영 표 엔진으로, Docling은 배치·읽기 순서만
 - 결과: 증명된 표만 표로 저장하고, 나머지는 글자를 보존한다(§5).
 
@@ -1722,6 +1768,7 @@ V2의 모델·Prompt·검색 방식을 바꾼 뒤 좋아졌다고 말하려면, 
 
 ### 검사
 
+- 최신(V2-6) `check-all`: exit 0, Contract 439건·Integration 64건. 이 문서의 다른 절에 나오는 406·408·409·415건은 각 단계 당시 값이다.
 - V1 AI 기준선 Task의 `check-all`: exit 0, Contract 415건·Integration 64건
 - 원격 CI(GitHub Actions)는 Phase 4-B commit에서 2.3GB 추가 모델을 포함해 통과(6분 28초)
 - Backend·Frontend test/build와 실제 AI E2E는 check-all 밖의 별도 Evidence다. 서로의 PASS를 대신하지 않는다.
@@ -1884,6 +1931,20 @@ V2의 모델·Prompt·검색 방식을 바꾼 뒤 좋아졌다고 말하려면, 
 ### 18.27 Top 3 판정 전체 응답 161초 (V2-2)
 - 문제: 실제 Smoke에서 검색 + 판정 3건이 161초였다. Spring 응답 제한시간 90초를 넘는다.
 - 처리: 지시대로 제한시간·구조를 바꾸지 않고 측정값을 IMP-020에 남겼다. FastAPI 단독 경로로는 정상 결과를 확인했다.
+- 해결: V2-3 LangGraph 단계 실행(IMP-020 RESOLVED, §12)
+
+### 18.28 nginx 대기 60초가 Spring 제한 90초보다 짧음 (V2-5)
+- 문제: 판정 1건이 60초를 넘으면 Spring은 정상 처리 중인데 중간의 nginx가 먼저 연결을 끊어 화면은 "서버 연결 실패"가 된다.
+- 해결: nginx `/api/` `proxy_read_timeout` 120초. Spring 90초는 그대로라 시간 초과는 Spring의 정해진 오류(`ai_service_timeout`)로 나온다(§16.60).
+
+### 18.29 LangSmith 프로젝트 이름 오타로 프로젝트 자동 생성 (V2-6)
+- 문제: 진단을 `biz_aid`(언더바)로 보내자 LangSmith가 없는 프로젝트를 새로 만들었다. 실제 프로젝트는 `biz-aid`(하이픈)이다.
+- 해결: 기본 이름을 `biz-aid`로 고쳐 재확인했고, 잘못 생긴 `biz_aid`는 사용자가 삭제했다.
+
+### 18.30 Harness 검사 자체의 문제 (V2-4)
+- 문제 1: stage된 파일과 working tree가 달라 check-all이 exit 1. → 필요한 파일만 다시 stage하고 Git 추적 검사로 확인
+- 문제 2: `git diff --check`가 pager 화면 `(END)`에서 멈춰 검사가 끝나지 않음. → `scripts/lib/validate.py` 실행 환경에 `GIT_PAGER=cat`을 넣어 비대화식으로 실행
+- 결과: 검사 기준은 완화하지 않고 check-all exit 0. production 로직 변경 없음
 
 ---
 
@@ -2161,10 +2222,12 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 7. **지원 자격 판정**: 조건별 판정 + 코드 규칙 + 모르면 판단 불가
 8. **실험으로 문제 해결**: IMP-001(검색 입력 개선으로 G01 1위), IMP-012(과잉 추출 차단)
 9. **재현성·재처리 설계**: 결과 식별값 3단계, 오프라인 고정 모델, 이전 point 자동 정리
-10. **Harness Engineering**: 여러 AI 에이전트가 규칙 안에서 개발하도록 Contract·Registry·자동 검사(Contract test 406개)를 운영했다.
+10. **Harness Engineering**: 여러 AI 에이전트가 규칙 안에서 개발하도록 Contract·Registry·자동 검사(Contract test 439개, V2-6 기준)를 운영했다.
 11. **내부 API 서비스화**: FastAPI 얇은 입구 + 공통 실행 환경(모델 1회 적재)
-13. **AI E2E V1**: 화면 → Spring → FastAPI → Qwen 실제 연결, 공유 키 서비스 간 인증, 긴 제한시간·재시도 없음, AI 결과를 고치지 않는 경계, 성공한 답만 대화 저장
 12. **서비스 V1(React + Spring Boot)**: JWT(Access 메모리·Refresh HttpOnly Cookie·DB 해시·rotation), JPA + QueryDSL 동적 검색, 공통 Flyway V6(한국어 COMMENT), AI 연결 경계(가짜 결과 없음), Compose 한 번 실행
+13. **AI E2E V1**: 화면 → Spring → FastAPI → Qwen 실제 연결, 공유 키 서비스 간 인증, 긴 제한시간·재시도 없음, AI 결과를 고치지 않는 경계, 성공한 답만 대화 저장
+14. **161초 구조 문제 해결(V2-3)**: 제한시간을 늘리지 않고 LangGraph 단계 실행 + MySQL JSON State + 단계 점유·낙관적 잠금으로 한 요청 판정 1건(14.7초·39.4초)
+15. **관측과 개인정보(V2-6)**: LangSmith 자동 추적을 끄고 단계 요약만 직접 기록, 전송 직전 형식 검사, 추적 장애 격리
 
 ---
 
@@ -2175,6 +2238,12 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 
 **Q. 왜 만들었나요?**
 지원사업의 실제 자격 조건(업력·신용점수·제외 업종 등)은 API가 아니라 첨부 공고문 안에 있어서, 기업이 일일이 읽기 어렵습니다. 그래서 정형 데이터와 공고문을 결합해 근거와 함께 알려주는 서비스를 목표로 했습니다. 먼저 API와 문서가 실제로 확보 가능한지 100건으로 검증한 뒤 시작했습니다.
+
+**Q. 왜 이 주제를 골랐나요?**
+이전에 제로페이 점심 추천 AI를 기획했는데, 가맹점과 음식점 정보를 매칭하고 메뉴·리뷰를 모으는 데이터 작업에 시간을 거의 다 썼습니다. 그래서 이번에는 정형 데이터 출처 하나(기업마당 API)와 문서 출처 하나(공식 공고문)로 범위를 처음부터 좁히고, 검색·근거·판단·개인화 같은 AI 본연의 문제에 집중할 수 있는 주제를 골랐습니다. 공공주택 청약 공고도 검토했지만 공고 유형마다 구조가 달라 보류했습니다.
+
+**Q. 표 엔진 비교 결과를 신뢰할 수 있나요?**
+한계가 있습니다. 32개 PDF로 비교했지만 기준표는 AI가 만든 초안이었고 사람 검증은 끝나지 않았습니다. 또 PP-TableMagic이 핵심 숫자 재현율(0.925 vs 0.522)은 훨씬 높았지만, 표 검출 정밀도와 칸 글자 정확 일치는 Docling이 더 높았습니다. 공고문에서는 금액·기간을 잃는 것이 더 위험해서 PP를 택했고, 대신 구조를 증명하지 못한 표는 행·열을 버리고 글자만 남기는 품질 검사로 오검출 위험을 막았습니다.
 
 **Q. AI는 어디에 사용했나요?**
 세 곳입니다. 자연어 질문에서 조건과 요청 유형을 정해진 JSON으로 추출하고, 검색된 공고문 근거로 답변을 쓰고, 자격 조건을 기업 정보와 조건별로 비교합니다. 문서 검색에는 BGE-M3 임베딩 모델을 씁니다.
@@ -2295,3 +2364,6 @@ DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았�
 | Contract | `contracts/schemas/` |
 | 단계별 보고서 | `harness/workspace/reports/development/`, `harness/workspace/reports/codex/` |
 | 변경 이력 | `harness/changelog/harness-changes.md` |
+
+- **주의**: `harness/workspace/reports/development/`의 Report와 새 checkpoint는 `.gitignore` 대상이라 **개발한 로컬 PC에만 있고 GitHub에는 없다**. GitHub에 남은 것은 초기 `reports/agy/`·`reports/codex/` 보고서와 일부 checkpoint뿐이다. 이 문서의 수치 근거를 외부에 보여 주려면 Report의 Git 추적 정책을 따로 정해야 한다.
+- 이 문서 §2 기획 배경과 표 엔진 기준표의 검증 상태는 사용자·AI 대화를 정리한 인수인계 문서(`BizAid_AI_Complete_Handoff_2026-10-01.md`, 저장소 밖)에서 옮겼다.
