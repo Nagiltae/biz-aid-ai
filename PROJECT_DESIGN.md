@@ -1365,7 +1365,7 @@ biz-aid-ai/
 └── .github/
     └── workflows/
         ├── ci.yml
-        └── deploy-op.yml                  # op Merge 시 운영 배포용 (추후 구현)
+        └── deploy-prod.yml                  # prod Merge 시 운영 배포용 (추후 구현)
 ```
 
 ------------------------------------------------------------------------
@@ -1438,7 +1438,7 @@ dev
 main
 → 최신 검증 완료 코드
 
-op
+prod
 → 운영 배포 대상 코드
 ```
 
@@ -1464,7 +1464,7 @@ main Merge
  │
  │ 최신 안정 코드
  ▼
-op Merge
+prod Merge
  │
  ▼
 GitHub Actions
@@ -1475,7 +1475,7 @@ GitHub Actions
 
 운영 인프라 자체는 현재 단계에서 설계하지 않는다.
 
-`op` 브랜치 Merge 시 자동 배포된다는 배포 Trigger만 프로젝트 규칙으로
+`prod` 브랜치 Merge 시 자동 배포된다는 배포 Trigger만 프로젝트 규칙으로
 고정한다.
 
 ------------------------------------------------------------------------
@@ -1637,7 +1637,7 @@ Untracked 파일 방치 금지
 
 Agent 임의 Push / Merge 금지
 
-사용자 승인 없이 main / op 변경 금지
+사용자 승인 없이 main / prod 변경 금지
 ```
 
 ## file-boundaries.md
@@ -2076,14 +2076,14 @@ main Merge
 
 `main`은 최신 안정 상태를 나타낸다.
 
-## op
+## prod
 
 운영 배포 대상 브랜치.
 
 ``` text
 main
  ↓
-op Merge
+prod Merge
  ↓
 GitHub Actions
  ↓
@@ -2092,7 +2092,7 @@ GitHub Actions
 
 현재 단계에서는 실제 운영 인프라를 설계하지 않는다.
 
-다만 추후 운영 환경이 결정되더라도 **배포 Trigger는 op 브랜치
+다만 추후 운영 환경이 결정되더라도 **배포 Trigger는 prod 브랜치
 Merge**라는 규칙을 유지한다.
 
 ------------------------------------------------------------------------
@@ -2427,7 +2427,7 @@ GitHub Actions CI
       ↓
 main
       ↓
-op
+prod
       ↓
 자동 배포
 ```
@@ -2603,7 +2603,7 @@ docker compose up
 ``` text
 main
  ↓
-op Merge
+prod Merge
  ↓
 GitHub Actions
  ↓

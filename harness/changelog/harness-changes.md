@@ -1,5 +1,10 @@
 # Harness 변경 이력
 
+## 2026-10-02 — 운영 배포 브랜치 이름 op → prod
+
+사용자 결정: 브랜치는 dev(개발) → main(최신 검증) → prod(운영 배포)로 쓴다. Registry `branches.deployment`, validator 기대값, Harness policy test, Git 정책·Workflow·PROJECT_DESIGN의 `op`(배포 workflow 예시 `deploy-op.yml` 포함)를 `prod`로 바꿨다. Git 정책에 prod 브랜치와 실행 환경 profile(`prod`)이 별개라는 문장을 추가했다.
+AGY 초기 Review 원문(`harness/workspace/reports/agy/`)과 Codex 과거 Report는 당시 기록이라 수정하지 않았다. 원격·로컬 브랜치 생성은 하지 않았다.
+
 ## 2026-10-01 — Claude 실행 환경별 역할 분리(사용자 결정)
 
 규칙 추가(보고): 같은 `CLAUDE.md`를 읽는 로컬 Claude CLI와 클라우드 세션의 역할을 나눴다. 로컬 CLI는 기존 개발 Producer `claude`로 프롬프트를 받아 개발만 한다. 클라우드 세션(`CLAUDE_CODE_REMOTE=true`)은 개발·리뷰를 하지 않고 GitHub 읽기와 사용자와의 대화만 하며, 파일 수정·삭제·git add·commit·push 등 모든 변경은 예외 없이 사용자 허락을 받는다.

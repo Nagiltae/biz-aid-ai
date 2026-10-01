@@ -1,8 +1,9 @@
 # Git 정책
 
-dev: 직접 개발. main: 최신 검증 완료 코드. op: 운영 배포 대상.
+dev: 직접 개발. main: 최신 검증 완료 코드. prod: 운영 배포 대상.
+prod 브랜치는 실행 환경 profile(`--profile prod`, `.env.prod`, Spring `prod`)과 별개다.
 로컬 작업은 dev에서만 한다. CI는 dev Push의 ref를 확인한다.
-Agent 임의 main / op merge·push·force push·branch 삭제는 금지한다.
+Agent 임의 main / prod merge·push·force push·branch 삭제는 금지한다.
 Commit도 별도 요청이 없다면 만들지 않는다.
 
 새 Control/Input 파일은 명시적인 경로로 git add하여 Diff로 검토 가능하게 한다.

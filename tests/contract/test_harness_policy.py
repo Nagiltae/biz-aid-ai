@@ -592,7 +592,7 @@ class HarnessPolicyTests(unittest.TestCase):
 
     def test_ci_branch_drift_is_detected(self):
         path = self.directory / ".github/workflows/ci.yml"
-        path.write_text(path.read_text(encoding="utf-8").replace("branches: [dev]", "branches: [op]"), encoding="utf-8")
+        path.write_text(path.read_text(encoding="utf-8").replace("branches: [dev]", "branches: [prod]"), encoding="utf-8")
         result = self.check("harness")
         self.assertEqual(result.returncode, 1)
         self.assertIn("CI must enforce dev", result.stderr)

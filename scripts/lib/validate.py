@@ -591,7 +591,7 @@ def harness_check():
     if not spec["report"].startswith(TASK_OUTPUT_PATHS["development"]["reports"]):
         raise ValueError("current-task report must use shared development path")
     status = review_status(spec)
-    if spec["branches"] != {"development": "dev", "verified": "main", "deployment": "op"}:
+    if spec["branches"] != {"development": "dev", "verified": "main", "deployment": "prod"}:
         raise ValueError("branch policy drift")
     for name in actual:
         path = ROOT / name

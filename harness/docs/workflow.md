@@ -8,10 +8,10 @@
 6. 최종 check-all의 exit result와 Git 상태를 확인한다. 실패는 이후 생성물로 덮어 성공 처리하지 않는다.
 7. 실제 결과를 Generated Report / Artifact에 기록한다. 생성물 작성·갱신 때문에 검증을 다시 실행하지 않는다.
 8. AGY가 독립 검토하고 별도 Generated Review Report를 작성한다. 개발 Producer가 대신 승인하지 않는다.
-9. 사용자가 Git Diff / Report를 확인한 뒤 다음 Task·Push·main / op 승격을 결정한다.
+9. 사용자가 Git Diff / Report를 확인한 뒤 다음 Task·Push·main / prod 승격을 결정한다.
 
 CI는 dev Push에 현재 적용 검증을 실행한다. 원격 실행 여부는 로컬 실행과 구분한다.
-현재 운영 배포 workflow는 없다. 미래 자동 배포 trigger는 op Merge로 유지한다.
+현재 운영 배포 workflow는 없다. 미래 자동 배포 trigger는 prod Merge로 유지한다.
 
 ## Workspace Control/Input / Generated Output(관리 문서와 생성 산출물 구분)
 

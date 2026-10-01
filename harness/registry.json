@@ -10,7 +10,7 @@
   "branches": {
     "development": "dev",
     "verified": "main",
-    "deployment": "op"
+    "deployment": "prod"
   },
   "compose_services": [
     "phase0",
