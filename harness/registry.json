@@ -216,7 +216,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-10-01-v2-4-final-result.md",
+  "report": "harness/workspace/reports/development/2026-10-01-v2-5-react-recommend.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -461,6 +461,9 @@
     "frontend/src/features/programs/ProgramListPage.tsx",
     "frontend/src/features/programs/StatusBadge.tsx",
     "frontend/src/features/programs/programsApi.ts",
+    "frontend/src/features/recommend/RecommendPage.tsx",
+    "frontend/src/features/recommend/WorkflowViews.tsx",
+    "frontend/src/features/recommend/workflowApi.ts",
     "frontend/src/main.tsx",
     "frontend/src/shared/api/client.ts",
     "frontend/src/shared/components/Layout.tsx",

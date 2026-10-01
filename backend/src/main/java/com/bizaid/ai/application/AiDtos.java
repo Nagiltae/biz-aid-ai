@@ -159,10 +159,11 @@ public final class AiDtos {
     }
 
     /** workflow API 응답. 클라이언트는 nextAction만 보고 "다음 단계 진행" 또는 "답변 제출"을 요청한다. */
+    // pendingPblancIds: State가 정한 남은 판정 순서(다음 continue가 맨 앞 공고를 판정). 화면은 진행 표시에만 쓰고 순서를 정하지 않는다.
     public record WorkflowResponse(Long workflowId, String status, String currentStep, String nextAction, WorkflowProgress progress,
                                    PersonalizedSearchResult search, List<WorkflowEvaluation> evaluations,
                                    List<MissingField> missingInformation, Map<String, Object> temporaryCompanyFacts,
-                                   String failureCode, FinalResult finalResult) {
+                                   String failureCode, FinalResult finalResult, List<String> pendingPblancIds) {
     }
 
     /** React에 돌려주는 AI 검색 응답: 저장된 대화·메시지와 AI 결과. */

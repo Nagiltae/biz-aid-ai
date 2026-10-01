@@ -1,5 +1,12 @@
 # Harness 변경 이력
 
+## 2026-10-01 — V2-5 React V2 맞춤 추천 화면
+
+React `/recommend/:workflowId?`(`features/recommend/`): 질문 → Top 3 → 공고별 판정(서버 CONTINUE마다 한 요청씩) → 부족 정보 입력 → answers → 재판정 → finalResult. 주소 기반 복원(GET만), 요청 잠금, 실패·409 자동 재시도 없음. V1 client·인증·근거 표시·CSS 재사용.
+Spring: WorkflowResponse에 `pendingPblancIds`(State pending 그대로, 진행 표시용) 추가. nginx `/api/` `proxy_read_timeout 120s`(기본 60초가 Spring AI 90초보다 짧았음, Spring 값 변경 없음).
+규칙 변경(보고): 파일 경계에 React workflow 요청 1개·복원은 GET만·자동 재시도 없음, proxy 응답 대기 > Spring AI 제한시간 2줄 추가. 계약 frontend-backend 갱신.
+결과: [Report](../workspace/reports/development/2026-10-01-v2-5-react-recommend.md). AGY 검토 pending.
+
 ## 2026-10-01 — V2-4 최종 추천 결과 조립
 
 FastAPI `workflow/recommendation.py`: COMPLETED 전이 때만 `build_final_result`로 final_result(recommended·excluded·unresolved·counts·disclaimer)를 만든다. 기존 판정 상태 → 묶음 표, 검색 순위 유지, 이유는 기존 조건(MET·NOT_MET·UNKNOWN)과 evidence_id, 근거는 같은 공고의 검증된 Citation만(섞이면 실패). LLM 추가 호출 없음. State schema_version 2(1은 그대로 진행 가능).

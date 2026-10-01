@@ -15,6 +15,7 @@ export function Layout() {
           </NavLink>
           <nav className="nav" aria-label="주요 메뉴">
             <NavLink to="/ai" className={link}>AI 검색</NavLink>
+            <NavLink to="/recommend" className={link}>맞춤 추천</NavLink>
             <NavLink to="/programs" className={link}>지원사업</NavLink>
             <NavLink to="/company" className={link}>내 기업정보</NavLink>
           </nav>

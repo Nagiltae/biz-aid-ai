@@ -2,23 +2,23 @@
 
 ## Goal / Context
 
-2026-10-01 사용자 요청: V2-4 최종 추천 결과 조립. React 구현 전에 workflow가 COMPLETED일 때 클라이언트가 받을 final_result 계약을 고정한다.
-새 LLM 호출·검색 재정렬(IMP-019)·prompt 튜닝·React·LangSmith·IMP-021은 이번 범위가 아니다. V2 collection batch는 건드리지 않는다.
+2026-10-01 사용자 요청: V2-5 React V2 화면. 기존 V2 workflow API(V2-3·V2-4)를 React에서 질문 → Top 3 → 공고별 판정 → 부족 정보 → 답변 → 재판정 → 최종 결과까지 쓸 수 있게 연결한다.
+새 AI 로직·LangGraph 재설계·순위 개인화·prompt·새 UI 라이브러리·LangSmith·AWS·Qdrant batch 변경은 범위가 아니다.
 
 ## Read First
 
-[AGENTS](../../AGENTS.md) → [AI 경계](../rules/ai-boundary-rules.md) → [파일 경계](../rules/file-boundaries.md) →
-[Spring ↔ FastAPI 경계](../../contracts/backend-ai/README.md) → [내부 API 계약](../../contracts/schemas/internal-api.contract.json) → [화면 API](../../contracts/frontend-backend/README.md).
+[AGENTS](../../AGENTS.md) → [파일 경계](../rules/file-boundaries.md) → [AI 경계](../rules/ai-boundary-rules.md) →
+[화면 API](../../contracts/frontend-backend/README.md) → [Spring ↔ FastAPI 경계](../../contracts/backend-ai/README.md).
 
 ## Scope / Acceptance
 
-1. COMPLETED일 때만 final_result(recommended·excluded·unresolved)를 만든다. 물을 수 있는 부족 정보가 남으면 WAITING_FOR_USER를 유지한다.
-2. 분류는 기존 판정 상태로만 한다(ELIGIBLE → 추천, INELIGIBLE → 제외, 근거 부족·판정 실패 → 판단 불가). 새 점수·LLM 판단 없음.
-3. 묶음 안 순서는 검색 순위 그대로다. 이유·근거는 그 공고 판정의 조건과 검증된 Citation만 쓴다.
-4. 추천 0건도 정상 결과다. 기존 V1/V2 API는 회귀하지 않는다.
+1. React는 Spring workflow API만 호출하고 nextAction에 따라 진행·답변만 요청한다(순서·분기 계산 금지).
+2. 요청은 한 번에 하나. 복원은 GET만 하고 AI 단계를 자동 재실행하지 않는다. 409·연결 실패는 자동 재시도하지 않는다.
+3. 추가 정보는 서버가 묻는 field만, 임시 정보로 표현한다. 최종 결과는 추천·지원 불가·판단 불가를 분리하고 추천 0건도 정상이다.
+4. 진행률·예상 시간은 서버 값 외에 만들지 않는다. Spring AI 제한시간 90초는 바꾸지 않는다. V1 화면은 회귀하지 않는다.
 AGY 독립 Review / 사용자 검토는 pending이다.
 
 ## Validation / Reports
 
-[Final Report](reports/development/2026-10-01-v2-4-final-result.md).
+[Final Report](reports/development/2026-10-01-v2-5-react-recommend.md).
 모든 변경 후 `./scripts/check-all.sh`가 실제 exit 0이어야 한다.

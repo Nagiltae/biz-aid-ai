@@ -5,6 +5,7 @@ Spring Boot는 회원·인증·기업정보·대화 같은 서비스 데이터�
 support_programs 등 공고·문서 데이터는 데이터 파이프라인이 적재하고 Spring은 조회만 한다(복제·schema 변경 금지).
 FastAPI는 서비스 DB를 임의 변경하지 않고 users·companies 같은 Spring 소유 서비스 데이터를 읽지도 않는다. Spring이 인증·기업정보 조회를 하고 AI에 필요한 값만 snapshot으로 보낸다.
 여러 단계 AI 흐름(검색 → 공고별 판정 등)의 조합은 FastAPI 서비스가 소유한다. React(클라이언트)가 공고를 하나씩 돌며 AI 흐름을 조립하거나 다음 분기를 정하지 않는다(응답의 nextAction에 따라 진행·답변만 요청).
+React는 workflow 요청을 한 번에 하나만 보내고, 화면 복원(새로고침·재방문)은 GET 조회로만 하며 AI 단계를 자동으로 다시 실행하지 않는다. 실패·409는 자동 재시도 없이 저장된 상태를 다시 읽고 사용자가 이어서 진행한다.
 LangGraph State의 요청 간 저장은 Spring이 MySQL `ai_workflows`(JSON)로 한다. FastAPI는 받은 State로 한 단계를 실행해 돌려줄 뿐 ai_workflows를 읽거나 쓰지 않으며, 별도 checkpointer·외부 저장소(SQLite·PostgreSQL·Redis 등)를 두지 않는다.
 Data Pipeline은 사용자 인증·채팅 Domain을 수정하지 않는다.
 
@@ -21,7 +22,7 @@ Chunking은 `data-pipeline/src/biz_aid_pipeline/chunking/`, Embedding·dev Qdran
 Spring은 도메인 중심 package(auth·company·program·conversation·ai·activity) 안에 계층을 둔다: presentation(Controller·HTTP 요청/응답 DTO·입력 검증) → application(유스케이스·조회 결과) → domain(Entity·도메인 규칙·값) / infrastructure(JPA·QueryDSL Repository·JWT·외부 HTTP·설정 Properties).
 의존은 presentation → application → domain 한 방향이며 application·domain은 presentation을 import하지 않는다. 신규 기능은 해당 도메인 아래에 두고, `common/`에는 여러 도메인이 실제로 공유하는 오류·페이지·설정만 둔다. Aggregate·Domain Event·Port/Adapter 같은 패턴은 실제 필요 전에는 들이지 않는다.
 Spring의 AI 기능은 `ai.AiGateway` 경계 뒤에 두고 AI 검색·자격 판정 로직을 Java로 다시 구현하지 않는다.
-Spring → FastAPI 호출은 `ai.HttpAiGateway`(동기 RestClient, 연결·응답 제한시간 환경설정) 한 곳에서만 한다. `/internal/v1/*`는 공유 키 헤더(`X-Internal-Api-Key`, 환경변수 `INTERNAL_AI_API_KEY`)로 서비스 간 인증을 한다.
+Spring → FastAPI 호출은 `ai.HttpAiGateway`(동기 RestClient, 연결·응답 제한시간 환경설정) 한 곳에서만 한다. 브라우저와 Spring 사이 proxy(nginx 등)의 응답 대기는 Spring AI 응답 제한시간보다 길게 둔다(정상 AI 단계를 proxy가 먼저 끊지 않게). `/internal/v1/*`는 공유 키 헤더(`X-Internal-Api-Key`, 환경변수 `INTERNAL_AI_API_KEY`)로 서비스 간 인증을 한다.
 FastAPI 내부 인증 실패(401/403)는 최종 사용자 로그인 실패가 아니라 서비스 설정 오류이므로 사용자 401로 전달하지 않는다(`ai_service_auth_failed`). FastAPI 내부 오류 상세는 React에 보내지 않는다.
 내부 AI HTTP API는 `biz_aid_pipeline/api/`(FastAPI)이고, CLI와 API는 같은 `biz_aid_pipeline/runtime.py`의 ServiceRuntime을 호출한다.
 FastAPI는 서비스 계층(Spring Boot)이 호출하는 내부 AI 인터페이스다. 브라우저 client가 직접 의존하지 않으며 CORS를 열지 않는다.

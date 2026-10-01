@@ -283,7 +283,7 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
         String body = mvc.perform(post("/api/ai/workflows").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"query\":\"금융 지원사업\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.nextAction").value("CONTINUE"))
-                .andExpect(jsonPath("$.progress.pending").value(1)).andReturn().getResponse().getContentAsString();
+                .andExpect(jsonPath("$.progress.pending").value(1)).andExpect(jsonPath("$.pendingPblancIds[0]").value("PBLN_W")).andReturn().getResponse().getContentAsString();
         return read(body).get("workflowId").asLong();
     }
 

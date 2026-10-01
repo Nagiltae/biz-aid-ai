@@ -705,6 +705,102 @@ a:focus-visible {
 }
 
 /* 모바일: 한 열로 쌓아 가로 스크롤이 생기지 않게 한다. */
+/* V2 맞춤 추천: 공고별 판정 진행·추가 정보 입력·최종 결과 */
+.workflow-status .spinner,
+.progress-item .spinner {
+  display: inline-block;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-right: 0.3rem;
+  vertical-align: -0.1rem;
+}
+
+.progress-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.3rem 1rem;
+}
+
+.progress-head h2,
+.missing-form h2,
+.final-result h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.progress-count {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.progress-list,
+.final-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.progress-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.progress-item.active {
+  font-weight: 600;
+}
+
+.progress-name {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.badge.tone-good {
+  background: var(--good-bg);
+  color: var(--good);
+}
+
+.badge.tone-bad {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+
+.badge.tone-warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.badge.tone-neutral {
+  background: #eef1f5;
+  color: var(--muted);
+}
+
+.final-group {
+  margin-top: 1.2rem;
+}
+
+.final-group h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1rem;
+}
+
+.final-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.unresolved-reason {
+  margin: 0;
+  color: var(--muted);
+}
+
 @media (max-width: 760px) {
   .detail-layout,
   .ai-layout,

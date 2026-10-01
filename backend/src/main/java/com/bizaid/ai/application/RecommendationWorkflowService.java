@@ -200,6 +200,6 @@ public class RecommendationWorkflowService {
         return new AiDtos.WorkflowResponse(workflowId, view.status(), view.currentStep(), view.nextAction(), progress, view.search(),
                 evaluations, view.missingInformation() == null ? List.of() : view.missingInformation(),
                 view.temporaryCompanyFacts() == null ? Map.of() : view.temporaryCompanyFacts(), view.failureCode(),
-                view.finalResult());
+                view.finalResult(), view.pending() == null ? List.of() : view.pending());
     }
 }
