@@ -1,7 +1,7 @@
 # Harness Entry Point
 
 기업 프로필과 공고문 근거로 중소기업 지원사업을 탐색·검토하는 프로젝트다.
-현재 상태의 기준은 production code·Harness·[PROJECT_MASTER_GUIDE](PROJECT_MASTER_GUIDE.md)다. [PROJECT_DESIGN.md](PROJECT_DESIGN.md)는 최초 목표와 배경을 보존한다. AI 계층(RAG·자격 판단·FastAPI 내부 API)과 **React + Spring Boot 서비스 V1**이 Spring ↔ FastAPI로 연결됐다(AI E2E V1). V2는 개인화 검색·Top 3 판정·LangGraph 추천 흐름(V2-3)까지 진행됐다.
+현재 상태의 기준은 production code·Harness·[PROJECT_MASTER_GUIDE](PROJECT_MASTER_GUIDE.md)다. [PROJECT_DESIGN.md](PROJECT_DESIGN.md)는 최초 목표와 배경을 보존한다. AI 계층(RAG·자격 판단·FastAPI 내부 API)과 **React + Spring Boot 서비스 V1**이 Spring ↔ FastAPI로 연결됐다(AI E2E V1). V2는 LangChain 호출 경계·개인화 검색·Top 3 판정·LangGraph 추천 흐름·React 화면·선택적 LangSmith 추적(V2-0~V2-6)까지 구현됐다. V2 전체 데이터 파싱·별도 Qdrant 적재와 전환 검증은 진행 중이다.
 
 ## 먼저 읽기
 
@@ -36,8 +36,8 @@ Spring Boot / MySQL은 서비스 사실과 정확한 검색, FastAPI / Qdrant는
 | DB 변경 요청 | [DB 규칙](harness/rules/database-rules.md) | [database-migration](harness/skills/database-migration/SKILL.md) |
 | RAG 변경 요청 | [RAG](harness/docs/rag.md), [AI 경계](harness/rules/ai-boundary-rules.md), [Observability](harness/docs/observability.md) | [rag-change](harness/skills/rag-change/SKILL.md) |
 
-Skill은 현재 Task의 허용 범위를 늘리지 않는다. 구현: dev 구조화 FULL / 문서 수집 / S3 저장 / PDF·HWP·HWPX Parser(OCR 포함) / Chunking / BGE-M3 dense·sparse dev Indexing / read-only Retriever / RAG Answer v1 / MySQL 후보 결합 / 자격 판단 v1 / FastAPI 내부 API / React + Spring Boot 서비스 V1(JWT·JPA·QueryDSL).
-미구현: FastAPI Compose 통합(IMP-017)·Reranker·React V2·LangSmith. 단계 경계는 [파일 경계](harness/rules/file-boundaries.md)를 따른다.
+Skill은 현재 Task의 허용 범위를 늘리지 않는다. 구현: dev 구조화 FULL / 문서 수집 / S3 저장 / PDF·HWP·HWPX Parser(OCR 포함) / Chunking / BGE-M3 dense·sparse dev Indexing / read-only Retriever / RAG Answer v1 / MySQL 후보 결합 / 자격 판단 v1 / FastAPI 내부 API / React + Spring Boot 서비스 V1(JWT·JPA·QueryDSL) / V2 맞춤 추천 workflow·화면·선택적 추적.
+미구현·미완료: FastAPI Compose 통합(IMP-017)·Reranker·운영 배포·V2 전체 collection 검증/전환·V2 전체 품질 평가. 단계 경계는 [파일 경계](harness/rules/file-boundaries.md)를 따른다.
 역할: [Codex](harness/agents/codex-developer.md), Claude는 [bootstrap](CLAUDE.md), [AGY](harness/agents/agy-reviewer.md).
 
 ## Validation / DoD

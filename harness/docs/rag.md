@@ -23,7 +23,7 @@ LLM criterion(MET·NOT_MET·UNKNOWN, evidence id, profile field) → application
 내부 HTTP API([계약](../../contracts/schemas/internal-api.contract.json)): `scripts/run_api.py`로 127.0.0.1:8000에 띄우며 /internal/v1/query·/internal/v1/eligibility가
 CLI와 같은 `ServiceRuntime`을 호출한다.
 
-다음 후보: provider 추가(Gemini), 표 직렬화 가독성 개선. Reranker·LangGraph는 평가로 필요성이 확인된 후 정한다.
+V2-0에서 기존 `LlmProvider` 안의 Ollama 호출에 LangChain을 적용했고, V2-3에서 반복·분기가 필요한 맞춤 추천에만 LangGraph를 적용했다. V1 목록/문서 질문 route와 Retriever는 기존 직접 구현을 유지한다. 다음 품질 후보는 provider 비교, 표 직렬화, Reranker이며 같은 기준선으로 필요성을 검증한 뒤 결정한다.
 RAG 답변 경로는 지원 자격의 최종 상태를 결정하지 않는다. Eligibility v1에서 LLM은 조건별 비교만 하고 application이 최종 상태를 계산한다. 날짜·상태 같은 정확한 조건은 MySQL이 결정한다. [AI 경계 규칙](../rules/ai-boundary-rules.md)과 [제품 평가](../../evals/README.md)를 따른다.
 
 V1 종료 기준선은 `evals/v1_baseline/cases-v1.json` 10건이다. 최초 1회 결과는 검색 4/4, DOCUMENT_QA 2/3,

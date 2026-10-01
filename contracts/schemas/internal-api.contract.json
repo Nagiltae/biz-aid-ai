@@ -110,7 +110,8 @@
       "current_step SEARCH|EVALUATE_PROGRAM|AWAIT_ANSWERS|DONE|FAILED",
       "next_action CONTINUE|ANSWER|NONE",
       "failure_code",
-      "final_result (COMPLETED only, else null): {recommended, excluded, unresolved: [rank, pblanc_id, program, eligibility_status, reason_code, error_code, reasons [criterion, result, reason, evidence_ids], missing_information, citations], counts, disclaimer}"
+      "final_result (COMPLETED only, else null): {recommended, excluded, unresolved: [rank, pblanc_id, program, eligibility_status, reason_code, error_code, reasons [criterion, result, reason, evidence_ids], missing_information, citations], counts, disclaimer}",
+      "trace_key (random hex for execution tracing thread; not derived from user/company; optional for older states)"
     ],
     "excluded": "document text, prompts, secrets, request inputs (command, answers)",
     "compatible_versions": [
@@ -126,5 +127,23 @@
       "empty": "recommended=[] is a normal COMPLETED result",
       "compatibility": "version 1 states are advanced as-is and become version 2 on the next step; completed version 1 states have final_result null"
     }
+  },
+  "tracing": {
+    "enabled_by": "BIZAID_TRACING_ENABLED=true and LANGSMITH_API_KEY",
+    "scope": "workflow start/advance only",
+    "runs": [
+      "workflow.start|continue|answer",
+      "personalized_search",
+      "natural_filter",
+      "mysql_candidates",
+      "qdrant_search",
+      "eligibility",
+      "apply_answers",
+      "final_result"
+    ],
+    "sent": "step names, elapsed seconds, statuses, counts, error codes, public pblanc_id, field IDs",
+    "never_sent": "query, company profile, temporary facts and answer values, document text/chunks, prompts, model output, secrets, exception messages",
+    "auto_tracing": "LangChain/LangGraph automatic tracing is disabled inside workflow calls",
+    "failure": "tracing errors are swallowed; the AI flow continues"
   }
 }

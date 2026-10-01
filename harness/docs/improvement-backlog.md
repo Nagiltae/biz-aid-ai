@@ -6,7 +6,7 @@
 - 형식: ID, Area, Issue, Evidence, Why deferred, Revisit trigger, Side effect, Status(OPEN / RESOLVED / DROPPED)
   - 한글 설명: Area(영역), Issue(문제), Evidence(근거·관찰 사례), Why deferred(지금 미룬 이유), Revisit trigger(다시 볼 시점),
     Side effect(고칠 때 주의할 영향), Status(상태: OPEN 미해결 · RESOLVED 해결 · DROPPED 가치 없어 폐기)
-- 같은 문제는 새 ID를 만들지 않고 Evidence·Revisit만 갱신한다. 해결·폐기 항목은 지우지 않고 Status와 근거 report를 남긴다.
+- 같은 문제는 새 ID를 만들지 않고 Evidence·Revisit만 갱신한다. 기존 ID를 다른 문제에 재사용하지 않는다. 해결·폐기 항목은 지우지 않고 Status와 근거 report를 남긴다.
 - Evidence의 report는 `harness/workspace/reports/development/` 아래 파일이다.
 
 ## 단계 분류 (2026-10-01 V1 코드 마감)
@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
 | V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED) | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
-| 운영/AWS 단계 | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017, IMP-021, IMP-022 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
+| 운영/AWS 단계 | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017, IMP-021, IMP-022, IMP-023 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
 | 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
 
 ## IMP-001 chunk에 문서 제목·사업명 context 없음
@@ -56,10 +56,10 @@
   `additional_facts.최근 2개월 매출(원)` 대신 허용되지 않은 `additional_facts.최근 2 개월 매출`을 내 application 검증에서 실패했다.
   G06 표 금액은 이번에는 32,760원을 근거와 함께 맞혔다(`2026-10-01-v1-ai-baseline.md`).
 - Why deferred: V1 흐름과 grounding은 동작한다. 비교는 완성된 동일 서비스에서 해야 공정하다.
-- Revisit trigger: AI 서비스 V1 완료와 프로젝트 정리 후
+- Revisit trigger: V2 service collection 전환과 같은 평가 입력을 준비한 뒤. V1은 완료됐지만 V2 전체 데이터 기준이 아직 없다.
 - Side effect: 비교 조건을 같게 한다(Retriever, top_k 5, context, prompt, output schema). 볼 항목은 정답성, groundedness, citation 정확도, 확인 불가 판단, 표 이해, latency, API 비용이다. 원격 API는 공고 첨부 내용을 외부로 보낸다.
 - Evidence(V2-0, 2026-10-01): 기업정보 field ID + enum 제한 뒤 같은 E01~E03 입력 1회씩 확인에서 계약 오류는 0/3이 됐다. 다만 E01은 값이 있는 조건에 모델이 UNKNOWN을 내 NEEDS_MORE_INFO(기대 ELIGIBLE)가 됐다. 형식 문제가 아니라 판정 품질 문제다(`2026-10-01-v2-0-foundation.md`).
-- Status: OPEN
+- Status: OPEN. 출력 계약 오류는 줄었지만 provider·생성 완결성 비교는 수행하지 않았다.
 
 ## IMP-004 Retrieval 후처리(baseline 이후)
 
@@ -261,4 +261,14 @@
 - Why deferred: 동작에는 영향이 없고 이번 범위(최종 결과 계약)가 아니다.
 - Revisit trigger: 다음 Spring migration을 추가할 때 함께 처리
 - Side effect: 없음(COMMENT만)
+- Status: OPEN
+
+## IMP-023 실행 추적 범위가 V2 workflow 경로뿐
+
+- Area: AI 관측(LangSmith)
+- Issue: V2-6 추적은 `/internal/v2/workflows/{start,advance}`만 기록한다. V1 `/internal/v1/query`·단일 판정, V2-1·V2-2 단독 endpoint는 추적하지 않는다. LangSmith SDK 자체 경고 로그(전송 실패 시 trace id 목록)는 SDK logger로 따로 남는다(키·내용 없음 확인).
+- Evidence: `2026-10-01-v2-6-langsmith-tracing.md`. 사용자는 `.env.dev`의 LangSmith API key와 `BIZAID_TRACING_ENABLED=true` 설정을 완료했고, 진단 중 잘못 생성됐던 `biz_aid` 프로젝트를 삭제했다. 이 정리는 추적 범위 자체를 넓히지는 않는다.
+- Why deferred: 사용자 흐름은 V2 workflow로 옮겨 가고 있고, 같은 `traced` 감싸기로 필요할 때 추가할 수 있다.
+- Revisit trigger: V1 화면 사용량이 많거나 V1 경로 성능 분석이 필요할 때
+- Side effect: 추가할 때도 같은 형식 검사·자동 추적 off 범위를 지켜야 한다.
 - Status: OPEN

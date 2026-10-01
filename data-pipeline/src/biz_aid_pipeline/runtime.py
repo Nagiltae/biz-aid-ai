@@ -11,7 +11,7 @@ FROM_SETTINGS = object()
 
 
 class ServiceRuntime:
-    def __init__(self, profile, root=ROOT, collection_namespace=FROM_SETTINGS):
+    def __init__(self, profile, root=ROOT, collection_namespace=FROM_SETTINGS, tracer=FROM_SETTINGS):
         from qdrant_client import QdrantClient
         from biz_aid_pipeline.candidates.service import ProgramCandidateRepository
         from biz_aid_pipeline.indexing.qdrant_store import collection_namespace as configured_namespace, qdrant_url
@@ -24,6 +24,9 @@ class ServiceRuntime:
         self.repository = ProgramCandidateRepository.from_config(DbConfig.load(root, profile))
         self.qdrant = QdrantClient(url=qdrant_url(profile))
         self._retriever, self._lock = None, threading.Lock()
+        # V2-6 실행 추적: 설정(BIZAID_TRACING_ENABLED)이 꺼져 있으면 None이고 흐름은 그대로다.
+        from biz_aid_pipeline.observability.tracing import TraceSettings, build_tracer
+        self.tracer = build_tracer(TraceSettings.load(root, profile)) if tracer is FROM_SETTINGS else tracer
 
     def retriever(self):
         """BGE-M3 Retriever. 후보가 없는 요청은 모델을 적재하지 않도록 처음 필요할 때 한 번만 만든다."""
@@ -87,12 +90,25 @@ class ServiceRuntime:
         from biz_aid_pipeline.candidates.service import ProgramCandidateService
         from biz_aid_pipeline.eligibility.service import EligibilityService
         from biz_aid_pipeline.rag.service import rag_contract
+        from biz_aid_pipeline.observability import tracing
         from biz_aid_pipeline.workflow.recommendation import build_graph
-        search = PersonalizedSearchService(
-            NaturalLanguageFilterService(self.provider, filter_domain(self.repository)), ProgramCandidateService(self.repository),
-            lambda: ProgramDiscoveryService(self.repository, self.retriever(), rag_contract()))
-        graph = build_graph(search.search, lambda pblanc_id, company, day: EligibilityService(
-            self.repository, self.retriever(), self.provider).evaluate(pblanc_id, company, day))
+        # 기존 서비스를 고치지 않고 주요 단계만 실행 추적으로 감싼다(추적 중이 아니면 그대로 호출만 한다).
+        natural = NaturalLanguageFilterService(self.provider, filter_domain(self.repository))
+        natural.extract = tracing.traced("natural_filter", natural.extract, tracing.natural_summary)
+        candidates = ProgramCandidateService(self.repository)
+        candidates.find_candidates = tracing.traced("mysql_candidates", candidates.find_candidates, tracing.candidates_summary)
+
+        def discovery():
+            service = ProgramDiscoveryService(self.repository, self.retriever(), rag_contract())
+            service.discover = tracing.traced("qdrant_search", service.discover, tracing.discovery_summary,
+                                              lambda query, scope, **_: {"scope_size": len(scope)})
+            return service
+        search = PersonalizedSearchService(natural, candidates, discovery)
+        graph = build_graph(
+            tracing.traced("personalized_search", search.search, tracing.search_summary),
+            tracing.traced("eligibility", lambda pblanc_id, company, day: EligibilityService(
+                self.repository, self.retriever(), self.provider).evaluate(pblanc_id, company, day), tracing.eligibility_summary,
+                lambda pblanc_id, *_: {"pblanc_id": pblanc_id}))
         with self._lock:
             self._recommendation_graph = graph
         return graph
@@ -100,12 +116,27 @@ class ServiceRuntime:
     def workflow_start(self, query, company_profile, as_of=None):
         from datetime import datetime
         from zoneinfo import ZoneInfo
+        from uuid import uuid4
+        from biz_aid_pipeline.observability.tracing import state_summary, workflow_trace
         from biz_aid_pipeline.workflow.recommendation import start
-        return start(self.recommendation_graph(), query, company_profile, as_of or datetime.now(ZoneInfo("Asia/Seoul")).date())
+        graph, trace_key = self.recommendation_graph(), uuid4().hex
+        # 질문·기업정보는 추적 입력에 넣지 않는다(명령과 묶음 키만).
+        with workflow_trace(self.tracer, "workflow.start", trace_key, command="start") as span:
+            state = start(graph, query, company_profile, as_of or datetime.now(ZoneInfo("Asia/Seoul")).date(), trace_key)
+            span.record(**state_summary(state))
+            return state
 
     def workflow_advance(self, state, command, answers=None):
+        from biz_aid_pipeline.observability.tracing import state_summary, workflow_trace
         from biz_aid_pipeline.workflow.recommendation import advance
-        return advance(self.recommendation_graph(), state, command, answers)
+        graph = self.recommendation_graph()
+        before = state_summary(state) if isinstance(state, dict) else {}
+        trace_key = state.get("trace_key") if isinstance(state, dict) else None
+        with workflow_trace(self.tracer, f"workflow.{command}", trace_key, command=command, status_before=before.get("status"),
+                            round=before.get("round"), pending_count=before.get("pending_count")) as span:
+            result = advance(graph, state, command, answers)
+            span.record(**state_summary(result))
+            return result
 
     def personalized_eligibility(self, query, company_profile, as_of=None):
         """V2-2: 개인화 검색 Top 3 → 공고별 기존 자격 판정. company_profile은 판정용 CompanyProfileSnapshot이다."""
@@ -131,5 +162,8 @@ class ServiceRuntime:
         return EligibilityService(self.repository, self.retriever(), self.provider).evaluate(pblanc_id, company_profile, as_of)
 
     def close(self):
+        if getattr(self, "tracer", None) is not None:
+            # 종료 전에 남은 실행 기록을 보낸다(실패해도 무시).
+            self.tracer.flush()
         self.repository.close()
         self.qdrant.close()

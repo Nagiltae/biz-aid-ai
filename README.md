@@ -4,25 +4,24 @@
 
 ## 해결하려는 문제
 
-지원사업 공공 API에는 공고명·분야·대상·기관·신청기간 같은 정형 정보가 있습니다. 하지만 업력, 매출,
-신용점수, 제외 조건처럼 신청 판단에 필요한 내용은 PDF·HWP·HWPX 공고문 안에 흩어져 있습니다.
+기업마당 API에는 공고명·분야·대상·기관·신청기간 같은 정형 정보가 있지만, 업력·매출·신용점수·제외 조건처럼 실제 신청 판단에 필요한 내용은 PDF·HWP·HWPX 공고문에 흩어져 있습니다.
 
-BizAid AI는 두 데이터의 역할을 나눕니다.
+BizAid AI는 역할을 나눠 이 문제를 해결합니다.
 
-- MySQL은 모집 상태와 분야처럼 정확히 비교할 조건을 다룹니다.
-- Qdrant는 공고문에서 질문과 관련된 근거를 찾습니다.
-- 대규모 언어 모델(LLM)은 검색된 근거를 설명하고 조건별 비교를 수행합니다.
+- MySQL은 모집 상태와 지원 대상처럼 정확히 비교할 조건과 서비스 상태를 관리합니다.
+- S3는 원본 공고문과 파싱 결과를 보관합니다.
+- Qdrant는 후보 공고 안에서 관련 근거를 찾습니다.
+- 대규모 언어 모델(LLM)은 근거를 설명하고 조건별 비교를 수행합니다.
 - 일반 코드는 근거를 검증하고 지원 자격의 최종 상태를 계산합니다.
-
-> 사용자는 우리 회사가 받을 수 있는 지원사업을 찾고, 공고 근거를 확인한 뒤 지원 가능 여부를 검토할 수 있습니다.
 
 ## 주요 기능
 
-- 자연어로 지원사업 검색
-- 특정 공고문에 대한 근거 기반 질문
+- 자연어 지원사업 검색과 특정 공고문 질문
 - 공고 ID·문서 page를 포함한 근거 표시(Citation)
-- 기업 정보와 공고 조건을 비교하는 지원 자격 판정
-- JWT 로그인, 기업정보 관리, 지원사업 목록·상세, 대화 저장
+- 기업 정보 기반 Top 3 검색과 공고별 지원 자격 판정
+- 부족한 기업 정보를 추가로 묻고 다시 판정하는 단계형 추천 흐름
+- JWT 로그인, 기업정보·지원사업·대화·활동 기록 관리
+- 추천 진행 상태 저장, 새로고침 복원, 최종 추천·지원 불가·판단 불가 분류
 
 ## 아키텍처
 
@@ -35,6 +34,7 @@ flowchart LR
     F --> M
     F --> Q[(Qdrant)]
     F --> L[Ollama / Qwen]
+    F -.선택적 실행 추적.-> LS[LangSmith]
     P[Data Pipeline] --> M
     P --> A[(AWS S3)]
     P --> Q
@@ -42,70 +42,61 @@ flowchart LR
 
 | 구성요소 | 역할 |
 | --- | --- |
-| React | 로그인, 기업정보, 지원사업, AI 검색·자격 판정 화면 |
-| Spring Boot | 서비스 API, JWT 인증, JPA·QueryDSL 조회, 대화·활동 기록, FastAPI 호출 경계 |
-| FastAPI | 질문 유형·조건 분석, 검색, 근거 답변, 자격 조건 비교 |
-| MySQL | 공고 정형 데이터와 서비스 데이터의 기준 저장소 |
-| AWS S3 | 원본 공고문과 파싱 결과 JSON 영구 보관 |
+| React | 로그인·기업정보·공고·AI 검색·단계형 맞춤 추천 화면 |
+| Spring Boot | JWT, 서비스 API, JPA·QueryDSL 조회, 대화·활동·추천 State의 Source of Truth |
+| FastAPI | 질문 구조화, 후보 범위 검색, 근거 답변, 자격 비교, LangGraph 추천 단계 실행 |
+| MySQL | 공고 정형 데이터, 문서·파싱 metadata, 회원·기업·대화·workflow 상태 |
+| AWS S3 | 원본 공고문과 파싱된 DoclingDocument JSON |
 | Qdrant | BGE-M3 dense·sparse 문서 조각 검색 |
+| LangSmith | 설정으로 켜는 V2 workflow 단계 추적. 질문·기업정보·문서 원문은 전송하지 않음 |
 
-React는 Spring Boot만 호출합니다. Spring Boot는 공유 키로 FastAPI 내부 API를 호출하며, AI 결과를 임의로
-재정렬하거나 고쳐 쓰지 않습니다.
+React는 Spring Boot만 호출합니다. Spring은 서비스 데이터와 workflow State를 소유하고, FastAPI는 받은 State로 한 단계를 실행합니다. FastAPI는 회원·기업 테이블을 직접 읽지 않습니다.
 
 ## AI 처리 흐름
 
+### 검색과 공고문 질문
+
 ```text
-사용자 질문
-  → 자연어 조건과 SEARCH_LIST / DOCUMENT_QA 구분
-  → 질문에 실제로 있는 조건만 검증
-  → MySQL에서 활성 공고 후보 선택
-  → 후보 공고 안에서 Qdrant Dense + Sparse 검색
-  → RRF로 검색 순위 결합
-  → 목록은 MySQL 정보로 반환 / 문서 질문은 LLM 답변 생성
-  → 애플리케이션이 실제 검색 결과에서 Citation 연결
+질문 → LangChain 기반 구조화 출력 → 질문에 실제로 있는 조건만 검증
+     → MySQL 활성 공고 후보 → 후보 안에서 Qdrant Dense + Sparse 검색
+     → RRF 순위 결합 → 목록 또는 근거 기반 답변 → 코드가 Citation 연결
 ```
 
-지원 자격 판정은 공고 하나와 기업 정보 snapshot을 입력으로 받습니다. LLM은 조건별로 `MET`, `NOT_MET`,
-`UNKNOWN`을 비교하고, 최종 `ELIGIBLE`, `INELIGIBLE`, `NEEDS_MORE_INFO`, `INSUFFICIENT_EVIDENCE` 상태는
-애플리케이션 코드가 계산합니다.
+### 맞춤 추천
+
+```text
+저장된 기업정보 snapshot + 질문 → Top 3 검색
+→ LangGraph가 공고를 한 건씩 판정
+→ 부족 정보 질문 → 임시 답변으로 필요한 공고만 재판정
+→ 코드가 추천 / 지원 불가 / 판단 불가 조립
+→ Spring이 MySQL에 State JSON 저장, React는 nextAction만 따라감
+```
+
+LangChain은 LLM 호출 계층에만, LangGraph는 반복·분기가 필요한 추천 흐름에만 사용합니다. 검색 범위·RRF·근거 연결·자격 최종 상태는 일반 코드가 결정합니다.
 
 ## 핵심 기술 선택
 
 | 선택 | 이유 |
 | --- | --- |
 | 정형 데이터와 문서 지식 분리 | 날짜·상태는 DB로 정확히 판단하고 세부 조건은 원문에서 찾기 위해 |
-| JPA + QueryDSL | 일반 CRUD는 단순하게, 선택 조건이 많은 지원사업 목록은 타입 안전하게 조회하기 위해 |
-| BGE-M3 | 한 모델에서 의미 검색용 dense vector와 단어 검색용 sparse vector를 함께 만들기 위해 |
-| Dense + Sparse + RRF | 의미가 비슷한 문장과 사업명·금액 같은 정확한 단어를 함께 찾기 위해 |
+| JPA + QueryDSL | 일반 CRUD와 선택 조건이 많은 공고 조회를 각각 단순하고 타입 안전하게 구현하기 위해 |
+| BGE-M3 + Dense/Sparse + RRF | 의미가 비슷한 문장과 사업명·금액 같은 정확한 단어를 함께 찾기 위해 |
 | Citation을 코드에서 연결 | LLM이 존재하지 않는 page나 출처를 만드는 일을 막기 위해 |
 | 자격 최종 상태를 코드에서 계산 | 누락된 기업정보를 추측하지 않고 일관된 판정 규칙을 유지하기 위해 |
-| React → Spring → FastAPI | 인증·서비스 데이터와 AI 실행 책임을 분리하고 브라우저가 내부 AI API에 직접 의존하지 않게 하기 위해 |
+| LangGraph State와 MySQL 저장 분리 | 그래프는 다음 단계를 정하고 Spring은 요청 사이의 상태·동시성을 관리하기 위해 |
+| 선택적 LangSmith 추적 | 단계별 지연과 오류를 보되 질문·기업정보·문서·prompt를 외부로 보내지 않기 위해 |
 
-## 주요 문제 해결 사례
+## 문제 해결 사례
 
-1. **일반 제목 조각이 검색에서 밀리는 문제**
+1. 공고 제목 정보가 부족해 검색에서 밀린 문제를 검색 입력에 제목을 추가해 기대 근거 1위로 개선했습니다.
+2. 한 공고의 여러 조각이 목록을 독점하던 문제를 공고 단위 그룹 검색으로 바꿔 결과 2개를 5개로 회복했습니다.
+3. LLM이 질문에 없는 조건을 만들던 문제를 허용 값과 질문 원문을 다시 확인하는 Grounding Guard로 막았습니다.
+4. PDF·HWP·HWPX를 DoclingDocument로 통일하고, 구조를 증명하지 못한 표는 틀린 행·열 대신 원문과 provenance를 보존했습니다.
+5. Top 3 판정을 한 요청에 묶어 161초가 걸린 문제를 LangGraph 단계 실행으로 나눠 실제 시작 14.7초, 판정 1건 39.4초로 Spring의 90초 제한 안에 넣었습니다.
 
-   검색용 입력에 공고명을 추가하고 원문 근거 text는 그대로 보존했습니다. 기대 근거가 5위 밖에서 1위로 올랐습니다.
+## V1 고정 평가
 
-2. **한 공고의 여러 조각이 목록을 독점하는 문제**
-
-   조각을 자른 뒤 중복 제거하는 대신 공고별 최고 조각으로 순위를 매겼습니다. 결과가 2개에서 5개로 회복됐고 중복은 0건이었습니다.
-
-3. **LLM이 질문에 없는 조건을 만드는 문제**
-
-   모델이 낸 조건을 DB의 허용 값과 질문 원문으로 다시 검증하는 Grounding Guard를 두었습니다.
-
-4. **한국 공문서 형식과 표 처리 문제**
-
-   PDF·HWP·HWPX를 DoclingDocument로 통일했습니다. 구조를 증명하지 못한 표는 틀린 행·열을 만들지 않고 원문 글자와 provenance를 보존합니다.
-
-5. **Spring 계층의 역방향 의존 문제**
-
-   도메인별 package 안을 presentation → application → domain / infrastructure로 정리해 HTTP DTO가 도메인으로 새지 않게 했습니다.
-
-## V1 AI 평가
-
-V1 종료 시점의 성능을 이후 변경과 같은 조건으로 비교하기 위해 10개 사례를 고정했습니다.
+V1 종료 시점의 10개 사례를 고정해 이후 변경의 비교 기준으로 사용합니다.
 
 | 기능 | 결과 |
 | --- | ---: |
@@ -114,56 +105,77 @@ V1 종료 시점의 성능을 이후 변경과 같은 조건으로 비교하기 
 | 지원 자격 판정 | 1 / 3 PASS |
 | **전체** | **7 / 10 PASS** |
 
-검색 결과의 중복과 MySQL 후보 범위 밖 공고는 0건이었고, QA·자격 근거에 다른 공고가 섞인 사례도 0건이었습니다.
-실패 3건은 최대 지원기간 누락 1건과 허용되지 않은 기업정보 필드 이름을 모델이 사용한 자격 판정 2건입니다.
-이 결과는 숨기거나 보정하지 않은 V1의 한계이며, V2의 provider·prompt·검색 변경을 비교하는 출발점입니다.
+실패 3건은 숨기거나 보정하지 않았습니다. V1 collection과 평가 기대값은 동결되어 있으며, V2 전체 데이터 평가는 아직 수행하지 않았습니다.
 
 ## 기술 스택
 
 - Frontend: React 19, TypeScript, Vite, TanStack Query
 - Backend: Java 21, Spring Boot, Spring Security, JPA, QueryDSL, Flyway
-- AI API / Pipeline: Python 3.11, FastAPI, Docling, PaddleX, BGE-M3
+- AI / Pipeline: Python 3.11, FastAPI, LangChain, LangGraph, Docling, PaddleX, BGE-M3
 - Storage: MySQL 8.4, AWS S3, Qdrant
-- LLM: Ollama, Qwen3.5 9B
+- LLM / Observability: Ollama, Qwen3.5 9B, LangSmith
 - Infrastructure: Docker Compose, GitHub Actions
 
-## 로컬 실행
+## 현재 상태
 
-실제 비밀값은 추적되지 않는 `.env.dev`에 둡니다. 필요한 변수 이름은 [.env.example](.env.example)에서 확인합니다.
+### 완료
+
+- V1 서비스와 실제 React → Spring → FastAPI E2E
+- V1 고정 평가 10건(7 PASS / 3 FAIL)
+- V2-0 LangChain LLM 호출 경계부터 V2-6 LangSmith 선택적 추적까지의 기능 구현
+- V2 맞춤 추천 화면과 MySQL workflow State 저장
+- dev LangSmith 추적 설정 완료. `.env.dev`에서 전용 API key와 `BIZAID_TRACING_ENABLED=true`를 사용하며, 진단 중 잘못 생성된 `biz_aid` 프로젝트는 사용자가 삭제했습니다.
+
+### 진행 중
+
+- V2 서비스 범위 2,541개 문서의 파싱이 재개되어 실행 중
+- 2026-10-01 18:00 KST 조회 기준 파싱 runner 기록은 989/2,541(38.9%, PARSED 986, 실패 3)입니다. 과거 첫 파싱 중단 뒤 실행된 인덱싱 시도는 `STOPPED_ENVIRONMENT`였고, V2 collection은 아직 Smoke 207 point입니다.
+
+### 아직 검증하지 않음
+
+- V2 전체 collection 완전성 및 서비스 전환
+- V2 전체 데이터에서의 검색·추천 품질과 V1 기준선 비교
+- V2 전체 workflow가 LangSmith에서 단계별로 기록되는지에 대한 실제 사용자 흐름 검증
+
+### 다음 작업
+
+1. 현재 파싱 batch의 완료와 실패 3건을 확인합니다.
+2. 기존 batch는 파싱 다음 인덱싱을 실행하는 순차 명령이므로, 파싱 완료 뒤 같은 batch가 인덱싱으로 전환했는지 먼저 확인합니다. 중복 재시작을 가정하지 않습니다.
+3. 인덱싱 완료 뒤 source·point·provenance를 검증하고, 검증된 경우에만 `QDRANT_COLLECTION_NAMESPACE=v2`로 전환해 V2 평가를 실행합니다.
+
+V1 collection `bizaid_chunks_v1_228acdd12220`은 기준선 재현용이므로 수정하거나 추가 적재하지 않습니다. V2 기능 Smoke는 아직 V1 collection 또는 3문서 V2 smoke collection을 사용한 기능 확인이며, V2 전체 품질 결론이 아닙니다.
+
+## 로컬 실행과 검증
+
+실제 비밀값은 Git에 추적되지 않는 `.env.dev`에 둡니다. 변수 이름만 [.env.example](.env.example)에서 확인합니다.
 
 ```bash
-# Python 의존성과 고정 모델 artifact 준비
 python3.11 -m venv .venv
 .venv/bin/python -m pip install -r data-pipeline/requirements.txt
 export BIZAID_DOCLING_ARTIFACTS_PATH="$HOME/.cache/biz-aid/docling-artifacts"
 
-# 저장소와 로컬 전제 검사
 ./scripts/setup.sh
-
-# Qdrant
 docker compose --env-file .env.dev --profile dev-vector up -d qdrant
-
-# 호스트 FastAPI (고정 모델 artifact와 Ollama가 준비된 dev 환경)
 .venv/bin/python -B scripts/run_api.py
-
-# MySQL + Spring Boot + React
 docker compose --env-file .env.dev --profile app up --build
+
+./scripts/check-all.sh
 ```
 
 - Frontend: `http://127.0.0.1:3000`
 - Spring Boot: `http://127.0.0.1:8080`
-- FastAPI는 현재 호스트 `127.0.0.1:8000`에서 별도로 실행합니다.
+- FastAPI: 호스트 `127.0.0.1:8000`에서 별도 실행
 
-개발 검증은 `./scripts/check-all.sh`로 실행합니다. Backend와 Frontend의 개별 build/test 및 실제 AI E2E 범위는
-[Testing](harness/docs/testing.md)을 따릅니다.
+## 문서 안내
 
-## 현재 상태와 V2
+| 목적 | 문서 |
+| --- | --- |
+| 프로젝트 전체와 기술 의사결정 학습 | [PROJECT_MASTER_GUIDE.md](PROJECT_MASTER_GUIDE.md) |
+| 다음 개발 작업과 금지 범위 | [current-task.md](harness/workspace/current-task.md) |
+| 실제 시스템 경계 | [architecture.md](harness/docs/architecture.md) |
+| 미해결 문제와 재검토 조건 | [improvement-backlog.md](harness/docs/improvement-backlog.md) |
+| 테스트가 보장하는 범위 | [testing.md](harness/docs/testing.md) |
+| API 계약 | [contracts/](contracts/README.md) |
+| 단계별 실제 실행 결과 | `harness/workspace/reports/development/`의 Task별 Report |
 
-V1은 데이터 수집부터 React → Spring Boot → FastAPI AI 흐름과 고정 AI 기준선까지 완성했습니다.
-현재 제약은 전체 문서 corpus 미처리, 일부 표·OCR 품질, FastAPI Compose 미통합, 운영 배포 미완료입니다.
-
-V2에서는 frozen V1 기준선으로 모델 provider·prompt·검색 변경 전후를 먼저 비교합니다. Reranker, LangChain,
-LangGraph는 이름만으로 도입하지 않고 평가에서 필요한 경우에 검토합니다.
-
-상세한 설계 결정과 실험 결과는 [PROJECT_MASTER_GUIDE](PROJECT_MASTER_GUIDE.md), 미룬 문제는
-[Improvement Backlog](harness/docs/improvement-backlog.md), 개발 규칙은 [AGENTS.md](AGENTS.md)에서 확인할 수 있습니다.
+개발 Agent는 [AGENTS.md](AGENTS.md)부터 읽고, 사용자는 이 README 다음에 PROJECT_MASTER_GUIDE를 읽는 것이 가장 빠릅니다.

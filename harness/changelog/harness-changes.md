@@ -1,5 +1,23 @@
 # Harness 변경 이력
 
+## 2026-10-01 — Codex 인수인계 문서 검토·보완(Claude)
+
+규칙 변경 없음. 문서 정정만 했다: observability.md(삭제 완료된 `biz_aid` 프로젝트를 "사용자 결정"으로 남긴 문장, 진단 연결과 개인정보 검증 근거 구분, 실제 workflow 추적 미검증 명시), Master Guide(V1과 V2 차이 표, 기획 배경 사용자 작성 칸, LangSmith 진단/실제 추적 상태 구분), current-task(검토 Task·확인한 batch 구조·AWS 만료 위험), Codex 인수인계 Report·checkpoint의 "인덱싱 재개/중단" 지침 정정.
+결과: [Report](../workspace/reports/development/2026-10-01-handoff-review.md). AGY 검토 pending.
+
+## 2026-10-01 — 프로젝트 인수인계 문서 정합성
+
+production code·V2-0~V2-6 Report·checkpoint·실행 상태를 대조해 README, Master Guide, Architecture, RAG/Observability, 서비스별 실행 문서와 current-task를 현재 상태로 맞췄다. V2 기능 구현 완료와 전체 데이터 검증 완료, 파싱과 Qdrant indexing, 진단 trace와 전체 workflow 추적을 구분한다.
+V1 기준선·V1 collection은 동결 상태를 유지하고, 다음 작업을 V2 파싱 완료 확인 → 별도 collection indexing·완전성 검증 → 전환 → V2 평가로 명시했다. 규칙·Gate는 완화하지 않았고 제품 코드는 변경하지 않았다.
+
+## 2026-10-01 — V2-6 LangSmith 선택적 실행 추적
+
+FastAPI `observability/tracing.py`: 설정(`BIZAID_TRACING_ENABLED`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` 기본 biz-aid)으로 켜는 RunTree 직접 기록. workflow 요청 = 최상위 실행, 하위 personalized_search·natural_filter·mysql_candidates·qdrant_search·eligibility·apply_answers·final_result. 값은 요약 함수 + 형식 검사(이중), SDK 런타임/환경변수 자동 첨부 off, workflow 실행 중 LangChain/LangGraph 자동 추적 강제 off(`tracing_context(enabled=False)`), 실패 무시.
+State에 `trace_key`(무작위, thread_id) 추가(선택 필드, schema_version 유지). requirements에 langsmith==0.14.2 명시(기존 간접 의존성과 같은 버전). `.env.example` 변수 4개.
+규칙 변경(보고): AI 경계의 "LangSmith 지금 연동하지 않는다"를 선택적 추적·외부 전송 금지 항목·무작위 식별값·장애 무시 규칙 3줄로 교체. 내부 API 계약에 tracing 절.
+운영 사고(보고): 첫 실제 진단을 이름 `biz_aid`로 보내 LangSmith가 같은 이름의 새 프로젝트를 자동 생성했다(실제 프로젝트 이름은 `biz-aid`, ID 928ce4c3…). 진단 기록 2건만 있으며 삭제는 사용자 결정. 기본 이름을 `biz-aid`로 고친 뒤 재진단해 기존 프로젝트 저장을 확인했다.
+결과: [Report](../workspace/reports/development/2026-10-01-v2-6-langsmith-tracing.md). AGY 검토 pending.
+
 ## 2026-10-01 — V2-5 React V2 맞춤 추천 화면
 
 React `/recommend/:workflowId?`(`features/recommend/`): 질문 → Top 3 → 공고별 판정(서버 CONTINUE마다 한 요청씩) → 부족 정보 입력 → answers → 재판정 → finalResult. 주소 기반 복원(GET만), 요청 잠금, 실패·409 자동 재시도 없음. V1 client·인증·근거 표시·CSS 재사용.

@@ -9,11 +9,11 @@
 
 | 대상 | 설계상 책임 | 현재 상태 |
 | --- | --- | --- |
-| React | UI, 서버 상태 캐시(TanStack Query), 로그인 사용자 상태 | 서비스 V1 구현(`frontend/`): 로그인·기업정보·지원사업 목록/상세·AI 검색·자격 판정 결과·근거 표시. Spring만 호출 |
-| Spring Boot | 인증·기업정보·대화 Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | 서비스 V1 구현(`backend/`): JWT 인증·기업정보·지원사업 조회·대화 저장. `HttpAiGateway`로 호스트 FastAPI 연결(공유 키 인증, 제한시간, 재시도 없음) |
-| FastAPI | 질문 구조화·검색·비교·답변·Citation·Evidence 검증 | 내부 API v1 구현(`biz_aid_pipeline/api/`: /health, /internal/v1/query, /internal/v1/eligibility). Spring Boot의 `HttpAiGateway`와 연결 완료 |
-| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | dev 공고 FULL(V1/V2), 문서 source·S3 위치(V3/V4), parse 상태·identity(V5) 구현 |
-| Qdrant | 문서 Chunk vector와 근거 metadata | dev dense·sparse 적재(Phase 4-B)와 read-only 검색(Phase 5 Retriever) 구현 |
+| React | UI, 서버 상태 캐시(TanStack Query), 로그인 사용자 상태 | V1 화면과 V2 맞춤 추천(`/recommend`) 구현. 서버 `nextAction`만 따라 단계 진행·복원하며 Spring만 호출 |
+| Spring Boot | 인증·기업정보·대화·추천 State Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | JWT·기업정보·지원사업·대화·활동 기록과 `ai_workflows` JSON 저장·동시 진행 제어. `HttpAiGateway`로 호스트 FastAPI 연결 |
+| FastAPI | 질문 구조화·검색·비교·답변·Citation 검증·추천 단계 실행 | 내부 API v1과 V2 개인화 검색·Top 3 판정·LangGraph workflow 구현. 회원·기업 State를 소유하지 않음 |
+| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | 공고·문서·parse(V1~V5), 회원·기업·대화·AI 결과·활동·workflow(V6~V9) 구현 |
+| Qdrant | 문서 Chunk vector와 근거 metadata | V1 기준선 collection 동결. V2 서비스 범위 별도 collection은 3문서 Smoke 후 전체 파싱·적재 진행 중 |
 | Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 저장·PDF/HWP/HWPX Parser(OCR·PP 표)·Chunking·dense/sparse Indexing 구현 |
 | Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe·5×20 API 품질 Batch·동일 표본의 제한된 문서 Download Gate |
 | Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
@@ -30,7 +30,7 @@ MySQL 활성 공고 후보 pblanc_id로 Qdrant 검색 범위를 제한하며 후
 실행: `docker compose --env-file .env.dev --profile app up --build`. backend 컨테이너만 `MYSQL_HOST=mysql`, `MYSQL_PORT=3306`을 쓴다.
 ai 컨테이너는 없다. FastAPI는 Compose 서비스가 아니며 호스트에서 먼저 띄운다(Ollama·BGE-M3 artifact·Qdrant 정책 유지, IMP-017). 제품 Pipeline은 `data-pipeline/`이다.
 Docker Compose는 개발환경 기준이며 운영 인프라는 미결정이다.
-MongoDB·Langfuse는 도입하지 않는다. LangSmith 계획은 [observability.md](observability.md)에 있다.
+MongoDB·Langfuse는 도입하지 않는다. LangSmith는 V2 workflow의 선택적·개인정보 제외 추적에만 사용한다([observability.md](observability.md)).
 Phase 2.5에서 문서 binary의 영구 저장소는 고정 dev S3이고 MySQL은 provenance와 검증 metadata를 소유한다.
 로컬 corpus는 migration 검토가 끝날 때까지 보존하며 장기 Source로 새로 생성하지 않는다.
 

@@ -6,10 +6,12 @@ BOUNDARY: State의 요청 간 저장은 Spring이 MySQL ai_workflows에 한다. 
 DB에 접근하지 않는다. 검색·판정 규칙·근거 연결·최종 상태 계산은 기존 서비스를 그대로 호출하고 LangGraph 안에 다시 만들지 않는다.
 """
 from typing import TypedDict
+from uuid import uuid4
 
 from biz_aid_pipeline.config.settings import PipelineError
 from biz_aid_pipeline.eligibility.profile import CompanyProfileSnapshot
 from biz_aid_pipeline.eligibility.top_programs import PROGRAM_FIELDS, search_profile
+from biz_aid_pipeline.observability.tracing import step as trace_step
 
 # 2: COMPLETED State에 final_result 추가(V2-4). 1로 저장된 진행 중 State는 그대로 읽고 다음 단계에서 2로 올린다(추가 필드만 생김).
 SCHEMA_VERSION = 2
@@ -42,6 +44,7 @@ class RecommendationState(TypedDict, total=False):
     next_action: str                 # 다음 행동: CONTINUE(다음 단계) / ANSWER(답변 대기) / NONE(끝)
     failure_code: str | None
     final_result: dict | None        # COMPLETED일 때만: 추천·제외·판단 불가(기존 판정 결과를 코드로 조립)
+    trace_key: str | None            # 실행 추적 묶음용 무작위 값(V2-6). 사용자·기업 정보와 무관하며 판정에 쓰지 않는다
     # 아래 둘은 한 요청 안에서만 쓰는 입력이며 저장 전에 지운다.
     command: str
     answers: dict
@@ -99,16 +102,18 @@ def final_item(entry):
 
 def build_final_result(evaluations):
     """검색 Top 3 순위(rank) 그대로 추천·제외·판단 불가로 나눈다. 추천이 0건이어도 정상 결과다(가짜 추천 없음)."""
-    result = {"recommended": [], "excluded": [], "unresolved": [], "disclaimer": None}
-    for entry in sorted(evaluations, key=lambda item: item["rank"]):
-        if entry["evaluation_status"] == "PENDING":
-            raise PipelineError("final_result_pending_evaluation")
-        category, item = final_item(entry)
-        result[category].append(item)
-        # 안내 문구는 판정 계약의 같은 고정 문구라 항목마다 반복하지 않는다.
-        result["disclaimer"] = result["disclaimer"] or (entry.get("eligibility") or {}).get("disclaimer")
-    result["counts"] = {key: len(result[key]) for key in ("recommended", "excluded", "unresolved")}
-    return result
+    with trace_step("final_result", evaluation_count=len(evaluations)) as span:
+        result = {"recommended": [], "excluded": [], "unresolved": [], "disclaimer": None}
+        for entry in sorted(evaluations, key=lambda item: item["rank"]):
+            if entry["evaluation_status"] == "PENDING":
+                raise PipelineError("final_result_pending_evaluation")
+            category, item = final_item(entry)
+            result[category].append(item)
+            # 안내 문구는 판정 계약의 같은 고정 문구라 항목마다 반복하지 않는다.
+            result["disclaimer"] = result["disclaimer"] or (entry.get("eligibility") or {}).get("disclaimer")
+        result["counts"] = {key: len(result[key]) for key in ("recommended", "excluded", "unresolved")}
+        span.record(**result["counts"])
+        return result
 
 
 def answer_field(name):
@@ -214,6 +219,13 @@ def build_graph(search_one, evaluate_one):
         return dict(transition(state, "COMPLETED", "DONE", "NONE"), missing_information=[])
 
     def apply_answers(state):
+        # 답한 값은 보내지 않고 field ID만 기록한다.
+        with trace_step("apply_answers", answered_fields=sorted(state.get("answers") or {})) as span:
+            update = apply_answers_node(state)
+            span.record(reevaluation_targets=len(update.get("pending", [])), status=update.get("status"))
+            return update
+
+    def apply_answers_node(state):
         answers = state.get("answers") or {}
         allowed = {item["field_id"] for item in state.get("missing_information", [])}
         # BOUNDARY: 현재 부족 정보에 실제로 있는 field ID만 받는다. 없는 field나 빈 답변은 거부한다.
@@ -250,10 +262,10 @@ def strip_inputs(state):
     return {key: value for key, value in state.items() if key not in ("command", "answers")}
 
 
-def start(graph, query, company_profile, as_of):
+def start(graph, query, company_profile, as_of, trace_key=None):
     state = {"schema_version": SCHEMA_VERSION, "query": query, "as_of": str(as_of), "company_profile": dict(company_profile),
              "temporary_company_facts": {}, "status": "IN_PROGRESS", "current_step": "SEARCH", "next_action": "CONTINUE",
-             "failure_code": None, "command": "start"}
+             "failure_code": None, "command": "start", "trace_key": trace_key or uuid4().hex}
     return strip_inputs(graph.invoke(state))
 
 

@@ -12,14 +12,14 @@
 | setup.sh | Bash·Git·Python >=3.11·Docker Compose >=2, Compose config와 mounts, Python/DB/Parser/Qdrant client 전제 | Java·Node build, 서비스 health, Live Qdrant·LLM 호출 |
 | check-format.sh | Control/Input의 UTF-8·LF·newline·공백·JSON indent·Git whitespace | 제품 언어 formatter |
 | check-lint.sh | Python AST·Bash syntax·JSON key 중복·Shell 실행 권한 | 제품 lint, 정적 타입 검사 |
-| check-contract.sh | Phase 0부터 RAG·Eligibility·내부 API·V1 baseline helper까지 offline Contract tests | Live API·AWS·실제 Qdrant·LLM·Browser 호출 |
+| check-contract.sh | Phase 0부터 RAG·Eligibility·V1/V2 내부 API·LangGraph workflow·LangSmith 경계·V1 baseline helper까지 offline Contract tests | Live API·AWS·실제 Qdrant·LLM·Browser 호출 |
 | check-integration.sh | 로컬 CLI와 dev/test MySQL의 구조화 적재·문서 metadata·parse persistence | Live upstream HTTP·AWS·실제 Parser model·서비스 E2E |
 | check-git-tracked.sh | dev / CI ref·미추적 파일·금지 ignore·Profile Secret ignore / 추적 금지·example 추적·index 동기화·최종 status | Push·Merge 권한 강제 |
 | check-comments.sh | Python tokenize / AST docstring·Bash comment의 한글 여부 | 주석 WHY의 적절성·누락은 AGY / 사용자 검토 |
 | check-harness.sh | 정적 문서 링크·Registry·Skill·명령·실제 module / Compose / CI·Workspace 제어·Review metadata | AGY 독립 Architecture 판단·저자 신원 인증 |
 | check-all.sh | 위 Harness·Python Contract·MySQL Integration 검사 전부 실행, 적용 범위 요약 | Backend/Frontend 별도 build·test, Browser E2E, Live AI Eval |
-| (서비스 V1) backend | `docker run --rm -v "$PWD/backend":/app -v bizaid-gradle-cache:/home/gradle/.gradle -w /app gradle:8.14-jdk21 gradle test` — H2 격리 DB의 인증·기업정보·QueryDSL 검색·대화·활동 기록과 가짜 FastAPI(JDK HttpServer)로 AI 결과 전달·저장·제한시간·내부 인증 오류 | check-all에 포함되지 않음. 실제 MySQL은 Compose E2E로 확인 |
-| (서비스 V1) frontend | `cd frontend && npm ci && npm run typecheck && npm test && npm run build` — 인증 routing·목록·기업정보 저장·SEARCH_LIST 카드·DOCUMENT_QA 근거·자격 판정 상태 | check-all에 포함되지 않음 |
+| (서비스 V1/V2) backend | `docker run --rm -v "$PWD/backend":/app -v bizaid-gradle-cache:/home/gradle/.gradle -w /app gradle:8.14-jdk21 gradle test` — H2 격리 DB의 인증·기업정보·QueryDSL 검색·대화·활동·workflow State/점유와 가짜 FastAPI 응답 검증 | check-all에 포함되지 않음. 실제 MySQL은 Compose E2E로 확인 |
+| (서비스 V1/V2) frontend | `cd frontend && npm ci && npm run typecheck && npm test && npm run build` — V1 화면과 V2 추천 시작·단계 진행·답변·복원·최종 결과 | check-all에 포함되지 않음 |
 
 0 = 해당 진입점의 **현재 명시된 범위** 통과, 1 = 실패, 2 = CLI 사용 오류.
 check-all은 모든 적용 검사를 실행한 후 하나라도 실패하면 1을 반환한다.
@@ -39,7 +39,7 @@ Probe의 credential_missing 종료 코드 3은 NOT_RUN이며 PASS로 계산하�
 Profile 격리·fallback 금지·OS 우선·셸 비실행·secret 비노출·prod OS 주입은 임시 합성 설정만 사용한다.
 사용자 .env.dev / .env.prod를 fixture로 복사하지 않는다. Offline PASS 이후 현재 dev Live만 명시적으로 실행한다.
 제품 Level 1–7(Format / Lint / Unit / Component / Contract / Integration / E2E / AI Eval)은 진입점별로 분리한다.
-React→Spring, Spring→FastAPI/MySQL, FastAPI→Qdrant 경계는 V1 E2E에서 확인했고, V1 AI baseline 10건은 별도 명시 실행이다.
+React→Spring, Spring→FastAPI/MySQL, FastAPI→Qdrant 경계는 V1 E2E에서 확인했고, V2는 기능별 Smoke만 수행했다. V1 AI baseline 10건은 별도 명시 실행이며 V2 전체 collection 평가는 아직 없다.
 Live 결과를 check-all의 offline PASS로 대체하거나 반대로 과거 Live Evidence를 현재 실행 결과로 재사용하지 않는다.
 
 AGY는 주석 의미·Architecture·테스트 사각지대·적용 제외 타당성을 독립 검토한다.

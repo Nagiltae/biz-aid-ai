@@ -36,4 +36,6 @@ LLM provider 교체는 RAG orchestration·prompt·retrieval 계약을 바꾸지 
 LangChain은 이 LLM 호출 계층(`rag/llm.py`: prompt 구성·모델 호출·구조화 출력)만 소유한다. 후보 필터·Retriever·RRF·Qdrant 규칙·Citation 연결·자격 최종 상태는 소유하지 않는다.
 허용값이 정해진 LLM 출력(분야·대상, 기업정보 field ID, evidence 번호)은 생성 단계에서 요청별 허용값 목록(enum)으로 제한하고, application 검증도 그대로 유지한다(이중 방어). 기업정보는 사람이 읽는 이름 대신 고정 field ID로 주고받는다.
 Retriever는 적재와 같은 BgeM3Embedder(같은 embedding_key)로 query를 만들고, collection은 그 identity의 `collection_name`으로만 정하며, 기존 collection을 읽기만 한다.
-LangSmith는 향후 Observability이며 지금 연동하지 않는다.
+LangSmith 실행 추적은 설정(`BIZAID_TRACING_ENABLED`)으로 켤 때만, `observability/tracing.py`가 정한 단계를 명시적으로 기록한다. LangChain/LangGraph 자동 추적은 쓰지 않으며 workflow 실행 중에는 강제로 끈다.
+외부 추적에는 단계 이름·시간·상태·개수·오류 코드·공개 공고 ID·field ID만 보낸다. 질문·기업정보·임시 답변 값·문서 원문·검색 조각·prompt·모델 응답·비밀값·예외 메시지 원문은 보내지 않는다(형식 검사로 이중 차단).
+추적 식별값은 사용자·기업과 무관한 무작위 값(trace_key)이다. 추적 생성·전송 실패는 무시하고 AI 흐름을 멈추거나 바꾸지 않는다.

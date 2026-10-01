@@ -179,3 +179,16 @@ RAG 답변: `scripts/run_rag_answer.py --profile dev --query "..." [--category �
 
 Bounded corpus indexing: `scripts/run_corpus_indexing.py --profile dev --run-id <id> --sources-file <sha 목록>` (`--status --run-id <id>`로 진행률·ETA).
 먼저 모든 target의 current parse_key PARSED gate를 확인하고, 이미 INDEXED인 source는 같은 run에서 건너뛴다. 결과는 ignored `data/parsed/index-runs/<id>/`.
+
+## V2 서비스 범위 Batch
+
+V1 기준선 collection `bizaid_chunks_v1_228acdd12220`은 수정·추가 적재하지 않는다. V2는 기준일 2026-10-01에 종료되지 않았거나 종료일을 확정할 수 없는 공고 1,372개와 연결된 PDF·HWP·HWPX 2,541개를 별도 namespace `v2`에 처리한다.
+
+상태는 배치에 영향을 주지 않는 아래 명령으로 각각 확인한다.
+
+```sh
+.venv/bin/python -B scripts/run_corpus_parsing.py --profile dev --run-id v2svc-20261001-parse --status
+.venv/bin/python -B scripts/run_corpus_indexing.py --profile dev --run-id v2svc-20261001-index --status
+```
+
+파싱 완료와 Qdrant 적재 완료는 별개다. `RUNNING`·`COMPLETED` 같은 runner 기록, 실패 수, 실제 process와 Qdrant point를 함께 확인한다. V2 collection 전환은 모든 대상의 current parse key, indexing final verification, source·point·provenance 완전성을 확인한 뒤에만 수행한다. 재개 명령과 run-id는 [V2-0 Report](../harness/workspace/reports/development/2026-10-01-v2-0-foundation.md)에 있다.

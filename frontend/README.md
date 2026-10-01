@@ -9,9 +9,11 @@ React 19 + TypeScript + Vite + React Router + TanStack Query. Spring Boot `/api`
 | `/programs` | 지원사업 목록(검색어·지원분야·지원대상·모집 상태·소관기관 필터, 페이지) |
 | `/programs/:pblancId` | 지원사업 상세 + 우리 회사 지원 가능 여부 확인(자격 판정 결과·근거 표시) |
 | `/company` | 내 기업정보 등록·수정 |
+| `/recommend/:workflowId?` | 기업정보 기반 Top 3 검색 → 공고별 판정 → 부족 정보 입력 → 재판정 → 최종 추천. 주소로 진행 상태 복원 |
 
 - `src/shared/api/client.ts`: 공통 API client. Access Token은 메모리에만 두고 401이면 재발급 후 한 번 재시도한다.
 - `src/features/*`: 기능별 API module과 화면.
+- `src/features/recommend/`: 서버의 `nextAction`과 `pendingPblancIds`를 표시한다. 화면이 판정 순서·분기·진행률을 자체 계산하지 않으며 복원은 GET만 수행한다.
 
 ```bash
 npm ci
