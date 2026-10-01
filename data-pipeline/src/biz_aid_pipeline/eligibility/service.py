@@ -3,6 +3,7 @@
 LLM은 criterion별 MET·NOT_MET·UNKNOWN과 근거 evidence id·사용한 profile field만 낸다.
 최종 status·citation·누락 정보는 application이 검증된 결과로 만든다. 설명 생성 LLM 호출은 없다.
 """
+import copy
 import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -21,8 +22,9 @@ SYSTEM_PROMPT = """너는 지원사업 공고의 자격 요건과 기업 정보�
    예외·완화 규정(예: 특정 피해 기업은 기준 완화)은 원래 조건과 같은 criterion에 포함하고 따로 만들지 않는다.
 3. 제외·제한 조건(예: 체납 중, 휴·폐업)은 기업이 해당하지 않으면 MET, 해당하면 NOT_MET이다.
 4. 판단에 필요한 기업 정보가 null이거나 목록에 없으면 추측하지 말고 UNKNOWN으로 한다. 일반 지식으로 보완하지 않는다.
+   기업 정보는 field ID(예: credit_score, extra_1)로 주어진다. extra_N은 아래 설명에 적힌 추가 사실이다.
 5. 숫자·날짜는 evidence와 기업 정보에 적힌 값만 비교한다. 업력은 business_age_months(개월)를 쓴다.
-6. 각 criterion에 근거 evidence 번호(evidence_ids)와 비교에 쓴 기업 정보 이름(profile_fields)을 반드시 넣는다. 이름은 주어진 목록의 것만 쓴다.
+6. 각 criterion에 근거 evidence 번호(evidence_ids)와 비교에 쓴 기업 정보 field ID(profile_fields)를 반드시 넣는다. 주어진 ID만 그대로 쓴다.
 7. reason은 한 문장으로 짧게 쓴다. 결과는 지정된 JSON 형식으로만 출력한다."""
 
 OUTPUT_SCHEMA = {
@@ -39,6 +41,34 @@ OUTPUT_SCHEMA = {
 
 def eligibility_contract(path=CONTRACT_PATH):
     return read_json(path)
+
+
+def fact_ids(facts):
+    """기업 사실에 LLM이 그대로 고를 안정적인 field ID를 붙인다. 반환: ({ID: 값}, {ID: 원래 이름}, {ID: 사람이 읽는 설명}).
+
+    WHY(V1 baseline E01·E03): 추가 사실은 사람이 읽는 한국어 이름(예: "최근 2개월 매출(원)")이라 모델이 띄어쓰기·단위를 바꿔
+    다시 써서 계약 검증에 걸렸다. 기본 field는 이미 고정 영문 ID이고, 추가 사실은 순서대로 extra_1, extra_2 …를 쓴다.
+    결과에는 원래 이름으로 되돌려 API 응답 의미(missing_information 등)를 바꾸지 않는다.
+    """
+    by_id, names, labels, extra = {}, {}, {}, 0
+    for name, value in facts.items():
+        if name.startswith("additional_facts."):
+            extra += 1
+            key = f"extra_{extra}"
+            labels[key] = name.removeprefix("additional_facts.")
+        else:
+            key = name
+        by_id[key], names[key] = value, name
+    return by_id, names, labels
+
+
+def output_schema(allowed_fields, allowed_evidence):
+    """요청마다 허용값을 넣은 출력 schema. 고를 수 있는 field ID·evidence 번호를 생성 단계에서 미리 제한한다(enum)."""
+    schema = copy.deepcopy(OUTPUT_SCHEMA)
+    item = schema["properties"]["criteria"]["items"]["properties"]
+    item["evidence_ids"]["items"]["enum"] = list(allowed_evidence)
+    item["profile_fields"]["items"]["enum"] = list(allowed_fields)
+    return schema
 
 
 def overall_status(criteria):
@@ -59,8 +89,13 @@ def citation(evidence_id, result):
             "heading_path": result.heading_path, "provenance": result.provenance}
 
 
-def validate(raw, index, facts, pblanc_id):
-    """LLM criterion을 검증한다. 형식·id·field 위반은 실패시키고, 값 없는 정보로 낸 MET·NOT_MET은 UNKNOWN으로 되돌린다."""
+def validate(raw, index, facts, pblanc_id, names=None):
+    """LLM criterion을 검증한다. 형식·id·field 위반은 실패시키고, 값 없는 정보로 낸 MET·NOT_MET은 UNKNOWN으로 되돌린다.
+
+    facts는 {field ID: 값}이다. 생성 단계에서 enum으로 제한했더라도 여기서 다시 검증한다(provider가 schema를 어길 수 있다).
+    names가 있으면 결과의 field를 원래 이름으로 되돌린다.
+    """
+    names = names or {key: key for key in facts}
     if not isinstance(raw, dict) or not isinstance(raw.get("criteria"), list):
         raise PipelineError("eligibility_output_schema_mismatch")
     validated = []
@@ -75,9 +110,8 @@ def validate(raw, index, facts, pblanc_id):
             raise PipelineError("eligibility_invalid_evidence_id")
         if any(index[value].pblanc_id != pblanc_id for value in evidence_ids):
             raise PipelineError("eligibility_cross_program_evidence")
-        # 모델이 이름에 공백을 섞는 경우(예: "최근 2 개월")만 공백 무시로 원래 이름에 맞춘다. 그 외 이름은 실패시킨다.
-        by_compact = {"".join(name.split()): name for name in facts}
-        profile_fields = list(dict.fromkeys(by_compact.get("".join(str(value).split()), str(value)) for value in item["profile_fields"]))
+        # 허용된 field ID만 받는다. 목록 밖 ID는 고쳐 쓰지 않고 실패시킨다.
+        profile_fields = list(dict.fromkeys(str(value) for value in item["profile_fields"]))
         unknown = [value for value in profile_fields if value not in facts]
         if unknown:
             raise PipelineError("eligibility_unknown_profile_field:" + ",".join(unknown))
@@ -86,8 +120,8 @@ def validate(raw, index, facts, pblanc_id):
         if result != "UNKNOWN" and not any(facts[value] is not None for value in profile_fields):
             result, adjusted = "UNKNOWN", f"model_{item['result']}_without_profile_value"
         validated.append({"criterion": item["criterion"].strip(), "result": result, "reason": item["reason"].strip(),
-                          "evidence_ids": evidence_ids, "profile_fields": profile_fields,
-                          "missing_profile_fields": [value for value in profile_fields if facts[value] is None],
+                          "evidence_ids": evidence_ids, "profile_fields": [names[value] for value in profile_fields],
+                          "missing_profile_fields": [names[value] for value in profile_fields if facts[value] is None],
                           "adjusted": adjusted, "citations": [citation(value, index[value]) for value in evidence_ids]})
     return validated
 
@@ -114,15 +148,16 @@ class EligibilityService:
             return dict(base, status="INSUFFICIENT_EVIDENCE", criteria=[], missing_information=[], explanation=[],
                         retrieved=[], llm_seconds=0.0)
         context, index = build_context(results)
-        facts = profile.facts(as_of)
-        user = (f"기준일: {as_of}\n\n공고 근거(evidence):\n{context}\n\n기업 정보(null은 모름):\n"
-                f"{json.dumps(facts, ensure_ascii=False, indent=1)}")
-        response = self.provider.generate(LlmRequest(SYSTEM_PROMPT, user, OUTPUT_SCHEMA))
+        facts, names, labels = fact_ids(profile.facts(as_of))
+        legend = "".join(f"\n- {key}: {label}" for key, label in labels.items())
+        user = (f"기준일: {as_of}\n\n공고 근거(evidence):\n{context}\n\n기업 정보(field ID: 값, null은 모름):\n"
+                f"{json.dumps(facts, ensure_ascii=False, indent=1)}" + (f"\n\n추가 사실 field ID 설명:{legend}" if legend else ""))
+        response = self.provider.generate(LlmRequest(SYSTEM_PROMPT, user, output_schema(facts, index)))
         try:
             raw = json.loads(response.text)
         except ValueError:
             raise PipelineError("eligibility_output_not_json") from None
-        criteria = validate(raw, index, facts, pblanc_id)
+        criteria = validate(raw, index, facts, pblanc_id, names)
         status = overall_status(criteria)
         missing = sorted({field for item in criteria if item["result"] == "UNKNOWN" for field in item["missing_profile_fields"]})
         explanation = [f"[{item['result']}] {item['criterion']}: {item['reason']}" for item in criteria]

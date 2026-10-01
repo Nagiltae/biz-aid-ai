@@ -3,6 +3,7 @@
 LLM은 필터 입력 후보만 제안한다. SQL·활성 여부·후보 선택·날짜는 application이 정한다.
 허용 값은 MySQL support_programs의 실제 값(활성 공고 기준)이며, 목록 밖 값은 적용하지 않고 unapplied로 드러낸다.
 """
+import copy
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -30,6 +31,18 @@ OUTPUT_SCHEMA = {
                    "unapplied_constraints": {"type": "array", "items": {"type": "string"}}},
     "required": ["request_mode", "categories", "targets", "currently_open_requested", "unapplied_constraints"],
 }
+
+def output_schema(domain):
+    """요청마다 허용값을 넣은 출력 schema. 분야·대상은 DB에 실제로 있는 값 중에서만 고르게 생성 단계에서 제한한다(enum).
+
+    생성 단계 제한은 형식 안정화용이다. 질문 근거 검사(grounded)·허용값 재검증은 extract()에서 그대로 한다.
+    """
+    schema = copy.deepcopy(OUTPUT_SCHEMA)
+    for key in ("categories", "targets"):
+        if domain.get(key):
+            schema["properties"][key]["items"]["enum"] = list(domain[key])
+    return schema
+
 
 SYSTEM_TEMPLATE = """너는 지원사업 검색 질문에서 정형 검색 조건만 뽑는 도구다. 답변이나 설명을 하지 않는다.
 허용 값 목록에 있는 값만 그대로 복사해 쓴다. 목록에 없는 말로 바꾸거나 새 값을 만들지 않는다.
@@ -90,7 +103,7 @@ class NaturalLanguageFilterService:
 
     def extract(self, query, as_of=None):
         system = SYSTEM_TEMPLATE.format(categories=", ".join(self.domain["categories"]), targets=", ".join(self.domain["targets"]))
-        response = self.provider.generate(LlmRequest(system, f"질문: {query}", OUTPUT_SCHEMA))
+        response = self.provider.generate(LlmRequest(system, f"질문: {query}", output_schema(self.domain)))
         # BOUNDARY: 추출 실패를 "조건 없음"으로 바꾸면 전체 공고를 검색하게 된다. 조용한 fallback 없이 실패시킨다.
         try:
             raw = json.loads(response.text)

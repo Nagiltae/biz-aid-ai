@@ -19,6 +19,8 @@ Phase 2.5의 V4는 검증된 S3 region/bucket/object key/시각만 추가한다.
 Phase 3의 V5는 `(source_sha256, parse_key)`별 parse 상태·provenance·S3 artifact pointer·parser identity를 MySQL에 저장한다.
 DoclingDocument JSON byte는 MySQL에 넣지 않는다. PARSED만 artifact metadata를 가지며 S3 검증 전 성공 row commit을 금지한다.
 같은 key는 idempotent하게 재사용하고 새 parse_key는 기존 row와 artifact를 덮어쓰지 않는다.
+보관과 서비스 검색 범위는 다르다. MySQL·S3는 과거(종료) 공고까지 전부 보관하고, 서비스 검색용 Qdrant(V2, `QDRANT_COLLECTION_NAMESPACE=v2`)에는 종료가 확실한(CLOSED) 공고를 뺀 OPEN·UPCOMING·UNKNOWN 공고 문서만 적재한다.
+V1 collection(`bizaid_chunks_v1_228acdd12220`)은 V1 baseline 재현용이라 수정·추가 적재하지 않는다(적재 경로는 namespace 필수). 검색 collection 전환은 코드가 아니라 설정으로 한다.
 Phase 4 chunk·vector는 MySQL에 저장하지 않는다. Qdrant index는 S3 parsed artifact와 V5 row에서 다시 만들 수 있는 파생 데이터이며 MySQL과 Qdrant는 pblanc_id·source_sha256으로만 연결한다.
 
 ## Application schema COMMENT

@@ -12,3 +12,5 @@ paddlex[ocr]==3.7.2
 qdrant-client==1.19.1
 fastapi==0.142.2
 uvicorn==0.54.0
+langchain-core==1.6.6
+langchain-ollama==1.1.0

@@ -2,31 +2,24 @@
 
 ## Goal / Context
 
-2026-10-01 사용자 요청: V1 Finalization. 새 기능과 production 동작 변경 없이 현재 V1 구현을 기준으로
-Harness의 오래된 상태 표현을 정리하고, PROJECT_MASTER_GUIDE와 면접관용 README를 완성한 뒤 release-ready 상태를 확인한다.
+2026-10-01 사용자 요청: V2-0 기반 작업. 기능 트랙(LLM 출력 계약 안정화, LangChain 최소 도입)과 데이터 트랙(서비스 대상 공고 범위 확정, V2 전용 Qdrant 적재 준비·시작)을 함께 준비한다.
+기업정보 기반 개인화 검색은 다음 단계이며 이번 범위가 아니다.
 
 ## Read First
 
-[AGENTS](../../AGENTS.md) → [Architecture](../docs/architecture.md) → [Testing](../docs/testing.md) →
-[V1 AI Baseline Report](reports/development/2026-10-01-v1-ai-baseline.md) →
-[Improvement Backlog](../docs/improvement-backlog.md) → [PROJECT_MASTER_GUIDE](../../PROJECT_MASTER_GUIDE.md).
+[AGENTS](../../AGENTS.md) → [AI 경계](../rules/ai-boundary-rules.md) → [DB 규칙](../rules/database-rules.md) →
+[Eligibility 계약](../../contracts/schemas/eligibility.contract.json) → [Indexing 계약](../../contracts/schemas/document-indexing.contract.json).
 
 ## Scope / Acceptance
 
-1. production code·현재 Contract와 어긋난 Harness 상태 문구만 최소 수정하고 검사를 약화하지 않는다.
-2. PROJECT_MASTER_GUIDE가 V1 아키텍처·서비스·평가 7/10·한계·V2 비교 계획을 모순 없이 설명한다.
-3. README는 처음 보는 사람이 3~5분 안에 문제·기능·구조·핵심 결정·평가·실행 방법을 파악하게 한다.
-4. frozen V1 baseline과 production AI 동작은 수정하거나 다시 실행하지 않는다.
-5. Git·Secret·생성물 상태를 확인하고 v1.0.0 후보만 제안한다. Commit·Tag·Push는 하지 않는다.
+1. 기업정보는 고정 field ID로 LLM과 주고받고, 허용 field ID·evidence 번호·분야·대상은 출력 schema enum으로 제한한다. application 재검증은 유지한다.
+2. LangChain은 `rag/llm.py` LLM 호출 계층만. 후보 필터·검색·RRF·Qdrant 규칙·Citation·최종 상태는 기존 코드.
+3. MySQL·S3는 전체 보관, V2 Qdrant는 CLOSED 제외 공고 문서만. V1 collection은 수정·추가 적재 금지. collection 전환은 설정으로.
+4. Parser·Chunker·BGE-M3 방식, V1 baseline, API 계약, JWT, support_programs schema는 바꾸지 않는다.
+5. 검증은 작게: targeted contract, E01~E03 1회 확인, V2 Smoke 소량. 반복 평가·전체 E2E·LangGraph·LangSmith·AWS 금지.
+AGY 독립 Review / 사용자 검토는 pending이다.
 
-## Validation
+## Validation / Reports
 
-- Harness targeted check와 문서 링크·경로·Secret/Git 상태를 확인한다.
-- Control/Input을 확정한 뒤 `./scripts/check-all.sh`를 마지막 1회 실행한다.
-- Backend/Frontend build, Browser E2E, Live Qdrant/LLM/AWS와 baseline 재실행은 이번 범위가 아니다.
-
-## Expected Report
-
-[Final Report](reports/development/2026-10-01-v1-finalization.md)
-
-AGY 독립 Review는 사용자 요청에 따라 이번 Task에서 수행하지 않는다.
+[Final Report](reports/development/2026-10-01-v2-0-foundation.md).
+모든 변경 후 `./scripts/check-all.sh`가 실제 exit 0이어야 한다.

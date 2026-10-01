@@ -3,6 +3,7 @@
 LLM은 request-local evidence id(E1..En)만 고른다. citation의 chunk_id·pblanc_id·page·source·provenance는
 모델 출력이 아니라 이번 요청에서 실제로 검색된 SearchResult에서만 가져온다.
 """
+import copy
 import json
 from dataclasses import asdict, dataclass, field
 
@@ -78,6 +79,18 @@ def build_context(results):
     return "\n\n".join(blocks), index
 
 
+def answer_schema(base, index):
+    """이번 context의 evidence 번호만 고르게 생성 단계에서 제한한다(enum). 근거가 없으면 기본 schema 그대로다.
+
+    제한해도 parse_output·used/rejected 검증은 그대로 한다(생성 제한 + application 재검증의 이중 방어).
+    """
+    if not index:
+        return base
+    schema = copy.deepcopy(base)
+    schema["properties"]["evidence_ids"]["items"]["enum"] = list(index)
+    return schema
+
+
 def parse_output(text):
     try:
         value = json.loads(text)
@@ -111,7 +124,7 @@ class RagService:
             results = self.retriever.search(query, spec["mode"], spec["top_k"])
         context, index = build_context(results)
         user = f"질문: {query}\n\n근거(evidence):\n{context}" if results else f"질문: {query}\n\n근거(evidence): 없음"
-        response = self.provider.generate(LlmRequest(SYSTEM_PROMPT, user, self.contract["output_schema"]))
+        response = self.provider.generate(LlmRequest(SYSTEM_PROMPT, user, answer_schema(self.contract["output_schema"], index)))
         output = parse_output(response.text)
         chosen = list(dict.fromkeys(str(item) for item in output["evidence_ids"]))
         # BOUNDARY: 이번 context에 없는 id는 citation으로 만들지 않는다. 모델이 지어낸 출처가 사용자에게 가지 않게 한다.

@@ -49,7 +49,8 @@
       "exclusion conditions are MET when the company is not in the excluded state",
       "a required company fact that is missing gives UNKNOWN, never an inferred MET or NOT_MET",
       "every criterion cites at least one evidence id of this request and names the profile fields it compared"
-    ]
+    ],
+    "field_ids": "the model sees company facts keyed by stable field IDs (snapshot field names, business_age_months, extra_1..extra_N for additional_facts with a label legend); profile_fields and evidence_ids are restricted per request by JSON schema enum, then re-validated by the application and mapped back to the original names in the result"
   },
   "validation": {
     "fail": [

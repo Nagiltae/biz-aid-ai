@@ -37,9 +37,10 @@ class Provider:
     name, model = "fake", "fake-1"
 
     def __init__(self, criteria):
-        self.text = json.dumps({"criteria": criteria}, ensure_ascii=False)
+        self.text, self.requests = json.dumps({"criteria": criteria}, ensure_ascii=False), []
 
     def generate(self, request):
+        self.requests.append(request)
         return LlmResponse(self.text, self.name, self.model, 0.1)
 
 
@@ -96,6 +97,28 @@ class EligibilityContractTests(unittest.TestCase):
                 evaluate(criteria, evidence=evidence)
         with self.assertRaisesRegex(PipelineError, "eligibility_program_not_found_or_inactive"):
             EligibilityService(Repository(), Retriever(EVIDENCE), Provider([])).evaluate("PBLN_GONE", PROFILE, AS_OF)
+
+    def test_profile_fields_are_stable_ids_limited_by_enum_and_mapped_back_to_original_names(self):
+        profile = CompanyProfileSnapshot.from_dict({"credit_score": 700, "additional_facts": {"최근 2개월 매출(원)": 5000000}})
+        provider = Provider([criterion("매출 요건", "MET", ["extra_1"], ("E2",))])
+        outcome = EligibilityService(Repository(), Retriever(EVIDENCE), provider).evaluate(TARGET, profile, AS_OF)
+        request = provider.requests[0]
+        fields = request.output_schema["properties"]["criteria"]["items"]["properties"]
+        # 생성 단계: 고를 수 있는 field ID와 evidence 번호를 이번 요청의 실제 값으로 제한한다(enum).
+        self.assertIn("extra_1", fields["profile_fields"]["items"]["enum"])
+        self.assertNotIn("additional_facts.최근 2개월 매출(원)", fields["profile_fields"]["items"]["enum"])
+        self.assertEqual(fields["evidence_ids"]["items"]["enum"], ["E1", "E2"])
+        self.assertIn("extra_1: 최근 2개월 매출(원)", request.user)
+        # 결과 의미는 그대로: 원래 field 이름으로 되돌려 응답한다.
+        self.assertEqual(outcome["criteria"][0]["profile_fields"], ["additional_facts.최근 2개월 매출(원)"])
+        self.assertEqual(outcome["status"], "ELIGIBLE")
+
+    def test_field_names_outside_the_allowed_ids_are_still_rejected_by_the_application(self):
+        # V1 baseline E01·E03 실패 형태: 모델이 사람이 읽는 이름을 바꿔 쓴 경우. provider가 schema를 어겨도 application이 거부한다.
+        profile = CompanyProfileSnapshot.from_dict({"credit_score": 700, "additional_facts": {"최근 2개월 매출(원)": 5000000}})
+        for bad in ("additional_facts.최근 2 개월 매출", "additional_facts.최근 2개월 매출(원)", "extra_9"):
+            with self.subTest(field=bad), self.assertRaisesRegex(PipelineError, "eligibility_unknown_profile_field"):
+                evaluate([criterion("매출 요건", "MET", [bad])], profile)
 
 
 if __name__ == "__main__":

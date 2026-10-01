@@ -29,5 +29,7 @@ Retriever는 정형 계층이 준 후보 scope 밖의 pblanc_id를 반환하지 
 RAG 답변은 이번 요청에서 검색된 evidence 밖의 사실을 만들지 않는다. 근거가 없으면 확인 불가로 답한다.
 Citation metadata(chunk_id·pblanc_id·page·source·provenance)는 LLM 출력을 믿지 않고 application이 검색된 SearchResult에서 resolve한다. LLM은 evidence id만 고른다.
 LLM provider 교체는 RAG orchestration·prompt·retrieval 계약을 바꾸지 않는다. provider는 `rag.llm.LlmProvider` 경계만 구현한다.
+LangChain은 이 LLM 호출 계층(`rag/llm.py`: prompt 구성·모델 호출·구조화 출력)만 소유한다. 후보 필터·Retriever·RRF·Qdrant 규칙·Citation 연결·자격 최종 상태는 소유하지 않는다.
+허용값이 정해진 LLM 출력(분야·대상, 기업정보 field ID, evidence 번호)은 생성 단계에서 요청별 허용값 목록(enum)으로 제한하고, application 검증도 그대로 유지한다(이중 방어). 기업정보는 사람이 읽는 이름 대신 고정 field ID로 주고받는다.
 Retriever는 적재와 같은 BgeM3Embedder(같은 embedding_key)로 query를 만들고, collection은 그 identity의 `collection_name`으로만 정하며, 기존 collection을 읽기만 한다.
 LangSmith는 향후 Observability이며 지금 연동하지 않는다.

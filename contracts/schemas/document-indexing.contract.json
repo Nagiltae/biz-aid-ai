@@ -58,7 +58,12 @@
     "client": "qdrant-client==1.19.1",
     "profile": "dev only",
     "schema_version": 1,
-    "collection_name": "bizaid_chunks_v{schema_version}_{embedding_key[:12]}",
+    "collection_name": "bizaid_chunks_v{schema_version}_{embedding_key[:12]} (V1, baseline-only, frozen) or bizaid_{namespace}_chunks_v{schema_version}_{embedding_key[:12]} (namespace ^[a-z][a-z0-9]{0,15}$, e.g. v2 service scope)",
+    "collection_namespace": {
+      "read": "QDRANT_COLLECTION_NAMESPACE setting (empty = V1); V1 baseline evaluation pins V1",
+      "write": "indexing entry points require a namespace; the V1 collection is never written again",
+      "service_scope_v2": "documents of active programs that are not CLOSED (OPEN, UPCOMING, UNKNOWN dates) by application_start_date/application_end_date; MySQL and S3 keep every program"
+    },
     "vectors": {
       "dense": {
         "size": 1024,

@@ -7,14 +7,19 @@ import threading
 
 from biz_aid_pipeline.config.settings import ROOT, DbConfig
 
+FROM_SETTINGS = object()
+
 
 class ServiceRuntime:
-    def __init__(self, profile, root=ROOT):
+    def __init__(self, profile, root=ROOT, collection_namespace=FROM_SETTINGS):
         from qdrant_client import QdrantClient
         from biz_aid_pipeline.candidates.service import ProgramCandidateRepository
-        from biz_aid_pipeline.indexing.qdrant_store import qdrant_url
+        from biz_aid_pipeline.indexing.qdrant_store import collection_namespace as configured_namespace, qdrant_url
         from biz_aid_pipeline.rag.llm import provider_from_settings
         self.profile = profile
+        # 검색 collection은 설정(QDRANT_COLLECTION_NAMESPACE)으로 전환한다. V1 baseline 평가는 None(V1 collection)을 명시해 고정한다.
+        self.collection_namespace = (configured_namespace(profile, root) if collection_namespace is FROM_SETTINGS
+                                     else collection_namespace)
         self.provider = provider_from_settings(profile)
         self.repository = ProgramCandidateRepository.from_config(DbConfig.load(root, profile))
         self.qdrant = QdrantClient(url=qdrant_url(profile))
@@ -27,7 +32,7 @@ class ServiceRuntime:
                 from biz_aid_pipeline.indexing.embedder import BgeM3Embedder, indexing_contract
                 from biz_aid_pipeline.retrieval.retriever import Retriever
                 contract = indexing_contract()
-                self._retriever = Retriever(BgeM3Embedder(contract), self.qdrant, contract)
+                self._retriever = Retriever(BgeM3Embedder(contract), self.qdrant, contract, namespace=self.collection_namespace)
             return self._retriever
 
     def answer_query(self, query, as_of=None, manual_filter=None):

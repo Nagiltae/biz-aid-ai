@@ -51,7 +51,10 @@ def parse_gate(root, profile, sources):
 
 
 def verify_collection(client, collection, sources, source_points):
-    """완료 뒤 확인: 현재 collection 하나만 있고, target마다 point 수가 이번 적재 결과와 같으며, pblanc_id·provenance가 빈 point가 없다."""
+    """완료 뒤 확인: 대상 collection이 있고, target마다 point 수가 이번 적재 결과와 같으며, pblanc_id·provenance가 빈 point가 없다.
+
+    V1(baseline)·V2(서비스) collection이 함께 있을 수 있어 "collection이 하나뿐"은 조건이 아니다. 다른 collection은 건드리지 않는다.
+    """
     from qdrant_client import models
     from biz_aid_pipeline.indexing.qdrant_store import source_filter
     counts = {sha: client.count(collection, count_filter=source_filter(sha), exact=True).count for sha in sources}
@@ -66,7 +69,7 @@ def verify_collection(client, collection, sources, source_points):
             "target_points": sum(counts.values()), "sources_in_collection": len(distinct),
             "target_sources_present": sum(1 for count in counts.values() if count), "non_target_sources": len(distinct) - len(sources),
             "point_count_mismatch": mismatched, "points_missing_pblanc_or_provenance": empty,
-            "ok": not mismatched and empty == 0 and collections == [collection]}
+            "ok": not mismatched and empty == 0 and collection in collections}
 
 
 def snapshot(state):
@@ -82,7 +85,8 @@ def snapshot(state):
             "elapsed_seconds": round(elapsed, 1), "avg_seconds_per_source": round(measured, 1) if measured else None,
             "eta_seconds": round(per_source * remaining, 1) if state["state"] == "RUNNING" else 0,
             "eta_basis": "measured_average" if measured else "initial_estimate", "collection": state["collection"],
-            "final": state.get("final"), "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+            "excluded_unparsed": state.get("excluded_unparsed", 0), "final": state.get("final"),
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
 
 
 def drive(sources, index_one, done, state, write, stop_requested=lambda: False):
@@ -129,7 +133,7 @@ def drive(sources, index_one, done, state, write, stop_requested=lambda: False):
     return state
 
 
-def run_indexing(root, profile, run_id, sources):
+def run_indexing(root, profile, run_id, sources, namespace, parsed_only=False):
     if profile != "dev":
         raise PipelineError("indexing_requires_dev_profile")
     directory = Path(root) / RUNS / run_id
@@ -145,7 +149,7 @@ def run_indexing(root, profile, run_id, sources):
     state = {"run_id": run_id, "state": "RUNNING", "stop_reason": None, "total": len(sources), "completed": 0,
              "indexed": 0, "failed": 0, "skipped": 0, "current": None, "chunks": 0, "failures": {},
              "processed_seconds": 0.0, "collection": None, "started": time.time(), "source_points": source_points,
-             "final": None}
+             "final": None, "excluded_unparsed": 0}
     results = results_path.open("a", encoding="utf-8")
 
     def write(outcome, current):
@@ -160,6 +164,13 @@ def run_indexing(root, profile, run_id, sources):
         state["state"] = "PARSE_GATE"
         write(None, state)
         missing = parse_gate(root, profile, sources)
+        if missing and parsed_only:
+            # 서비스 범위 적재(V2)는 현재 parser로 PARSED된 문서만 넣는다. 제외 목록과 사유는 그대로 남긴다(조용히 버리지 않음).
+            (directory / "parse-gate-excluded.json").write_text(
+                json.dumps([{"source_sha256": sha, "reason": reason} for sha, reason in missing], indent=2), encoding="utf-8")
+            excluded = {sha for sha, _ in missing}
+            sources = [sha for sha in sources if sha not in excluded]
+            state["total"], state["excluded_unparsed"], missing = len(sources), len(excluded), []
         # BOUNDARY: 일부만 현재 parser 결과인 dataset을 완성본으로 적재하지 않는다. 실패 목록을 남기고 멈춘다.
         if missing:
             (directory / "parse-gate-failures.json").write_text(
@@ -170,7 +181,7 @@ def run_indexing(root, profile, run_id, sources):
         from qdrant_client import QdrantClient
         from biz_aid_pipeline.indexing.embedder import BgeM3Embedder, indexing_contract
         from biz_aid_pipeline.indexing.pipeline import index_source
-        from biz_aid_pipeline.indexing.qdrant_store import qdrant_url
+        from biz_aid_pipeline.indexing.qdrant_store import collection_name, qdrant_url
         contract = indexing_contract()
         embedder = BgeM3Embedder(contract)
         client = QdrantClient(url=qdrant_url(profile))
@@ -178,11 +189,10 @@ def run_indexing(root, profile, run_id, sources):
         # WHY: 신호로 바로 끝내면 source의 upsert와 stale 정리 사이에서 끊길 수 있다. 신호는 다음 source 경계의 종료 요청이다.
         for signum in (signal.SIGTERM, signal.SIGINT):
             signal.signal(signum, lambda *_: stop.append(True))
-        drive(sources, lambda sha: index_source(sha, embedder, client, contract, profile, Path(root)), done, state, write,
-              lambda: bool(stop))
+        drive(sources, lambda sha: index_source(sha, embedder, client, contract, profile, Path(root), namespace=namespace), done,
+              state, write, lambda: bool(stop))
         if state["state"] == "COMPLETED" and state["failed"] == 0:
-            from biz_aid_pipeline.indexing.qdrant_store import collection_name
-            state["collection"] = collection_name(contract, embedder.identity["embedding_key"])
+            state["collection"] = collection_name(contract, embedder.identity["embedding_key"], namespace)
             state["final"] = verify_collection(client, state["collection"], sources, state["source_points"])
             if not state["final"]["ok"]:
                 state["state"], state["stop_reason"] = "VERIFY_FAILED", "final collection check failed"
@@ -204,6 +214,8 @@ def status_text(root, run_id):
              f"failed: {snap['failed']}  chunks: {snap['chunks']}",
              f"current: {(snap['current'] or '-')[:12]}  elapsed: {int(snap['elapsed_seconds'] // 60)}m  "
              f"avg/source: {f'{avg}s' if avg else '-'}  ETA (estimate, {snap['eta_basis']}): {int(eta // 60)}m {int(eta % 60)}s"]
+    if snap.get("excluded_unparsed"):
+        lines.append(f"excluded (not currently PARSED, see parse-gate-excluded.json): {snap['excluded_unparsed']}")
     if snap["stop_reason"]:
         lines.append(f"stop_reason: {snap['stop_reason']}")
     if snap.get("final"):
@@ -217,12 +229,16 @@ def main(argv=None):
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--status", action="store_true", help="진행 상태만 출력")
     parser.add_argument("--sources-file", help="index할 content SHA 목록(한 줄에 하나)")
+    # V1 collection은 baseline 재현용으로 동결했다. 적재는 항상 namespace collection(예: v2)에 한다.
+    parser.add_argument("--collection-namespace", help="적재할 collection namespace(예: v2). --status가 아니면 필수")
+    parser.add_argument("--parsed-only", action="store_true", help="현재 parse_key로 PARSED된 source만 적재(나머지는 제외 목록에 기록)")
     args = parser.parse_args(argv)
     if args.status:
         print(status_text(ROOT, args.run_id))
         return 0
-    if not args.sources_file:
-        parser.error("--sources-file is required unless --status")
-    state = run_indexing(ROOT, args.profile, args.run_id, read_sources(args.sources_file))
+    if not args.sources_file or not args.collection_namespace:
+        parser.error("--sources-file and --collection-namespace are required unless --status")
+    state = run_indexing(ROOT, args.profile, args.run_id, read_sources(args.sources_file), args.collection_namespace,
+                         args.parsed_only)
     print(status_text(ROOT, args.run_id))
     return 0 if state["state"] == "COMPLETED" and state["failed"] == 0 else 1

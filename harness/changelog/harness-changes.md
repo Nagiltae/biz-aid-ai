@@ -1,5 +1,14 @@
 # Harness 변경 이력
 
+## 2026-10-01 — V2-0 기반 작업(출력 계약 안정화·LangChain 최소 도입·V2 서비스 범위 적재)
+
+자격 판정은 기업정보를 고정 field ID(기본 field 이름, 추가 사실 extra_N)로 주고, 요청마다 허용 field ID·evidence 번호를 출력 schema enum으로 제한한다. 결과는 원래 이름으로 되돌려 API 의미를 유지한다. 자연어 필터 분야·대상과 RAG evidence 번호도 enum으로 제한했다. application 재검증은 그대로다.
+`rag/llm.py`의 Ollama provider 내부를 LangChain(ChatPromptTemplate + ChatOllama)으로 바꿨다. LlmProvider 경계·LlmRequest/LlmResponse는 그대로다. requirements에 langchain-core·langchain-ollama를 고정했다.
+Qdrant collection namespace(`QDRANT_COLLECTION_NAMESPACE`, 비면 V1)를 추가했다. 적재 경로는 namespace 필수라 V1 collection에 쓸 수 없고, V1 baseline evaluator는 V1 collection으로 고정했다. 적재 최종 확인은 "collection 하나뿐" 대신 "대상 collection 존재"로 바꿨다.
+`indexing/service_scope.py`(+ `scripts/run_v2_service_scope.py`)가 CLOSED가 아닌 활성 공고의 검증 원본 문서를 고르고, 기존 parsing·indexing runner로 V2 collection batch를 돌린다(`--collection-namespace v2 --parsed-only`).
+규칙 변경(보고, 완화 없음): AI 경계(허용값 enum + 재검증, LangChain 소유 범위), DB 규칙(보관과 서비스 검색 범위 구분, V1 collection 동결, 설정 전환). 새 Backlog IMP-018, IMP-003 Evidence 추가.
+결과: [Report](../workspace/reports/development/2026-10-01-v2-0-foundation.md). AGY 검토 pending.
+
 ## 2026-10-01 — V1 Finalization
 
 production code·Harness·PROJECT_MASTER_GUIDE를 현재 상태의 기준으로 명시하고 PROJECT_DESIGN은 최초 목표와 배경으로 구분했다.

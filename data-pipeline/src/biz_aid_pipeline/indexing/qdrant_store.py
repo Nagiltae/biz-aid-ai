@@ -1,5 +1,6 @@
 """dev Qdrant collection 준비·batch upsert·stale 정리. collection은 embedding_key마다 하나다."""
 import os
+import re
 from urllib.parse import urlparse
 
 from biz_aid_pipeline.config.settings import ROOT, PipelineError, profile_values
@@ -18,9 +19,32 @@ def qdrant_url(profile, root=ROOT, environ=None):
     return url
 
 
-def collection_name(contract, embedding_key):
+NAMESPACE_PATTERN = re.compile(r"^[a-z][a-z0-9]{0,15}$")
+
+
+def collection_name(contract, embedding_key, namespace=None):
     # WHY: 다른 모델·설정의 vector는 거리 비교가 무의미하다. embedding_key별 collection이면 한 검색이 서로 다른 vector 공간을 섞지 않는다.
-    return f"bizaid_chunks_v{contract['qdrant']['schema_version']}_{embedding_key[:12]}"
+    # namespace(예: v2)는 같은 embedding identity라도 적재 범위가 다른 collection을 나눈다. 없으면 V1 baseline collection이다.
+    base = f"chunks_v{contract['qdrant']['schema_version']}_{embedding_key[:12]}"
+    if not namespace:
+        return "bizaid_" + base
+    if not NAMESPACE_PATTERN.match(namespace):
+        raise PipelineError("qdrant_collection_namespace_invalid")
+    return f"bizaid_{namespace}_{base}"
+
+
+def collection_namespace(profile, root=ROOT, environ=None):
+    """검색이 읽을 collection namespace 설정(QDRANT_COLLECTION_NAMESPACE). 비어 있으면 V1 collection을 읽는다.
+
+    WHY: V2 적재가 끝나면 business code 수정 없이 설정만 바꿔 서비스 검색 collection을 전환한다.
+    """
+    if profile != "dev":
+        raise PipelineError("indexing_requires_dev_profile")
+    value = profile_values(root, profile, {"QDRANT_COLLECTION_NAMESPACE"}, os.environ if environ is None else environ).get(
+        "QDRANT_COLLECTION_NAMESPACE") or None
+    if value and not NAMESPACE_PATTERN.match(value):
+        raise PipelineError("qdrant_collection_namespace_invalid")
+    return value
 
 
 def collection_metadata(contract, identity):
@@ -59,11 +83,11 @@ def schema_differences(contract, identity, info):
     return differences
 
 
-def ensure_collection(client, contract, identity):
+def ensure_collection(client, contract, identity, namespace=None):
     """없으면 만들고, 있으면 schema가 같을 때만 재사용한다. 반환: (이름, created 여부)."""
     from qdrant_client import models
     spec = contract["qdrant"]
-    name = collection_name(contract, identity["embedding_key"])
+    name = collection_name(contract, identity["embedding_key"], namespace)
     created = not client.collection_exists(name)
     if created:
         client.create_collection(

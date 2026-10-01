@@ -47,6 +47,10 @@ class NaturalLanguageFilterTests(unittest.TestCase):
         self.assertEqual(result.unapplied_constraints, ["categories:금융지원(허용 값 아님)"])
         self.assertEqual([(d["field"], d["value"]) for d in result.discarded], [("categories", "finance"), ("categories", "기술")])
         self.assertIn("금융, 기술", provider.requests[0].system.replace("경영, ", ""))
+        # 생성 단계에서도 허용값만 고르게 enum으로 제한한다(위 검증은 그대로 유지되는 이중 방어).
+        items = provider.requests[0].output_schema["properties"]
+        self.assertEqual((items["categories"]["items"]["enum"], items["targets"]["items"]["enum"]),
+                         (list(DOMAIN["categories"]), list(DOMAIN["targets"])))
 
     def test_currently_open_uses_application_date_not_llm_date(self):
         # BOUNDARY: 출력 schema에는 날짜 field가 없다. "지금"은 application의 as_of 날짜로만 바뀐다.

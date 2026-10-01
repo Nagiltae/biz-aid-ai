@@ -18,13 +18,13 @@ def unique_texts(chunks):
     return texts
 
 
-def index_chunks(chunks, source_sha256, embedder, client, contract):
+def index_chunks(chunks, source_sha256, embedder, client, contract, namespace=None):
     identity = embedder.identity
     expected = {"repo_id": identity["model_repo_id"], "revision": identity["model_revision"]}
     # BOUNDARY: chunk 크기를 잰 tokenizer와 embedding 모델이 다르면 token 한도와 vector 의미가 어긋난다.
     if any(chunk.embedding_model != expected for chunk in chunks):
         raise PipelineError("chunk_embedding_model_mismatch")
-    name, created = qdrant_store.ensure_collection(client, contract, identity)
+    name, created = qdrant_store.ensure_collection(client, contract, identity, namespace)
     texts = unique_texts(chunks)
     started = time.monotonic()
     vectors = dict(zip(texts, embedder.encode(list(texts.values()))))
@@ -39,9 +39,12 @@ def index_chunks(chunks, source_sha256, embedder, client, contract):
             "source_points": stored}
 
 
-def index_source(source_sha256, embedder, client, contract, profile="dev", root=ROOT, explicit_parse_key=None):
-    """source SHA 하나: 현재 parse 결과 → FinalChunk → dense·sparse → Qdrant."""
+def index_source(source_sha256, embedder, client, contract, profile="dev", root=ROOT, explicit_parse_key=None, namespace=None):
+    """source SHA 하나: 현재 parse 결과 → FinalChunk → dense·sparse → Qdrant(namespace collection)."""
+    # BOUNDARY: namespace 없는 collection은 V1 baseline 재현용이라 실행 경로에서 더 쓰지 않는다(V2부터 namespace 필수).
+    if not namespace:
+        raise PipelineError("v1_collection_frozen:collection_namespace_required")
     chunks = chunk_source(root, profile, source_sha256, explicit_parse_key)
     if not chunks:
         raise PipelineError("no_chunks")
-    return index_chunks(chunks, source_sha256, embedder, client, contract)
+    return index_chunks(chunks, source_sha256, embedder, client, contract, namespace)

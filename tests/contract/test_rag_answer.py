@@ -54,6 +54,9 @@ class RagAnswerContractTests(unittest.TestCase):
         # BOUNDARY: LLM에는 evidence id와 읽을 내용만 가고 식별자·원본 provenance는 가지 않는다.
         prompt = provider.requests[0].user
         self.assertIn("[E2]", prompt)
+        # 이번 context의 evidence 번호만 고를 수 있게 생성 단계에서 제한한다.
+        self.assertEqual(provider.requests[0].output_schema["properties"]["evidence_ids"]["items"]["enum"],
+                         [f"E{n}" for n in range(1, len(RESULTS) + 1)])
         for leaked in ("chunk-2", "PBLN_2", "a" * 64, "b" * 64, "bbox_pt"):
             self.assertNotIn(leaked, prompt)
 
@@ -85,6 +88,41 @@ class RagAnswerContractTests(unittest.TestCase):
         self.assertEqual((retriever.calls[-1], scoped.candidate_count), (("보증한도는?", "hybrid", 5, ("PBLN_1", "PBLN_2")), 2))
         with self.assertRaisesRegex(PipelineError, "retrieval_scope_violation"):
             RagService(FakeRetriever(RESULTS), provider).answer("보증한도는?", candidate_pblanc_ids=("PBLN_1",))
+
+
+class LangChainProviderTests(unittest.TestCase):
+    def test_ollama_provider_sends_schema_through_langchain_and_maps_errors_to_fixed_codes(self):
+        from langchain_core.messages import AIMessage
+        from biz_aid_pipeline.config.settings import PipelineError
+        from biz_aid_pipeline.rag.llm import LlmRequest, OllamaLlmProvider
+
+        class FakeChat:
+            def __init__(self, result):
+                self.result, self.calls = result, []
+
+            def invoke(self, messages, **kwargs):
+                self.calls.append((messages, kwargs))
+                if isinstance(self.result, Exception):
+                    raise self.result
+                return self.result
+
+        schema = {"type": "object", "properties": {"answer": {"type": "string"}}}
+        chat = FakeChat(AIMessage(content='{"answer": "{x}"}', response_metadata={"model": "qwen", "eval_count": 3}))
+        provider = OllamaLlmProvider("http://127.0.0.1:11434", "qwen", 5, "1m", chat=chat)
+        response = provider.generate(LlmRequest("규칙 {중괄호}", "질문", schema))
+        messages, kwargs = chat.calls[0]
+        # prompt 본문의 중괄호는 template 변수로 해석되지 않고, 출력 schema는 Ollama format으로 그대로 간다.
+        self.assertEqual([message.content for message in messages], ["규칙 {중괄호}", "질문"])
+        self.assertEqual((kwargs["format"], kwargs["options"]), (schema, {"temperature": 0.0}))
+        self.assertEqual((response.text, response.provider, response.model, response.usage["eval_count"]),
+                         ('{"answer": "{x}"}', "ollama", "qwen", 3))
+        failure = OSError("connect to 127.0.0.1 failed")
+        with self.assertRaisesRegex(PipelineError, "^llm_unavailable$"):
+            OllamaLlmProvider("u", "m", 5, "1m", chat=FakeChat(failure)).generate(LlmRequest("s", "u", schema))
+        http_error = RuntimeError("bad")
+        http_error.status_code = 500
+        with self.assertRaisesRegex(PipelineError, "^llm_http_error:500$"):
+            OllamaLlmProvider("u", "m", 5, "1m", chat=FakeChat(http_error)).generate(LlmRequest("s", "u", schema))
 
 
 if __name__ == "__main__":

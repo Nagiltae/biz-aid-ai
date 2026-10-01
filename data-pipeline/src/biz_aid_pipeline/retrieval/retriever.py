@@ -65,12 +65,12 @@ def rrf(ranked_lists, rrf_k, limit):
 class Retriever:
     """문서 적재와 같은 embedder(같은 embedding_key)로 query를 만들고 그 identity의 collection만 읽는다."""
 
-    def __init__(self, embedder, client, index_contract, contract=None):
+    def __init__(self, embedder, client, index_contract, contract=None, namespace=None):
         self.embedder, self.client = embedder, client
         self.contract = contract or retrieval_contract()
         identity = embedder.identity
-        # BOUNDARY: collection 이름은 설정값이 아니라 현재 embedding identity에서만 나온다. 다른 vector 공간을 읽을 수 없다.
-        self.collection = qdrant_store.collection_name(index_contract, identity["embedding_key"])
+        # BOUNDARY: collection 이름은 현재 embedding identity + 적재 범위 namespace(V1은 없음)로만 정한다. 다른 vector 공간을 읽을 수 없다.
+        self.collection = qdrant_store.collection_name(index_contract, identity["embedding_key"], namespace)
         if not client.collection_exists(self.collection):
             # RISK: 여기서 만들면 빈 collection이 "검색 결과 없음"처럼 보인다. 적재가 먼저다.
             raise PipelineError("retrieval_collection_missing:" + self.collection)

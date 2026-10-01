@@ -225,7 +225,8 @@ def main(argv=None):
         raise SystemExit("baseline_output_exists: refusing to overwrite a completed run")
     cases, frozen = load_frozen_cases(args.cases)
     from biz_aid_pipeline.runtime import ServiceRuntime
-    runtime = ServiceRuntime(args.profile)
+    # BOUNDARY: V1 baseline은 V1 collection으로만 재현한다. 서비스 설정(QDRANT_COLLECTION_NAMESPACE=v2)과 무관하게 고정한다.
+    runtime = ServiceRuntime(args.profile, collection_namespace=None)
     started = datetime.now(ZoneInfo("Asia/Seoul"))
     rows, errors = [], []
     try:

@@ -11,6 +11,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="dev-only FinalChunk → BGE-M3 dense·sparse → Qdrant indexing")
     parser.add_argument("--profile", choices=["dev"], required=True)
     parser.add_argument("--source-sha256", action="append", required=True)
+    # V1 collection은 baseline 재현용으로 동결했다. 적재는 항상 namespace collection(예: v2)에 한다.
+    parser.add_argument("--collection-namespace", required=True)
     args = parser.parse_args(argv)
     from qdrant_client import QdrantClient
     contract = indexing_contract()
@@ -19,7 +21,8 @@ def main(argv=None):
     status = 0
     for source_sha256 in args.source_sha256:
         try:
-            result = index_source(source_sha256, embedder, client, contract, args.profile, ROOT)
+            result = index_source(source_sha256, embedder, client, contract, args.profile, ROOT,
+                                  namespace=args.collection_namespace)
         except PipelineError as error:
             result = {"source_sha256": source_sha256, "status": "FAILED", "failure_code": str(error)}
             status = 1

@@ -14,7 +14,7 @@ from biz_aid_pipeline.chunking.chunker import chunk_document, chunking_contract
 from biz_aid_pipeline.config.settings import PipelineError
 from biz_aid_pipeline.indexing import qdrant_store
 from biz_aid_pipeline.indexing.embedder import embedding_identity, indexing_contract, sparse_vector
-from biz_aid_pipeline.indexing.pipeline import index_chunks
+from biz_aid_pipeline.indexing.pipeline import index_chunks, index_source
 from biz_aid_pipeline.parsing.models import artifact_files, parsing_contract, scoped_artifacts_sha256
 from test_document_chunking import SOURCE, sample_document
 
@@ -106,6 +106,24 @@ class DocumentIndexingContractTests(unittest.TestCase):
             index_chunks(chunks, SOURCE.source_sha256, FakeEmbedder(other_model, 8), client, contract)
         with self.assertRaisesRegex(PipelineError, "qdrant_url_not_loopback"):
             qdrant_store.qdrant_url("dev", environ={"QDRANT_URL": "http://10.0.0.5:6333"})
+
+    def test_v2_namespace_collection_is_separate_and_v1_collection_is_not_an_indexing_target(self):
+        contract = indexing_contract()
+        key = identity()["embedding_key"]
+        v1, v2 = qdrant_store.collection_name(contract, key), qdrant_store.collection_name(contract, key, "v2")
+        self.assertEqual((v1, v2), (f"bizaid_chunks_v1_{key[:12]}", f"bizaid_v2_chunks_v1_{key[:12]}"))
+        client = QdrantClient(":memory:")
+        chunks = chunk_document(sample_document(), SOURCE)
+        result = index_chunks(chunks, SOURCE.source_sha256, FakeEmbedder(identity(), 1024), client, contract, namespace="v2")
+        # V2 적재는 V2 collection에만 쓰고 V1(baseline) collection을 만들거나 바꾸지 않는다.
+        self.assertEqual((result["collection"], client.collection_exists(v1)), (v2, False))
+        # BOUNDARY: 실행 경로(index_source)는 namespace 없이(=V1) 적재할 수 없다.
+        with self.assertRaisesRegex(PipelineError, "v1_collection_frozen"):
+            index_source(SOURCE.source_sha256, FakeEmbedder(identity(), 1024), client, contract)
+        # 검색 설정은 환경으로 전환하고, 잘못된 이름은 거부한다.
+        self.assertEqual(qdrant_store.collection_namespace("dev", environ={"QDRANT_COLLECTION_NAMESPACE": "v2"}), "v2")
+        with self.assertRaisesRegex(PipelineError, "qdrant_collection_namespace_invalid"):
+            qdrant_store.collection_namespace("dev", environ={"QDRANT_COLLECTION_NAMESPACE": "V2;drop"})
 
     def test_bounded_indexing_runner_processes_only_targets_resumes_and_isolates_failures(self):
         from biz_aid_pipeline.indexing.corpus import drive
