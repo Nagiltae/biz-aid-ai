@@ -22,6 +22,8 @@ React는 Spring Boot `/api`만 호출하며 DB와 FastAPI에 직접 접근하지
 | POST · GET | /api/conversations | 필요 | 대화 생성·목록 |
 | GET · POST | /api/conversations/{id}/messages | 필요 | 메시지 조회·사용자 메시지 저장 |
 | POST | /api/ai/query | 필요 | AI 검색·질문 `{query, conversationId?}` → `{conversationId, userMessage, assistantMessage, result}` |
+| POST | /api/ai/personalized-search | 필요 | V2 기업정보 기반 개인화 검색 `{query}` → `{status, candidateCount, programs(≤3), appliedConditions, unappliedConditions, ...}`(기업정보 미등록 시 404 company_not_registered) |
+| POST | /api/ai/personalized-eligibility | 필요 | V2 Top 3 자격 판정 `{query}` → `{search, evaluations[{rank, pblancId, program, evaluationStatus(COMPLETED/FAILED), eligibility, errorCode}]}` |
 | POST | /api/programs/{pblancId}/eligibility | 필요 | 지원 자격 판정 `{creditScore?, taxDelinquent?, additionalFacts?}`(일시 정보, 저장 안 함) |
 
 ## 응답과 오류

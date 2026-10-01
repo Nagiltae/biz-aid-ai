@@ -19,6 +19,8 @@ class ProgramCandidateFilter:
     targets: tuple = ()           # support_programs.target (지원대상 구분, 예: 소상공인)
     jurisdictions: tuple = ()     # support_programs.jurisdiction_name (소관기관, 예: 경기도·중소벤처기업부)
     not_closed_on: date | None = None  # 파생 신청기간이 이 날짜를 포함하지 않는 공고만 제외
+    # V2 서비스 검색 범위: 이 날짜 전에 종료가 확실한(CLOSED) 공고만 제외한다. 시작 전(UPCOMING)·날짜 없음(UNKNOWN)은 남긴다.
+    exclude_closed_on: date | None = None
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,9 @@ class ProgramCandidateRepository:
                                (table.jurisdiction_name, candidate_filter.jurisdictions)):
             if values:
                 conditions.append(column.in_(values))
+        if candidate_filter.exclude_closed_on is not None:
+            closed_on = candidate_filter.exclude_closed_on
+            conditions.append(not_(and_(table.application_end_date.is_not(None), table.application_end_date < closed_on)))
         unknown = None
         if candidate_filter.not_closed_on is not None:
             day = candidate_filter.not_closed_on

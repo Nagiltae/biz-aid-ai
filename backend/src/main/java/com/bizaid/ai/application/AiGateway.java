@@ -12,4 +12,8 @@ public interface AiGateway {
     AiDtos.AiQueryResult query(String query);
 
     AiDtos.EligibilityResult evaluateEligibility(AiDtos.EligibilityCommand command);
+
+    AiDtos.PersonalizedSearchResult personalizedSearch(AiDtos.PersonalizedSearchCommand command);
+
+    AiDtos.PersonalizedEligibilityResult personalizedEligibility(AiDtos.PersonalizedEligibilityCommand command);
 }

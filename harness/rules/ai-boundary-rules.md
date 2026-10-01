@@ -9,15 +9,17 @@ DB로 판단 가능한 날짜·지역·기업형태·지원분야·상태를 LLM
 근거 기반 답변 RAG v1(Hybrid top5 → LlmProvider → citation, Phase 6, dev·로컬 Ollama)과 MySQL 정형 후보로 제한한 RAG.
 자연어 질문에서 정형 후보 조건을 LLM으로 추출하는 것도 승인됐다(`candidates/natural.py`). 추출은 필터 입력 후보일 뿐 SQL·후보 선택·날짜를 정하지 않는다.
 단일 공고 자격 사전 판단(Eligibility v1: 공고 1개 + 기업 Profile snapshot, `eligibility/`)이 승인됐다.
-계속 금지: LangGraph·Reranker·LLM query rewrite·parent/neighbor expansion·여러 공고 일괄 판정·추천 점수·적합도 순위.
-AI 계층은 자격 판단에 기업 Profile snapshot을 입력으로 받을 뿐 기업 정보의 저장·source of truth를 소유하지 않는다.
+계속 금지: LangGraph·Reranker·LLM query rewrite·parent/neighbor expansion·추천 점수·적합도 순위. 여러 공고 판정은 V2-2부터 개인화 검색 Top 3에 한해 승인됐다(전체 후보 일괄 LLM 판정은 금지).
+여러 공고 판정도 공고마다 기존 단일 공고 판정을 따로 실행해 근거 범위를 공고별로 격리한다. 한 공고의 실패는 그 공고에만 명시적 실패 상태·코드로 남기고 다른 공고 결과나 UNKNOWN·성공으로 바꾸지 않는다.
+AI 계층은 자격 판단에 기업 Profile snapshot을 입력으로 받을 뿐 기업 정보의 저장·source of truth를 소유하지 않는다. Spring은 저장된 값만 snapshot에 넣고 저장되지 않은 값(신용점수·체납·인증 등)에 기본값을 만들지 않는다.
 서비스 계층(Spring)은 AI 결과(목록·순위·답변·자격 상태·근거)를 재판단·재정렬하거나 만들지 않고 계약 검증 후 전달만 한다. 계약을 어긴 응답은 고쳐 쓰지 않고 거부한다.
 AI POST 요청(검색·자격 판정)은 자동 재시도하지 않는다(LLM 중복 실행·메시지 이중 저장 방지). AI 호출이 실패하면 가짜 ASSISTANT 메시지를 저장하지 않고, 자연어 답이 없는 목록 결과에 답변 문장을 지어 넣지 않는다.
 자격 판단은 제공된 기업 사실과 정확히 그 대상 공고에서 검색된 evidence 둘 다에 근거해야 한다.
 기업 사실이 없으면 LLM이 추론하지 않고 UNKNOWN / NEEDS_MORE_INFO로 둔다(값 없는 필드로 낸 MET·NOT_MET은 application이 UNKNOWN으로 되돌린다).
 최종 자격 상태는 검증된 criterion 결과로 application이 계산하며 모델이 덮어쓸 수 없다.
 LLM이 추출한 정형 조건은 SQL 실행 전에 application의 허용 canonical 값(활성 공고의 실제 DB 값)으로 검증한다. 허용 값 밖은 적용하지 않고 unapplied로 드러낸다.
-처리할 수 없거나 모호한 hard 조건(예: 지역)을 다른 정형 field(예: 소관기관 jurisdiction_name)로 바꿔 적용하지 않는다.
+처리할 수 없거나 모호한 hard 조건(예: 지역)을 다른 정형 field(예: 소관기관 jurisdiction_name)로 바꿔 적용하지 않는다. 질문 조건과 저장된 기업정보 모두 같다.
+저장된 기업정보는 LLM이 해석하지 않는다. 의미가 확실하고 사용자가 승인한 매핑(`candidates/personalized.py`)만 일반 코드로 검색조건이 되고, 나머지(지역·업력·휴업 등)는 unapplied로 드러낸다. 질문 조건과 겹치지 않으면 완화하지 않고 충돌 상태로 돌려준다.
 "현재·지금" 같은 상대 시간은 LLM이 만든 날짜가 아니라 application 시간(Asia/Seoul 날짜 또는 명시한 as_of)으로 해석한다.
 LLM이 제안한 hard filter는 질문 원문에 근거가 있고 application이 검증한 경우에만 후보 선택에 영향을 준다. 근거 없는 제안은 진단(discarded)으로만 남긴다.
 지원사업 찾기·목록 요청(SEARCH_LIST)은 문서 QA 생성을 강제하지 않고 MySQL의 공고 정형 정보를 목록으로 돌려준다(답변 생성 LLM 미사용).

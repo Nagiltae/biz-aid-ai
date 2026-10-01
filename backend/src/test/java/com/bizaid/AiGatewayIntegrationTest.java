@@ -184,6 +184,86 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
     }
 
     @Test
+    void personalizedSearchSendsOnlySearchCompanyFieldsAndPassesTop3Unchanged() throws Exception {
+        String token = signup("personal@example.com");
+        mvc.perform(post("/api/ai/personalized-search").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"query\":\"금융 지원사업\"}"))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("company_not_registered"));
+        mvc.perform(post("/api/company").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"companyName\":\"개인화상사\",\"companySize\":\"소상공인\",\"businessStatus\":\"영업중\","
+                        + "\"region\":\"경기도\",\"annualRevenueKrw\":100000000}")).andExpect(status().isCreated());
+        reply = new Reply(200, """
+                {"status":"LISTED","top_k":3,"as_of":"2026-10-01","candidate_count":4,
+                 "programs":[{"rank":1,"pblanc_id":"PBLN_000000000000003","name":"C"},{"rank":2,"pblanc_id":"PBLN_000000000000001","name":"A"}],
+                 "applied_conditions":{"company":{"targets":["소상공인","중소기업"]},"query":{"categories":["금융"],"targets":[],"currently_open":false},
+                                       "exclude_closed_on":"2026-10-01"},
+                 "unapplied_conditions":[{"source":"company","field":"region","value":"경기도","reason":"region_is_not_jurisdiction"}],
+                 "natural_filter":{"applied":{"categories":["금융"]}}}""", 0);
+        mvc.perform(post("/api/ai/personalized-search").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"query\":\"우리 회사가 신청할 수 있는 금융 지원사업\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("LISTED"))
+                .andExpect(jsonPath("$.programs[0].pblancId").value("PBLN_000000000000003"))
+                .andExpect(jsonPath("$.appliedConditions.company.targets[1]").value("중소기업"))
+                .andExpect(jsonPath("$.unappliedConditions[0].reason").value("region_is_not_jurisdiction"));
+        Received sent = RECEIVED.get(RECEIVED.size() - 1);
+        assertThat(sent.path()).isEqualTo("/internal/v2/personalized-search");
+        // 검색에 필요한 기업정보 4개만 보낸다(연 매출·회사명 등은 보내지 않는다). FastAPI는 회사 DB를 읽지 않는다.
+        JsonNode profile = read(sent.body()).get("company_profile");
+        assertThat(profile.fieldNames()).toIterable().containsExactlyInAnyOrder("company_size", "business_status", "region",
+                "business_start_date");
+        assertThat(profile.get("company_size").asText()).isEqualTo("소상공인");
+        // Top 3 계약을 어긴 응답(4개)은 잘라내지 않고 거부한다.
+        reply = new Reply(200, "{\"status\":\"LISTED\",\"candidate_count\":9,\"programs\":[{\"pblanc_id\":\"P1\"},{\"pblanc_id\":\"P2\"},"
+                + "{\"pblanc_id\":\"P3\"},{\"pblanc_id\":\"P4\"}]}", 0);
+        mvc.perform(post("/api/ai/personalized-search").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"query\":\"금융\"}"))
+                .andExpect(status().isBadGateway()).andExpect(jsonPath("$.error.code").value("ai_response_invalid"));
+    }
+
+    @Test
+    void top3EligibilityKeepsSearchOrderAndPerProgramFailuresWithStoredCompanyFactsOnly() throws Exception {
+        String token = signup("top3@example.com");
+        mvc.perform(post("/api/company").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"companyName\":\"판정상사\",\"businessEntityType\":\"개인사업자\",\"companySize\":\"소상공인\","
+                        + "\"businessStatus\":\"영업중\",\"employeeCount\":3}")).andExpect(status().isCreated());
+        String search = "{\"status\":\"LISTED\",\"candidate_count\":9,\"programs\":[{\"rank\":1,\"pblanc_id\":\"PBLN_C\"},"
+                + "{\"rank\":2,\"pblanc_id\":\"PBLN_A\"},{\"rank\":3,\"pblanc_id\":\"PBLN_B\"}]}";
+        reply = new Reply(200, "{\"search\":" + search + ",\"evaluations\":["
+                + "{\"rank\":1,\"pblanc_id\":\"PBLN_C\",\"evaluation_status\":\"COMPLETED\",\"error_code\":null,"
+                + "\"eligibility\":{\"pblanc_id\":\"PBLN_C\",\"status\":\"ELIGIBLE\",\"criteria\":[],\"missing_information\":[]}},"
+                + "{\"rank\":2,\"pblanc_id\":\"PBLN_A\",\"evaluation_status\":\"COMPLETED\",\"error_code\":null,"
+                + "\"eligibility\":{\"pblanc_id\":\"PBLN_A\",\"status\":\"NEEDS_MORE_INFO\",\"criteria\":[{\"criterion\":\"신용점수\","
+                + "\"result\":\"UNKNOWN\",\"citations\":[{\"evidence_id\":\"E1\",\"pblanc_id\":\"PBLN_A\",\"location\":\"p.3\"}]}],"
+                + "\"missing_information\":[\"credit_score\"]}},"
+                + "{\"rank\":3,\"pblanc_id\":\"PBLN_B\",\"evaluation_status\":\"FAILED\",\"error_code\":\"llm_unavailable\",\"eligibility\":null}]}", 0);
+        mvc.perform(post("/api/ai/personalized-eligibility").header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"query\":\"우리 회사가 신청할 수 있는 금융 지원사업\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evaluations[0].eligibility.status").value("ELIGIBLE"))
+                .andExpect(jsonPath("$.evaluations[1].eligibility.missingInformation[0]").value("credit_score"))
+                .andExpect(jsonPath("$.evaluations[1].eligibility.criteria[0].citations[0].location").value("p.3"))
+                .andExpect(jsonPath("$.evaluations[2].evaluationStatus").value("FAILED"))
+                .andExpect(jsonPath("$.evaluations[2].errorCode").value("llm_unavailable"));
+        Received sent = RECEIVED.get(RECEIVED.size() - 1);
+        JsonNode profile = read(sent.body()).get("company_profile");
+        assertThat(sent.path()).isEqualTo("/internal/v2/personalized-eligibility");
+        // 저장된 기업정보만 보내고, 저장되지 않은 신용점수·체납은 만들지 않는다(null → 판정에서 판단 불가).
+        assertThat(profile.get("company_name").asText()).isEqualTo("판정상사");
+        assertThat(profile.get("employee_count").asInt()).isEqualTo(3);
+        assertThat(profile.get("credit_score").isNull()).isTrue();
+        assertThat(profile.get("tax_delinquent").isNull()).isTrue();
+        // 판정 순서가 검색 Top 3 순서와 다르면 Spring이 고쳐 쓰지 않고 거부한다.
+        reply = new Reply(200, "{\"search\":" + search + ",\"evaluations\":["
+                + "{\"rank\":2,\"pblanc_id\":\"PBLN_A\",\"evaluation_status\":\"FAILED\",\"error_code\":\"x\"},"
+                + "{\"rank\":1,\"pblanc_id\":\"PBLN_C\",\"evaluation_status\":\"FAILED\",\"error_code\":\"x\"},"
+                + "{\"rank\":3,\"pblanc_id\":\"PBLN_B\",\"evaluation_status\":\"FAILED\",\"error_code\":\"x\"}]}", 0);
+        mvc.perform(post("/api/ai/personalized-eligibility").header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"query\":\"금융\"}"))
+                .andExpect(status().isBadGateway()).andExpect(jsonPath("$.error.code").value("ai_response_invalid"));
+    }
+
+    @Test
     void timeoutAndInternalAuthFailureBecomeServiceErrorsWithoutFakeAssistantMessage() throws Exception {
         String token = signup("fail@example.com");
         reply = new Reply(200, "{\"request_mode\":\"SEARCH_LIST\",\"status\":\"LISTED\",\"programs\":[]}", 2_000);

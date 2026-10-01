@@ -1,5 +1,20 @@
 # Harness 변경 이력
 
+## 2026-10-01 — V2-2 Top 3 지원사업 자격 판정
+
+FastAPI `eligibility/top_programs.py`가 개인화 검색 Top 3 → 공고별 기존 `EligibilityService.evaluate`를 순서대로 조합한다(`POST /internal/v2/personalized-eligibility`). 공고별 결과는 COMPLETED(기존 판정 결과) 또는 FAILED(고정 오류 코드)다.
+Spring `POST /api/ai/personalized-eligibility`는 V1 단일 판정과 같은 snapshot 매핑으로 저장된 기업정보만 보내고, 판정 순서·공고별 상태·근거 범위를 검증한다(기존 판정 검증을 공통 메서드로 재사용).
+규칙 변경(보고): AI 경계의 "여러 공고 일괄 판정 금지"를 "개인화 검색 Top 3에 한해 승인, 전체 후보 일괄 LLM 판정 금지"로 좁혔다(사용자 요청). 공고별 근거·실패 격리, 저장되지 않은 기업정보 기본값 금지, 클라이언트가 AI 흐름을 조립하지 않음(파일 경계)을 추가했다. 새 Backlog IMP-020(전체 응답 161초 > Spring 90초).
+결과: [Report](../workspace/reports/development/2026-10-01-v2-2-top3-eligibility.md). AGY 검토 pending.
+
+## 2026-10-01 — V2-1 기업정보 기반 개인화 검색
+
+Spring `POST /api/ai/personalized-search` → 로그인 사용자 기업정보 4개 값 snapshot → FastAPI `POST /internal/v2/personalized-search` → 기업정보 코드 매핑 + 기존 Natural Filter 결합 → CLOSED 제외 MySQL 후보 → 기존 공고 단위 검색 Top 3.
+사용자 결정: 기업규모 소상공인 → 지원대상 {소상공인, 중소기업}, 중소기업 → {중소기업}, 인증 대상 제외. 폐업만 COMPANY_CLOSED, 휴업·업력·지역은 unapplied. 질문 대상과 기업규모 대상이 겹치지 않으면 CONDITION_CONFLICT.
+`ProgramCandidateFilter.exclude_closed_on`(CLOSED만 제외), `ProgramDiscoveryService.discover(limit)`를 추가했다. V1 query 경로·검색 알고리즘·DB schema는 바꾸지 않았다.
+규칙 변경(보고, 완화 없음): AI 경계(저장된 기업정보는 LLM 해석 금지·승인 매핑만·unapplied·충돌 미완화), 파일 경계(FastAPI는 Spring 소유 서비스 데이터를 읽지 않음), DB 규칙(V2 적재 전 V1 collection 확인은 품질 평가 아님). 새 Backlog IMP-019.
+결과: [Report](../workspace/reports/development/2026-10-01-v2-1-personalized-search.md). AGY 검토 pending.
+
 ## 2026-10-01 — V2-0 기반 작업(출력 계약 안정화·LangChain 최소 도입·V2 서비스 범위 적재)
 
 자격 판정은 기업정보를 고정 field ID(기본 field 이름, 추가 사실 extra_N)로 주고, 요청마다 허용 field ID·evidence 번호를 출력 schema enum으로 제한한다. 결과는 원래 이름으로 되돌려 API 의미를 유지한다. 자연어 필터 분야·대상과 RAG evidence 번호도 enum으로 제한했다. application 재검증은 그대로다.

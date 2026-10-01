@@ -20,6 +20,12 @@ public final class AiRequests {
             Long conversationId) {
     }
 
+    /** V2 개인화 검색 질문. 기업정보는 요청으로 받지 않고 로그인 사용자의 저장된 기업정보를 쓴다. */
+    public record PersonalizedSearchRequest(
+            @NotBlank(message = "질문을 입력해 주세요.") @Size(max = 2000, message = "질문은 2000자 이하로 입력해 주세요.")
+            String query) {
+    }
+
     /** 자격 판정 때만 받는 일시 정보(저장하지 않음). */
     public record EligibilityRequest(
             @PositiveOrZero(message = "신용점수는 0 이상이어야 합니다.") @Max(value = 1000, message = "신용점수는 1000 이하입니다.")

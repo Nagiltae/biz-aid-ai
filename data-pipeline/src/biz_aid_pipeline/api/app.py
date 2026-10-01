@@ -31,10 +31,22 @@ class EligibilityRequest(BaseModel):
     company_profile: dict = Field(description="eligibility.profile.CompanyProfileSnapshot 필드(모두 선택)")
 
 
+class PersonalizedEligibilityRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=2000)
+    as_of: date | None = None
+    company_profile: dict = Field(description="eligibility.profile.CompanyProfileSnapshot 필드(모두 선택)")
+
+
+class PersonalizedSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=2000)
+    as_of: date | None = None
+    company_profile: dict = Field(description="candidates.personalized.CompanySearchProfile 필드(모두 선택)")
+
+
 def status_for(code):
     if code == "eligibility_program_not_found_or_inactive":
         return 404
-    if code.startswith("company_profile_"):
+    if code.startswith(("company_profile_", "company_search_profile_")):
         return 422
     if code == "llm_unavailable" or code.startswith("llm_http_error"):
         return 503
@@ -115,6 +127,20 @@ def create_app(runtime_factory=None, api_key=None):
         from biz_aid_pipeline.eligibility.profile import CompanyProfileSnapshot
         company = CompanyProfileSnapshot.from_dict(body.company_profile)
         return request.app.state.runtime.evaluate_eligibility(body.pblanc_id, company, body.as_of)
+
+    @app.post("/internal/v2/personalized-search", dependencies=[Depends(require_internal_key)])
+    def personalized_search(body: PersonalizedSearchRequest, request: Request):
+        # V1 /internal/v1/query와 의미가 달라(기업정보 조건 결합, Top 3, 종료 공고 제외) 별도 V2 계약으로 둔다.
+        from biz_aid_pipeline.candidates.personalized import CompanySearchProfile
+        profile = CompanySearchProfile.from_dict(body.company_profile)
+        return request.app.state.runtime.personalized_search(body.query, profile, body.as_of)
+
+    @app.post("/internal/v2/personalized-eligibility", dependencies=[Depends(require_internal_key)])
+    def personalized_eligibility(body: PersonalizedEligibilityRequest, request: Request):
+        # 개인화 검색 Top 3 → 공고별 판정을 서버가 조합한다. 클라이언트가 공고를 하나씩 돌며 AI 흐름을 소유하지 않게 한다.
+        from biz_aid_pipeline.eligibility.profile import CompanyProfileSnapshot
+        company = CompanyProfileSnapshot.from_dict(body.company_profile)
+        return request.app.state.runtime.personalized_eligibility(body.query, company, body.as_of)
 
     return app
 

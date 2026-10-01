@@ -21,3 +21,11 @@ FastAPI 내부 API는 [internal-api.contract.json](../schemas/internal-api.contr
 | 그 밖의 4xx·5xx | 502 ai_service_error |
 
 NO_CANDIDATES·NO_INDEXED_PROGRAMS·INSUFFICIENT_EVIDENCE·NEEDS_MORE_INFO·INELIGIBLE는 오류가 아니라 200 정상 결과로 전달한다.
+
+## V2 개인화 검색
+
+- Spring `POST /api/ai/personalized-search {query}` → 로그인 사용자의 저장된 기업정보에서 `company_size`·`business_status`·`region`·`business_start_date`만 snapshot으로 → FastAPI `POST /internal/v2/personalized-search`.
+- FastAPI는 users·companies를 읽지 않는다. 기업정보 → 검색조건은 승인된 코드 매핑(`candidates/personalized.py`)만 쓰고 LLM은 질문 조건만 추출한다.
+- 응답: status(LISTED·NO_CANDIDATES·NO_INDEXED_PROGRAMS·COMPANY_CLOSED·CONDITION_CONFLICT), candidate_count, programs(최대 3, 순위 그대로), applied_conditions, unapplied_conditions. Spring은 status·Top 3·중복 없음만 검증하고 고치지 않는다.
+- V1 `/internal/v1/query`·`/api/ai/query` 동작은 바뀌지 않았다.
+- V2 Top 3 자격 판정: Spring `POST /api/ai/personalized-eligibility {query}` → 판정용 기업정보 snapshot(V1 단일 판정과 같은 매핑, 저장된 값만) → FastAPI `POST /internal/v2/personalized-eligibility`. FastAPI가 검색 Top 3 → 공고별 기존 판정을 순서대로 조합하고, Spring은 판정 순서·공고별 상태(COMPLETED/FAILED)·공고별 근거 범위를 검증만 한다. 현재 전체 응답이 Spring 응답 제한시간(90s)을 넘을 수 있다(IMP-020).

@@ -15,6 +15,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -40,6 +41,9 @@ public class HttpAiGateway implements AiGateway {
     static final String KEY_HEADER = "X-Internal-Api-Key";
     private static final Logger log = LoggerFactory.getLogger(HttpAiGateway.class);
     private static final Set<String> REQUEST_MODES = Set.of("SEARCH_LIST", "DOCUMENT_QA");
+    private static final Set<String> PERSONALIZED_STATUSES =
+            Set.of("LISTED", "NO_CANDIDATES", "NO_INDEXED_PROGRAMS", "COMPANY_CLOSED", "CONDITION_CONFLICT");
+    private static final int PERSONALIZED_TOP_K = 3;
     private static final Set<String> ELIGIBILITY_STATUSES = Set.of("ELIGIBLE", "INELIGIBLE", "NEEDS_MORE_INFO", "INSUFFICIENT_EVIDENCE");
 
     private final RestClient client;
@@ -79,15 +83,70 @@ public class HttpAiGateway implements AiGateway {
     public AiDtos.EligibilityResult evaluateEligibility(AiDtos.EligibilityCommand command) {
         AiDtos.EligibilityResult result = post("/internal/v1/eligibility",
                 new EligibilityPayload(command.pblancId(), command.companyProfile()), AiDtos.EligibilityResult.class);
-        if (result == null || !ELIGIBILITY_STATUSES.contains(result.status()) || !command.pblancId().equals(result.pblancId())) {
+        checkEligibility(command.pblancId(), result);
+        return result;
+    }
+
+    /** 단일 판정과 Top 3 판정이 같은 계약 검증을 쓴다. */
+    private void checkEligibility(String pblancId, AiDtos.EligibilityResult result) {
+        if (result == null || !ELIGIBILITY_STATUSES.contains(result.status()) || !pblancId.equals(result.pblancId())) {
             throw invalid("eligibility: unknown status or different pblanc_id");
         }
         // BOUNDARY: 판정 근거는 요청한 공고의 공고문에서만 와야 한다. 다른 공고 근거가 섞이면 결과를 쓰지 않는다.
         boolean scoped = result.criteria() == null || result.criteria().stream()
                 .flatMap(criterion -> criterion.citations() == null ? Stream.empty() : criterion.citations().stream())
-                .allMatch(citation -> command.pblancId().equals(citation.pblancId()));
+                .allMatch(citation -> pblancId.equals(citation.pblancId()));
         if (!scoped) {
             throw invalid("eligibility: citation outside the target program");
+        }
+    }
+
+    @Override
+    public AiDtos.PersonalizedSearchResult personalizedSearch(AiDtos.PersonalizedSearchCommand command) {
+        AiDtos.PersonalizedSearchResult result = post("/internal/v2/personalized-search", command,
+                AiDtos.PersonalizedSearchResult.class);
+        checkPersonalizedSearch(result);
+        return result;
+    }
+
+    private void checkPersonalizedSearch(AiDtos.PersonalizedSearchResult result) {
+        if (result == null || !PERSONALIZED_STATUSES.contains(result.status()) || result.programs() == null) {
+            throw invalid("personalized: unknown status or missing programs");
+        }
+        Set<String> seen = new HashSet<>();
+        // Top 3·공고 중복 없음이 계약이다. 어기면 Spring이 잘라내거나 다시 정렬하지 않고 거부한다.
+        if (result.programs().size() > PERSONALIZED_TOP_K
+                || !result.programs().stream().allMatch(program -> program.pblancId() != null && seen.add(program.pblancId()))) {
+            throw invalid("personalized: more than top 3 or duplicate programs");
+        }
+    }
+
+    @Override
+    public AiDtos.PersonalizedEligibilityResult personalizedEligibility(AiDtos.PersonalizedEligibilityCommand command) {
+        AiDtos.PersonalizedEligibilityResult result = post("/internal/v2/personalized-eligibility", command,
+                AiDtos.PersonalizedEligibilityResult.class);
+        if (result == null || result.evaluations() == null) {
+            throw invalid("personalized eligibility: missing search or evaluations");
+        }
+        checkPersonalizedSearch(result.search());
+        List<AiDtos.ProgramItem> programs = result.search().programs();
+        // 판정 목록은 검색 Top 3와 같은 순서·같은 공고여야 한다(순위를 다시 매기거나 빠뜨리지 않음).
+        if (result.evaluations().size() != programs.size()) {
+            throw invalid("personalized eligibility: evaluations differ from top programs");
+        }
+        for (int index = 0; index < programs.size(); index++) {
+            AiDtos.ProgramEvaluation evaluation = result.evaluations().get(index);
+            String pblancId = programs.get(index).pblancId();
+            if (!pblancId.equals(evaluation.pblancId())) {
+                throw invalid("personalized eligibility: evaluation order differs from search order");
+            }
+            // 공고별 결과는 완료(판정 있음) 또는 실패(오류 코드 있음, 판정 없음) 둘 중 하나다. 실패를 결과로 바꾸지 않는다.
+            if ("COMPLETED".equals(evaluation.evaluationStatus())) {
+                checkEligibility(pblancId, evaluation.eligibility());
+            } else if (!"FAILED".equals(evaluation.evaluationStatus()) || evaluation.errorCode() == null
+                    || evaluation.eligibility() != null) {
+                throw invalid("personalized eligibility: invalid per-program status");
+            }
         }
         return result;
     }

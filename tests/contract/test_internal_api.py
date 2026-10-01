@@ -31,6 +31,14 @@ class FakeRuntime:
         # 서비스가 계산한 status를 그대로 둔다(criteria가 전부 MET이어도 HTTP 계층은 바꾸지 않는다).
         return {"pblanc_id": pblanc_id, "status": "NEEDS_MORE_INFO", "criteria": [{"result": "MET"}], "missing_information": []}
 
+    def personalized_search(self, query, company_profile, as_of=None):
+        self.calls.append(("personalized", query, company_profile.company_size, as_of))
+        return {"status": "LISTED", "candidate_count": 4, "programs": [{"rank": 1, "pblanc_id": "PBLN_000000000000001"}]}
+
+    def personalized_eligibility(self, query, company_profile, as_of=None):
+        self.calls.append(("personalized_eligibility", query, company_profile.credit_score, company_profile.company_size))
+        return {"search": {"status": "LISTED", "programs": []}, "evaluations": []}
+
     def close(self):
         self.closed = True
 
@@ -81,6 +89,27 @@ class InternalApiTests(unittest.TestCase):
             response = client.post("/internal/v1/query", json={"query": "금융"}, headers={"X-Internal-Api-Key": ""})
             self.assertEqual((response.status_code, response.json()), (503, {"error": {"code": "internal_auth_not_configured"}}))
         self.assertEqual(self.runtime.calls, [])
+
+    def test_v2_personalized_search_is_a_separate_authenticated_contract(self):
+        body = {"query": "우리 회사가 신청할 수 있는 지원사업", "company_profile": {"company_size": "소상공인", "business_status": "영업중"}}
+        with TestClient(self.app, headers={"X-Internal-Api-Key": "test-internal-key"}) as client:
+            ok = client.post("/internal/v2/personalized-search", json=body)
+            self.assertEqual((ok.status_code, ok.json()["status"]), (200, "LISTED"))
+            # 개인화 검색에 필요 없는 기업정보 field(신용점수 등)는 받지 않는다.
+            bad = client.post("/internal/v2/personalized-search", json={"query": "q", "company_profile": {"credit_score": 700}})
+            self.assertEqual((bad.status_code, bad.json()), (422, {"error": {"code": "company_search_profile_unknown_field:credit_score"}}))
+            self.assertEqual(client.post("/internal/v2/personalized-search", json=body, headers={"X-Internal-Api-Key": "x"}).status_code, 401)
+        self.assertEqual(self.runtime.calls, [("personalized", body["query"], "소상공인", None)])
+
+    def test_v2_personalized_eligibility_accepts_the_eligibility_snapshot_contract(self):
+        body = {"query": "금융 지원사업", "company_profile": {"company_size": "소상공인", "business_entity_type": "개인사업자"}}
+        with TestClient(self.app, headers={"X-Internal-Api-Key": "test-internal-key"}) as client:
+            ok = client.post("/internal/v2/personalized-eligibility", json=body)
+            self.assertEqual((ok.status_code, ok.json()["search"]["status"]), (200, "LISTED"))
+            bad = client.post("/internal/v2/personalized-eligibility", json={"query": "q", "company_profile": {"ceo_age": 40}})
+            self.assertEqual((bad.status_code, bad.json()["error"]["code"]), (422, "company_profile_unknown_field:ceo_age"))
+        # 저장되지 않은 신용점수는 기본값으로 만들지 않는다(None 그대로).
+        self.assertEqual(self.runtime.calls, [("personalized_eligibility", "금융 지원사업", None, "소상공인")])
 
 
 if __name__ == "__main__":

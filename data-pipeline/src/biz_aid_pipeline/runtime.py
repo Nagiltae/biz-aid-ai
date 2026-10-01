@@ -59,6 +59,41 @@ class ServiceRuntime:
             output["natural_filter"] = extraction.to_dict()
         return output
 
+    def personalized_search(self, query, company_profile, as_of=None):
+        """V2 개인화 검색: Spring이 보낸 기업정보 snapshot + 질문 → 후보 → 공고 단위 Top 3. V1 answer_query와 별개 경로다."""
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from biz_aid_pipeline.candidates.discovery import ProgramDiscoveryService
+        from biz_aid_pipeline.candidates.natural import NaturalLanguageFilterService, filter_domain
+        from biz_aid_pipeline.candidates.personalized import PersonalizedSearchService
+        from biz_aid_pipeline.candidates.service import ProgramCandidateService
+        from biz_aid_pipeline.rag.service import rag_contract
+        as_of = as_of or datetime.now(ZoneInfo("Asia/Seoul")).date()
+        service = PersonalizedSearchService(
+            NaturalLanguageFilterService(self.provider, filter_domain(self.repository)), ProgramCandidateService(self.repository),
+            # 후보가 있을 때만 BGE-M3 Retriever를 적재한다.
+            lambda: ProgramDiscoveryService(self.repository, self.retriever(), rag_contract()))
+        return service.search(query, company_profile, as_of)
+
+    def personalized_eligibility(self, query, company_profile, as_of=None):
+        """V2-2: 개인화 검색 Top 3 → 공고별 기존 자격 판정. company_profile은 판정용 CompanyProfileSnapshot이다."""
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from biz_aid_pipeline.candidates.discovery import ProgramDiscoveryService
+        from biz_aid_pipeline.candidates.natural import NaturalLanguageFilterService, filter_domain
+        from biz_aid_pipeline.candidates.personalized import PersonalizedSearchService
+        from biz_aid_pipeline.candidates.service import ProgramCandidateService
+        from biz_aid_pipeline.eligibility.service import EligibilityService
+        from biz_aid_pipeline.eligibility.top_programs import PersonalizedEligibilityService
+        from biz_aid_pipeline.rag.service import rag_contract
+        as_of = as_of or datetime.now(ZoneInfo("Asia/Seoul")).date()
+        search = PersonalizedSearchService(
+            NaturalLanguageFilterService(self.provider, filter_domain(self.repository)), ProgramCandidateService(self.repository),
+            lambda: ProgramDiscoveryService(self.repository, self.retriever(), rag_contract()))
+        return PersonalizedEligibilityService(
+            search, lambda pblanc_id, company, day: EligibilityService(self.repository, self.retriever(), self.provider).evaluate(
+                pblanc_id, company, day)).run(query, company_profile, as_of)
+
     def evaluate_eligibility(self, pblanc_id, company_profile, as_of=None):
         from biz_aid_pipeline.eligibility.service import EligibilityService
         return EligibilityService(self.repository, self.retriever(), self.provider).evaluate(pblanc_id, company_profile, as_of)

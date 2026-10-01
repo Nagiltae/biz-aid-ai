@@ -32,13 +32,15 @@ class ProgramDiscoveryService:
         self.repository, self.retriever = repository, retriever
         self.spec = contract["discovery"]
 
-    def discover(self, query, candidate_pblanc_ids):
+    def discover(self, query, candidate_pblanc_ids, limit=None):
+        """limit을 주면 최대 그 수까지만(V2 개인화 검색 Top 3). 없으면 계약의 max_programs다."""
         candidates = tuple(candidate_pblanc_ids)
         if not candidates:
             return []
         # BOUNDARY: 순위용 검색도 MySQL 후보 scope 안에서만 한다. 목록 설정은 RAG top_k와 분리한다.
         # 목록을 채우려고 후보 밖 공고나 검색 근거가 없는 공고를 넣지 않는다. 근거가 있는 공고만 최대 max_programs개다.
-        best = self.retriever.search_programs(query, self.spec["max_programs"], candidates, self.spec["group_limit_per_mode"])
+        size = min(limit or self.spec["max_programs"], self.spec["max_programs"])
+        best = self.retriever.search_programs(query, size, candidates, self.spec["group_limit_per_mode"])
         allowed = set(candidates)
         if any(result.pblanc_id not in allowed for result in best):
             raise PipelineError("retrieval_scope_violation")

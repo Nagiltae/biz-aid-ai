@@ -14,7 +14,7 @@
 | 단계 | 항목 | 기준 |
 | --- | --- | --- |
 | V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
-| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
+| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
 | 운영/AWS 단계 | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
 | 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
 
@@ -221,4 +221,24 @@
 - Why deferred: V2 개발·데모 기간(수일)에는 영향이 작고, 첫 적재를 끝내는 것이 먼저다.
 - Revisit trigger: V2 collection 전환 후 주기적 갱신이 필요할 때 또는 운영 배포 전
 - Side effect: 정리는 V2 collection에서만 한다. V1 collection은 baseline 재현용이라 대상이 아니다. MySQL·S3 원본은 지우지 않는다.
+- Status: OPEN
+
+## IMP-019 개인화 검색에서 기업정보는 후보 필터에만 쓰이고 순위에는 반영되지 않음
+
+- Area: Discovery(V2 개인화 검색)
+- Issue: 기업정보는 승인된 매핑(기업규모 → 지원대상)으로 후보만 줄이고, Top 3 순위는 질문 문장만으로 정한다. 기업규모 필터는 인증 대상 공고만 빼므로 후보가 크게 줄지 않는다.
+- Evidence: V2-1 Smoke(소상공인·영업중·경기도·2024 개업, "우리 회사가 지금 신청할 수 있는 지원사업 찾아줘")에서 후보 1,237개, 지역·업력은 unapplied였다(`2026-10-01-v2-1-personalized-search.md`).
+- Why deferred: 순위에 기업정보를 넣는 방법(검색 문장 보강, 가중치)은 품질 평가 기준(cases-v2)과 V2 collection 적재 완료 뒤에 비교해야 한다. 이번 범위는 흐름 구현이다.
+- Revisit trigger: V2 collection 전환과 cases-v2 작성 뒤
+- Side effect: 기업정보를 검색 문장에 넣을 때도 지역을 소관기관 Hard Filter로 바꾸면 안 된다(AI 경계).
+- Status: OPEN
+
+## IMP-020 Top 3 자격 판정 전체 응답이 Spring 응답 제한시간을 넘음
+
+- Area: V2 개인화 판정 / 서비스 응답 시간
+- Issue: 개인화 검색과 공고 3개 판정을 한 요청에서 순차로 한다. 로컬 Qwen 판정이 공고당 30~60초라 전체가 Spring AI 응답 제한시간(90초)을 넘는다. 그대로 화면에서 부르면 504 ai_service_timeout이 된다.
+- Evidence: V2-2 실제 Smoke 1회(V1 collection, 같은 기기에서 V2 batch 파싱 동시 실행): 총 161.0초, 판정 LLM 58.1·53.6·33.4초(`2026-10-01-v2-2-top3-eligibility.md`).
+- Why deferred: 지시에 따라 제한시간을 몰래 늘리거나 비동기 작업 큐를 새로 만들지 않았다. 기능 구조(조합·격리)를 먼저 완성했다.
+- Revisit trigger: LangGraph 단계와 진행 상태 UI 설계(공고별 단계 실행·진행 표시) 때
+- Side effect: 제한시간만 늘리면 Spring 요청 스레드가 3분 가까이 묶인다. 단계별 상태 저장이나 공고별 요청 분리와 함께 결정해야 한다.
 - Status: OPEN

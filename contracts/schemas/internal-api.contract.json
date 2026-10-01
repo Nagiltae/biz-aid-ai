@@ -33,9 +33,32 @@
       },
       "delegates": "CompanyProfileSnapshot.from_dict → ServiceRuntime.evaluate_eligibility → EligibilityService",
       "response": "EligibilityService result as returned (contracts/schemas/eligibility.contract.json); status is never recomputed"
+    },
+    "POST /internal/v2/personalized-search": {
+      "request": {
+        "query": "string 1..2000",
+        "as_of": "YYYY-MM-DD optional (default Asia/Seoul today)",
+        "company_profile": "CompanySearchProfile: company_size, business_status, region, business_start_date (all optional; unknown fields 422)"
+      },
+      "delegates": "ServiceRuntime.personalized_search → company_conditions (code mapping) + NaturalLanguageFilterService (query only) → ProgramCandidateService (exclude_closed_on=as_of) → ProgramDiscoveryService(limit 3)",
+      "company_mapping": "user-approved: company_size 소상공인 → target {소상공인, 중소기업}, 중소기업 → {중소기업}; other sizes, region, business_start_date, 휴업 → unapplied_conditions; 폐업 → COMPANY_CLOSED",
+      "combine": "AND of company and query conditions; query targets are intersected with company targets and an empty intersection returns CONDITION_CONFLICT (never silently relaxed)",
+      "response": "{status: LISTED|NO_CANDIDATES|NO_INDEXED_PROGRAMS|COMPANY_CLOSED|CONDITION_CONFLICT, top_k: 3, as_of, candidate_count, programs (≤3, discovery items in rank order), applied_conditions{company, query, exclude_closed_on}, unapplied_conditions[{source, field, value, reason}], natural_filter, conflict?}",
+      "rule": "FastAPI never reads users/companies; Spring owns the company data and sends only these fields. The V1 /internal/v1/query behaviour is unchanged"
+    },
+    "POST /internal/v2/personalized-eligibility": {
+      "request": {
+        "query": "string 1..2000",
+        "as_of": "YYYY-MM-DD optional",
+        "company_profile": "CompanyProfileSnapshot fields (stored values only; missing facts stay null)"
+      },
+      "delegates": "ServiceRuntime.personalized_eligibility → PersonalizedEligibilityService.run: PersonalizedSearchService.search (search profile = 4 fields taken from the snapshot by code) → for each Top 3 program in rank order the existing EligibilityService.evaluate (sequential)",
+      "response": "{search: personalized-search response, evaluations: [{rank, pblanc_id, program, evaluation_status: COMPLETED|FAILED, eligibility (existing eligibility result) | null, error_code | null}] in the same order as search.programs}",
+      "isolation": "each program is evaluated with retrieval scoped to that pblanc_id; a PipelineError or unexpected error marks only that program FAILED with a fixed code; it is never converted to UNKNOWN or a status",
+      "latency": "sequential; measured 161s for search + 3 evaluations on local Qwen (IMP-020); exceeds Spring AI_RESPONSE_TIMEOUT 90s, which was intentionally not raised"
     }
   },
-  "business_outcomes": "NO_CANDIDATES, NO_INDEXED_PROGRAMS, INSUFFICIENT_EVIDENCE, NEEDS_MORE_INFO, INELIGIBLE, ELIGIBLE, LISTED, ANSWERED are HTTP 200",
+  "business_outcomes": "NO_CANDIDATES, NO_INDEXED_PROGRAMS, INSUFFICIENT_EVIDENCE, NEEDS_MORE_INFO, INELIGIBLE, ELIGIBLE, LISTED, ANSWERED, COMPANY_CLOSED, CONDITION_CONFLICT are HTTP 200",
   "errors": {
     "body": {
       "error": {

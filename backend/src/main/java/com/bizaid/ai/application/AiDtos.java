@@ -66,6 +66,56 @@ public final class AiDtos {
                                     List<Criterion> criteria, List<String> missingInformation, String disclaimer) {
     }
 
+    /**
+     * V2 개인화 검색에 보내는 기업정보 snapshot. 검색에 필요한 4개 값만 담는다(신용점수 등 판정용 정보는 보내지 않는다).
+     * FastAPI는 users·companies를 읽지 않고 이 snapshot만 받는다.
+     */
+    public record CompanySearchSnapshot(String companySize, String businessStatus, String region, LocalDate businessStartDate) {
+    }
+
+    public record PersonalizedSearchCommand(String query, CompanySearchSnapshot companyProfile) {
+    }
+
+    public record CompanyConditions(List<String> targets, String businessStatus) {
+    }
+
+    public record QueryConditions(List<String> categories, List<String> targets, Boolean currentlyOpen) {
+    }
+
+    /** 실제로 적용된 조건: 기업정보(코드 매핑)·질문(Natural Filter)·종료 공고 제외 기준일. */
+    public record AppliedConditions(CompanyConditions company, QueryConditions query, LocalDate excludeClosedOn) {
+    }
+
+    /** 적용하지 못한 조건과 이유(예: region → region_is_not_jurisdiction). */
+    public record UnappliedCondition(String source, String field, String value, String reason) {
+    }
+
+    /**
+     * V2 개인화 검색 결과(FastAPI /internal/v2/personalized-search 그대로).
+     * status: LISTED / NO_CANDIDATES / NO_INDEXED_PROGRAMS / COMPANY_CLOSED / CONDITION_CONFLICT. programs는 최대 3개, FastAPI 순위 그대로.
+     */
+    public record PersonalizedSearchResult(String status, Integer topK, LocalDate asOf, Integer candidateCount,
+                                           List<ProgramItem> programs, AppliedConditions appliedConditions,
+                                           List<UnappliedCondition> unappliedConditions, JsonNode naturalFilter,
+                                           JsonNode conflict) {
+    }
+
+    /** V2 Top 3 판정 요청: 판정용 기업정보 snapshot 전체(저장된 값만, 신용점수 등은 없으면 null)와 질문. */
+    public record PersonalizedEligibilityCommand(String query, CompanyProfileSnapshot companyProfile) {
+    }
+
+    /**
+     * 공고 하나의 판정 결과. evaluationStatus가 COMPLETED면 eligibility(기존 단일 판정 결과 그대로),
+     * FAILED면 errorCode만 있다. 실패를 UNKNOWN이나 성공으로 바꾸지 않는다.
+     */
+    public record ProgramEvaluation(Integer rank, String pblancId, ProgramItem program, String evaluationStatus,
+                                    EligibilityResult eligibility, String errorCode) {
+    }
+
+    /** V2 Top 3 판정 결과: 개인화 검색 결과 + 같은 순서의 공고별 판정. */
+    public record PersonalizedEligibilityResult(PersonalizedSearchResult search, List<ProgramEvaluation> evaluations) {
+    }
+
     /** React에 돌려주는 AI 검색 응답: 저장된 대화·메시지와 AI 결과. */
     public record AiQueryResponse(Long conversationId, ConversationDtos.MessageResponse userMessage,
                                   ConversationDtos.MessageResponse assistantMessage,
