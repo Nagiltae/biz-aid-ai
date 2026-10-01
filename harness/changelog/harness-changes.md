@@ -7,6 +7,7 @@ Spring: `AiDtos.FinalResult` 등, `HttpAiGateway.checkFinalResult`(COMPLETED에�
 규칙 변경(보고): AI 경계에 최종 결과 조립 원칙 1줄 추가(기존 "추천 점수·적합도 순위 금지"와 중복되지 않는 범위). 계약 3개 갱신.
 테스트 보강: Spring 기존 테스트의 activity_logs·companies 조회에 target_type·사용자 조건을 추가(새 테스트와 id가 겹쳐 2건이 잡히던 순서 의존성 제거, assertion 약화 아님).
 결과: [Report](../workspace/reports/development/2026-10-01-v2-4-final-result.md). AGY 검토 pending.
+검증 실행 수정: `scripts/lib/validate.py`의 `run()`이 git을 터미널(TTY)에 직접 출력해 `git diff --check`가 pager(less)를 열고 `(END)`에서 멈췄다. 검증 하위 프로세스에 `GIT_PAGER=cat`만 추가했다(검사 내용·판정 기준 변경 없음). PTY 재현 → 수정 후 check-all exit 0.
 
 ## 2026-10-01 — V2-3 LangGraph 상태 기반 추천 흐름
 

@@ -84,7 +84,8 @@ def run(*command, capture=False):
         stdout=subprocess.PIPE if capture else None,
         stderr=subprocess.PIPE if capture else None,
         # BOUNDARY: test runtime은 모델을 네트워크에서 받지 않고 준비된 artifacts만 사용한다.
-        env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", HF_HUB_OFFLINE="1"),
+        # 터미널에서 실행하면 git diff가 pager(less)를 열어 (END)에서 멈추므로 검증용 git 호출은 pager 없이 출력한다.
+        env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", HF_HUB_OFFLINE="1", GIT_PAGER="cat"),
     )
     if result.returncode:
         raise ValueError(f"command failed ({result.returncode}): {' '.join(command)}\n{result.stderr or ''}")
