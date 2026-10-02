@@ -220,7 +220,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-10-02-company-required.md",
+  "report": "harness/workspace/reports/development/2026-10-02-imp009-unsupported-formats.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",

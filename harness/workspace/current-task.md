@@ -1,24 +1,26 @@
-# Current Task — 기업정보 필수와 내 기업정보 화면 개편
+# Current Task — 미지원 첨부 형식(IMP-009) 읽기 전용 조사
 
 ## Goal / Context
 
-2026-10-02 사용자 요구: 로그인 뒤 기업정보가 없으면 바로 등록 화면으로 보내고, 기업정보가 있어야 다른 기능을 쓰게 한다. 기업 규모는 선택 상자로 바꾼다. 내 기업정보는 등록돼 있으면 보기 화면과 [수정] 버튼으로 보여 주고, 메뉴는 "이름님" 오른쪽으로 옮긴다.
-사용자 결정: 지원사업 목록·상세(`/programs`)는 기업정보 없이도 공개, 기업 규모 선택지는 소상공인·중소기업·중견기업·모름, 서버(대화·AI 검색 API)도 같은 규칙으로 막음, 예전 자유 입력 값은 다음 수정 때 다시 고름.
-DB 스키마·migration, 인증 방식, AI 로직은 범위가 아니다.
+2026-10-02 사용자 요청: 미지원 첨부 형식(ZIP 144 / OTHER 107 / XLSX 50 / UNKNOWN 4, 고유 파일 기준)을 파싱·인덱싱에 넣기 위한 실체·분포·내용 가치·기술 조건을 읽기 전용으로 조사한다.
+코드·DB·S3·Qdrant·`.env.dev`를 바꾸지 않는다. 파싱·인덱싱 실행, 라이브러리 설치, V1 collection·baseline 변경, commit/push는 범위가 아니다. 현재 V2 collection 전환 상태는 건드리지 않는다.
+
+확정된 방향(사용자): DOCX·PPTX는 Docling XML 직접 읽기(VLM 없음). XLSX는 숨긴 시트 제외·저장된 계산값 사용·크기 상한 초과는 자르지 않고 문서 단위 실패. DOC·PPT·XLS는 LibreOffice로 DOCX·PPTX·XLSX 변환 후 같은 경로. 일반 ZIP은 내부 파일을 각각 문서로(깊이 1).
+
+## Next Steps
+
+1 공통 기반(형식 판별·Contract) → 2 XLSX → 3 DOCX·PPTX → 4 옛 오피스 → 5 일반 ZIP → 6 이미지(선택) → 화면 완주 + LangSmith → cases-v2 평가.
 
 ## Read First
 
-[AGENTS](../../AGENTS.md) → [파일 경계](../rules/file-boundaries.md) → [화면 API](../../contracts/frontend-backend/README.md).
+[AGENTS](../../AGENTS.md) → [Backlog](../docs/improvement-backlog.md)(IMP-009·004·010) → [Source 규칙](../rules/data-source-rules.md) → `contracts/schemas/document-parsing.contract.json`(routes·hwpx_container_limits).
 
 ## Scope / Acceptance
 
-1. 로그인·가입 직후 기업정보가 없으면 `/company` 등록 화면, 있으면 원래 화면으로 간다.
-2. 기업정보가 없어도 메뉴·화면은 열려 있다. `/ai`는 검색칸·버튼 비활성 + 입력 안내, `/recommend`는 안내 화면(추가 요청)이며 서버도 `company_not_registered`로 막는다. `/programs`는 열려 있다.
-3. 기업 규모는 선택 상자이고 서버도 같은 허용값만 받는다.
-4. 등록된 기업정보는 보기 화면, [수정] → 저장·취소 뒤 보기 화면. 내 기업정보 메뉴는 계정 영역에 있다.
-5. React·Spring 테스트, 실제 화면 확인, check-all이 통과한다.
+1. 형식 실체·V2 범위 연결 수·압축 내부 구성·XLSX 분포·표본 내용 가치·기술 조건을 근거와 함께 표로 남긴다.
+2. 원본은 읽기만 한다(로컬 보존본 SHA 확인, 압축은 메모리에서만 읽음). 결과는 IMP-009 Evidence로만 추가한다.
 AGY 독립 Review / 사용자 검토는 pending이다.
 
 ## Validation / Reports
 
-[Final Report](reports/development/2026-10-02-company-required.md). 마지막에 `./scripts/check-all.sh`를 1회 실행한다.
+[Final Report](reports/development/2026-10-02-imp009-unsupported-formats.md). 마지막에 `./scripts/check-all.sh`를 1회 실행한다.

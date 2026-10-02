@@ -126,6 +126,7 @@
 - Why deferred: 주요 공고 본문은 PDF·HWP·HWPX에 있고, ZIP 전개는 provenance 계약 결정이 먼저다.
 - Revisit trigger: 공고 핵심 정보가 이 형식에만 있는 사례가 RAG에서 확인될 때, 또는 전체 corpus 전 coverage를 판단할 때
 - Side effect: 새 route는 parse_key route 범위와 Contract·Test를 함께 바꾼다.
+- Evidence(전체 corpus 조사, 2026-10-02, 읽기 전용): 고유 파일 ZIP 144 / OTHER 107 / XLSX 50 / UNKNOWN 4(V2 범위 125 / 105 / 39 / 2). ZIP = 일반 압축 134 + DOCX 8 + PPTX 1 + ODT 1, OTHER = PNG 59 + JPEG 48(HTML 오류 페이지 0), UNKNOWN = XLS 2 + DOC 1 + HWPML 1. 일반 압축 내부 728개(HWP 357·PDF 141·HWPX 90·XLSX 36·이미지 23·자리표시 txt 48·HWPML 8 등, 암호화·한도 위반·위험 파일 0, CP949 이름 237, 단독 첨부와 같은 SHA 8). XLSX 보이는 셀 중앙값 114·p95 42,059·최대 84,118, 양식형 35/50. V2 범위에서 point가 없는 27공고는 전부 미지원 형식 첨부만 가진 공고(이미지만 19). 형식별 정리·XLSX 상한 후보는 `2026-10-02-imp009-unsupported-formats.md`.
 - Status: OPEN
 
 ## IMP-010 Parser 품질 한계(OCR·읽기 순서·그림 해석)
