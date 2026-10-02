@@ -5,13 +5,16 @@ import zipfile
 from pathlib import PurePosixPath
 
 
-def hwp_header(raw):
-    # OLE magic은 여러 Office 형식이 공유하므로 제한된 CFB chain에서 HWP FileHeader를 확인한다.
+def _cfb(raw):
+    """OLE(CFB) 디렉터리 항목과 stream 읽기 함수. 구조가 제한 범위를 벗어나면 None.
+
+    OLE magic은 HWP·DOC·XLS·PPT가 공유하므로 형식은 stream 이름으로 가린다. 모든 chain·크기를 제한해 손상 파일을 읽지 않는다.
+    """
     if len(raw) < 512 or raw[:8] != bytes.fromhex("d0cf11e0a1b11ae1") or raw[28:30] != b"\xfe\xff":
-        return False
+        return None
     sector_shift, mini_shift = struct.unpack_from("<HH", raw, 30)
     if sector_shift not in (9, 12) or mini_shift != 6:
-        return False
+        return None
     size = 1 << sector_shift
     count = len(raw) // size - 1
 
@@ -36,21 +39,21 @@ def hwp_header(raw):
     try:
         fat_count = struct.unpack_from("<I", raw, 44)[0]
         if not 1 <= fat_count <= count:
-            return False
+            return None
         difat = [number for number in integers(raw[76:512]) if number != 0xffffffff]
         next_sector, difat_count = struct.unpack_from("<II", raw, 68)
         seen = set()
         if difat_count > count:
-            return False
+            return None
         for _ in range(difat_count):
             if next_sector in seen:
-                return False
+                return None
             seen.add(next_sector)
             entries = integers(sector(next_sector))
             difat.extend(number for number in entries[:-1] if number != 0xffffffff)
             next_sector = entries[-1]
         if len(difat) != fat_count or len(set(difat)) != fat_count:
-            return False
+            return None
         fat = [number for index in difat for number in integers(sector(index))]
         directory = chain(struct.unpack_from("<I", raw, 48)[0], fat, sector, 524288)
         entries = []
@@ -62,38 +65,99 @@ def hwp_header(raw):
             name = entry[:name_size - 2].decode("utf-16le")
             entries.append((name, entry[66], struct.unpack_from("<I", entry, 116)[0],
                             struct.unpack_from("<Q", entry, 120)[0]))
+    except (ValueError, UnicodeError, struct.error, IndexError):
+        return None
+
+    def read_stream(entry, limit):
+        """작은 stream(4096 byte 미만)은 mini stream에서, 나머지는 일반 sector chain에서 읽는다."""
+        _, _, start, length = entry
+        if length >= 4096:
+            return chain(start, fat, sector, limit)[:length]
+        roots = [item for item in entries if item[1] == 5]
+        if len(roots) != 1 or roots[0][3] > len(raw):
+            raise ValueError("invalid_root")
+        miniature = chain(roots[0][2], fat, sector, len(raw))[:roots[0][3]]
+        mini_start, mini_count = struct.unpack_from("<II", raw, 60)
+        if not 1 <= mini_count <= count:
+            raise ValueError("invalid_mini_count")
+        mini_fat = integers(chain(mini_start, fat, sector, mini_count * size + size))
+
+        def mini_sector(index):
+            if (index + 1) * 64 > len(miniature):
+                raise ValueError("invalid_mini_sector")
+            return miniature[index * 64:(index + 1) * 64]
+
+        return chain(start, mini_fat, mini_sector, limit)[:length]
+
+    return entries, read_stream
+
+
+def hwp_header(raw):
+    # OLE magic은 여러 Office 형식이 공유하므로 제한된 CFB chain에서 HWP FileHeader를 확인한다.
+    cfb = _cfb(raw)
+    if cfb is None:
+        return False
+    entries, read_stream = cfb
+    try:
         headers = [entry for entry in entries if entry[0] == "FileHeader" and entry[1] == 2]
         if len(headers) != 1 or not 32 <= headers[0][3] <= 4096:
             return False
-        _, _, start, length = headers[0]
-        if length >= 4096:
-            value = chain(start, fat, sector, 8192)[:length]
-        else:
-            roots = [entry for entry in entries if entry[1] == 5]
-            if len(roots) != 1 or roots[0][3] > len(raw):
-                return False
-            miniature = chain(roots[0][2], fat, sector, len(raw))[:roots[0][3]]
-            mini_start, mini_count = struct.unpack_from("<II", raw, 60)
-            if not 1 <= mini_count <= count:
-                return False
-            mini_fat = integers(chain(mini_start, fat, sector, mini_count * size + size))
-
-            def mini_sector(index):
-                if (index + 1) * 64 > len(miniature):
-                    raise ValueError("invalid_mini_sector")
-                return miniature[index * 64:(index + 1) * 64]
-
-            value = chain(start, mini_fat, mini_sector, 8192)[:length]
+        value = read_stream(headers[0], 8192)
         return value[:32].rstrip(b"\x00") == b"HWP Document File"
     except (ValueError, UnicodeError, struct.error, IndexError):
         return False
+
+
+# 옛 Microsoft Office(OLE)는 대표 stream 이름으로 가린다. 암호화된 새 Office(EncryptedPackage)는 형식을 확정하지 않는다.
+OLE_OFFICE_STREAMS = (("WordDocument", "DOC"), ("PowerPoint Document", "PPT"), ("Workbook", "XLS"), ("Book", "XLS"))
+
+
+def ole_office_format(raw):
+    """HWP가 아닌 OLE 파일의 옛 Office 형식(DOC·XLS·PPT). 판별할 수 없거나 둘 이상이면 None."""
+    cfb = _cfb(raw)
+    if cfb is None:
+        return None
+    names = {entry[0] for entry in cfb[0] if entry[1] == 2}
+    if "EncryptedPackage" in names:
+        return None
+    found = {kind for stream, kind in OLE_OFFICE_STREAMS if stream in names}
+    return found.pop() if len(found) == 1 else None
+
+
+def zip_document_format(archive, names):
+    """압축 container 안의 문서 형식. HWPX·XLSX·DOCX·PPTX·ODT 중 정확히 하나면 그 값, 없으면 ZIP, 둘 이상이면 UNKNOWN."""
+    found = []
+    mimetype = b""
+    if "mimetype" in names and archive.getinfo("mimetype").file_size <= 128:
+        mimetype = archive.read("mimetype").strip()
+    if (mimetype == b"application/hwp+zip" and "Contents/header.xml" in names
+            and any(re.fullmatch(r"Contents/section\d+\.xml", name) for name in names)):
+        found.append("HWPX")
+    office = "[Content_Types].xml" in names
+    if office and "xl/workbook.xml" in names and any(re.fullmatch(r"xl/worksheets/sheet\d+\.xml", name) for name in names):
+        found.append("XLSX")
+    if office and "word/document.xml" in names:
+        found.append("DOCX")
+    if office and "ppt/presentation.xml" in names:
+        found.append("PPTX")
+    if mimetype == b"application/vnd.oasis.opendocument.text" and "content.xml" in names:
+        found.append("ODT")
+    return found[0] if len(found) == 1 else "UNKNOWN" if found else "ZIP"
+
+
+def hwpml(raw):
+    """XML 기반 한글 문서(HWPML, .hml). 판별만 하고 처리 경로는 보류한다."""
+    head = raw[:4096].lstrip(b"\xef\xbb\xbf").lstrip()
+    return head.startswith(b"<?xml") and b"<HWPML" in head
 
 
 def actual_format(raw):
     if raw.startswith(b"%PDF-"):
         return "PDF"
     if raw.startswith(bytes.fromhex("d0cf11e0a1b11ae1")):
-        return "HWP" if hwp_header(raw) else "UNKNOWN"
+        if hwp_header(raw):
+            return "HWP"
+        return ole_office_format(raw) or "UNKNOWN"
     if raw.startswith(b"PK"):
         try:
             with zipfile.ZipFile(io.BytesIO(raw)) as archive:
@@ -104,20 +168,17 @@ def actual_format(raw):
                         or any(PurePosixPath(name).is_absolute() or ".." in PurePosixPath(name).parts for name in names)
                         or sum(entry.file_size for entry in entries) > 104857600):
                     return "UNKNOWN"
-                hwpx = False
-                if "mimetype" in names and archive.getinfo("mimetype").file_size <= 128:
-                    hwpx = (archive.read("mimetype").strip() == b"application/hwp+zip"
-                            and "Contents/header.xml" in names
-                            and any(re.fullmatch(r"Contents/section\d+\.xml", name) for name in names))
-                xlsx = ("[Content_Types].xml" in names and "xl/workbook.xml" in names
-                        and any(re.fullmatch(r"xl/worksheets/sheet\d+\.xml", name) for name in names))
-                return "UNKNOWN" if hwpx and xlsx else "HWPX" if hwpx else "XLSX" if xlsx else "ZIP"
+                return zip_document_format(archive, names)
         except (ValueError, OSError, RuntimeError, zipfile.BadZipFile, NotImplementedError):
             return "UNKNOWN"
     if raw.lstrip().lower().startswith((b"<!doctype html", b"<html")):
         return "OTHER"
-    if raw.startswith((b"\x89PNG\r\n", b"\xff\xd8\xff")):
-        return "OTHER"
+    if raw.startswith(b"\x89PNG\r\n"):
+        return "PNG"
+    if raw.startswith(b"\xff\xd8\xff"):
+        return "JPEG"
+    if hwpml(raw):
+        return "HWPML"
     return "UNKNOWN"
 
 

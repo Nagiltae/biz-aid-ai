@@ -455,21 +455,87 @@
       "provenance": "every item carries bizaid__hwpx: source_sha256, section entry name, XML path from the section root (for example p[3]/run[0]/tbl[0]/tr[1]/tc[0]/subList[0]/p[0]), paragraph id, style, paraPr id, structure evidence and container; HWPX has no page or coordinates, so no ProvenanceItem page/bbox is created"
     },
     "XLSX": {
+      "route": "DOCLING_XLSX",
+      "enabled": false,
+      "approved_direction": "Docling Excel backend (openpyxl, data_only=True); stage 6",
+      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs",
+      "sheet_policy": "visible sheets only (sheet_state == visible), passed to Docling as sheet_names_filter; hidden and very hidden sheets are never read",
+      "formula_policy": "stored cached values only; formulas are never recalculated; a formula cell without a cached value stays empty",
+      "limits": {
+        "max_visible_nonempty_cells": 5000,
+        "max_file_bytes": 10485760,
+        "max_sheets": 20
+      },
+      "limit_rule": "exceeding any limit fails the whole document as PARSE_FAILED with xlsx_limit_exceeded:<limit>; nothing is truncated",
+      "limit_basis": "2026-10-02-imp009-unsupported-formats.md: 44/50 standalone XLSX fit 5,000 visible cells; larger files are reference tables"
+    },
+    "DOCX": {
+      "route": "DOCLING_DOCX",
+      "enabled": false,
+      "approved_direction": "Docling Word backend reading the OOXML directly (python-docx via docling-slim format-docx extra, not yet installed); no VLM",
+      "stage": "stage 3",
+      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+    },
+    "PPTX": {
+      "route": "DOCLING_PPTX",
+      "enabled": false,
+      "approved_direction": "Docling PowerPoint backend reading the OOXML directly (python-pptx via docling-slim format-pptx extra, not yet installed); no VLM",
+      "stage": "stage 3",
+      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+    },
+    "ODT": {
+      "route": "LIBREOFFICE_TO_DOCX",
+      "enabled": false,
+      "approved_direction": "LibreOffice (existing converter image, Writer) converts ODT to DOCX, then the DOCLING_DOCX path; converter target must become a parameter",
+      "stage": "stage 3",
+      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+    },
+    "DOC": {
+      "route": "LIBREOFFICE_TO_DOCX",
+      "enabled": false,
+      "approved_direction": "LibreOffice converts DOC to DOCX, then the DOCLING_DOCX path",
+      "stage": "stage 7",
+      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+    },
+    "XLS": {
+      "route": "LIBREOFFICE_TO_XLSX",
+      "enabled": false,
+      "approved_direction": "LibreOffice converts XLS to XLSX (converter image needs Calc), then the DOCLING_XLSX path with the same limits",
+      "stage": "stage 7",
+      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+    },
+    "PPT": {
+      "route": "LIBREOFFICE_TO_PPTX",
+      "enabled": false,
+      "approved_direction": "LibreOffice converts PPT to PPTX (converter image needs Impress), then the DOCLING_PPTX path",
+      "stage": "stage 7",
+      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+    },
+    "PNG": {
+      "route": "IMAGE_OCR",
+      "enabled": false,
+      "approved_direction": "text recognition (OCR) of the whole image with the pinned Korean PP-OCRv5 models; no VLM picture interpretation",
+      "stage": "stage 2",
+      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+    },
+    "JPEG": {
+      "route": "IMAGE_OCR",
+      "enabled": false,
+      "approved_direction": "text recognition (OCR) of the whole image with the pinned Korean PP-OCRv5 models; no VLM picture interpretation",
+      "stage": "stage 2",
+      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+    },
+    "HWPML": {
       "route": "POLICY_PENDING",
       "enabled": false,
-      "approved_direction": "Docling Excel route candidate; not implemented"
+      "approved_direction": "XML-based HWP (.hml) is detected only and stays unsupported (user decision: on hold)",
+      "stage": "on hold",
+      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
     },
     "ZIP": {
       "route": "POLICY_PENDING",
       "enabled": false,
       "extraction_enabled": false,
-      "container_subtypes": [
-        "DOCX",
-        "PPTX",
-        "ODT",
-        "GENERIC_ZIP"
-      ],
-      "subtype_policy": "DOCX / PPTX / ODT support routes are decided in a later Parser scope",
       "generic_zip_member_provenance_required": [
         "archive_source_sha256",
         "member_path",
@@ -478,17 +544,24 @@
         "archive_depth",
         "parent_member_provenance"
       ],
+      "scope": "generic archives only; DOCX, PPTX and ODT containers are detected as their own formats since 2026-10-02",
+      "container_subtypes_detected_separately": [
+        "DOCX",
+        "PPTX",
+        "ODT"
+      ],
+      "approved_direction": "each member becomes its own document, depth 1 (archives inside an archive are not expanded); stage 4",
       "activation_rule": "Generic ZIP extraction stays POLICY_PENDING until a contract represents every member provenance field"
     },
     "OTHER": {
       "route": "POLICY_PENDING",
       "enabled": false,
-      "approved_direction": "image binaries become OCR_REQUIRED; not implemented"
+      "approved_direction": "HTML and other non-document bodies; PNG and JPEG are detected as their own formats since 2026-10-02"
     },
     "UNKNOWN": {
       "route": "POLICY_PENDING",
       "enabled": false,
-      "approved_direction": "UNSUPPORTED_FORMAT; not implemented"
+      "approved_direction": "UNSUPPORTED_FORMAT; OLE Office files (DOC, XLS, PPT) and HWPML are detected as their own formats since 2026-10-02"
     }
   },
   "table_engine": {
@@ -637,7 +710,8 @@
       "docling_conversion_error:<ExceptionClass>",
       "pp_table_engine_error:<ExceptionClass>",
       "pdf_page_count_mismatch",
-      "ocr_engine_error:<ExceptionClass>"
+      "ocr_engine_error:<ExceptionClass>",
+      "xlsx_limit_exceeded:<visible_nonempty_cells|file_bytes|sheets>"
     ],
     "REJECTED_UNSAFE": [
       "container_entries_rejected",
@@ -755,7 +829,11 @@
     "LLM"
   ],
   "pending_decisions": [
-    "DOCX / PPTX / ODT routes and Generic ZIP member provenance contract",
+    "Stage 2 image OCR: OCR engine reuse (PP-OCRv5 from the PDF route), long-image tiling, OCR quality acceptance and parse_key route_scope",
+    "Stage 3 DOCX / PPTX: docling-slim format-docx / format-pptx extras; ODT conversion target parameter for the converter image",
+    "Stage 4 Generic ZIP: member provenance table (migration), CP949 member names, depth-1 rule for nested archives, empty or placeholder members",
+    "Stage 6 XLSX and stage 7 legacy Office (converter image Calc / Impress)",
+    "Applying the detected_format reclassification of existing document_sources rows (preview only, needs user approval)",
     "HwpxDoclingAdapter broader quality validation (3-document targeted check done; real explicit headings not yet observed)"
   ],
   "test_runtime": {

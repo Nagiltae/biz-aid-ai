@@ -91,5 +91,59 @@
       "embedding_key",
       "embedding_model"
     ]
+  },
+  "document_role": {
+    "purpose": "record what kind of document a chunk comes from (announcement body, application form, list) so that cases-v2 can measure whether blank forms crowd out body evidence (IMP-004 type risk)",
+    "payload_field": "document_role (optional)",
+    "values": [
+      "BODY",
+      "FORM",
+      "LIST",
+      "UNKNOWN"
+    ],
+    "ranking": "not used for search ranking, filtering or eligibility evidence selection until a decision after cases-v2 evaluation",
+    "identity": "not an input of parse_key, chunk_set_key, chunk_id, embedding_text or embedding_key; this top-level section is outside the hashed contract sections (embedding, chunker)",
+    "existing_points": "the 61,335 V2 points and all PDF / HWP / HWPX points indexed before 2026-10-02 have no document_role field and are read as UNKNOWN; they are not re-indexed for this field",
+    "attach_stage": "set on the payload when the newly supported formats are indexed (stage 2 onward); the indexing writer is unchanged in the common foundation stage",
+    "rule": "normalize every original filename (NFC, lower case, whitespace removed); each filename gets the first matching role in priority order FORM > LIST > BODY, otherwise the format default; when the filenames of one source disagree the role is UNKNOWN",
+    "filename_cues": {
+      "FORM": [
+        "서식",
+        "양식",
+        "신청서",
+        "계획서",
+        "제안서",
+        "동의서",
+        "확인서",
+        "서약서",
+        "위임장",
+        "작성예시",
+        "기재요령",
+        "제출서류",
+        "form"
+      ],
+      "LIST": [
+        "명단",
+        "목록",
+        "리스트",
+        "연계표",
+        "현황표",
+        "list"
+      ],
+      "BODY": [
+        "공고",
+        "안내",
+        "모집",
+        "지침",
+        "요강",
+        "포스터",
+        "홍보"
+      ]
+    },
+    "format_defaults": {
+      "PNG": "BODY",
+      "JPEG": "BODY"
+    },
+    "format_default_basis": "image attachments are posters or announcement captures (2026-10-02-imp009-unsupported-formats.md samples); every other format defaults to UNKNOWN"
   }
 }

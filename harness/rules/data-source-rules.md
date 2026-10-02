@@ -95,8 +95,10 @@ parsing·test runtime의 모델 네트워크 다운로드는 금지하며 artifa
 
 Container는 풀어서 디스크에 쓰지 않고 메모리에서 제한적으로 읽는다. 절대·상위 경로, 중복 entry, 암호화 entry,
 entry 수·전체 해제 크기·압축비·XML 크기 한도 초과는 REJECTED_UNSAFE 또는 ENCRYPTED다. XML은 DTD·entity를 거부한다.
-detected ZIP은 DOCX·PPTX·ODT·Generic ZIP을 구분해 다룬다. Generic ZIP은 archive source SHA·member path·member SHA·
-member detected format·archive depth·parent/member provenance를 표현하는 Contract 전까지 전개하지 않고 POLICY_PENDING으로 보존한다.
+압축 container는 판별 단계에서 HWPX·XLSX·DOCX·PPTX·ODT를 각자의 형식으로 나누고 나머지만 ZIP(일반 압축)으로 둔다. OLE는 HWP·DOC·XLS·PPT를 stream 이름으로, 이미지는 PNG·JPEG로 나눈다. HTML은 OTHER, XML 기반 한글은 HWPML로 판별만 한다.
+새 형식의 route는 Contract에 정의하되 단계별 승인 전에는 켜지 않는다. 일반 ZIP은 archive source SHA·member path·member SHA·
+member detected format·archive depth·parent/member provenance를 표현하는 Contract 전까지 전개하지 않고 POLICY_PENDING으로 보존한다(전개 방향: 내부 파일을 각각 문서로, 깊이 1).
+판별 규칙이 바뀌어도 저장된 detected_format은 자동으로 고치지 않는다. 재분류는 미리보기(전후 값·행 수)를 남기고 사용자 승인 뒤 한 트랜잭션으로 적용한다.
 Parsed artifact의 영구 저장소는 S3이며 로컬 filesystem은 fixture·scratch·임시 처리만 허용한다.
 DoclingDocument는 결정론적 JSON byte로 직렬화하고 source SHA·parse_key 주소의 immutable S3 object로 저장한다.
 S3 checksum과 실제 byte readback이 모두 성공한 뒤에만 MySQL 성공 metadata를 commit한다. 동일 source SHA·parse_key는 검증 후

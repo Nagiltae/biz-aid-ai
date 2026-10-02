@@ -1,5 +1,13 @@
 # Harness 변경 이력
 
+## 2026-10-02 — 미지원 첨부 형식 1단계: 공통 기반
+
+사용자 확정 순서: 공통 기반 → 이미지 OCR → DOCX·PPTX(ODT는 LibreOffice→DOCX) → 일반 ZIP(깊이 1) → 화면 완주·cases-v2 기준점 → XLSX → 옛 오피스. HWPML 보류, VLM 미도입.
+코드: `documents/formats.py` 판별 세분화(OLE 디렉터리 읽기를 `_cfb`로 분리, HWP 판정 그대로), `indexing/document_role.py`(출처 종류 판정, 순위 미사용, 아직 payload에 연결하지 않음).
+계약: document-parsing 새 route 정의(전부 enabled false), XLSX 상한·실패 코드, ZIP은 일반 압축만, pending_decisions 갱신. document-acquisition 형식 목록 확장. document-indexing에 `document_role`(식별값 입력 밖).
+규칙 변경(보고): data-source-rules의 ZIP 문단을 세분화 판별·route 비활성·재분류 승인 규칙으로 교체. data-pipeline 문서 동기화. 테스트: 새 판별·출처 종류 테스트 추가, 파싱 테스트의 형식 목록·route 기대값을 새 계약에 맞춤(Phase 2.5 기준 집계는 과거 기록이라 그대로 두고 형식 포함 관계로 검사).
+DB·Qdrant·S3 변경 없음. 기존 행 재분류는 미리보기·계획만(`artifacts/development/unsupported-formats-foundation/`).
+
 ## 2026-10-02 — 미지원 첨부 형식(IMP-009) 읽기 전용 조사
 
 규칙·코드·DB 변경 없음. 전체 corpus의 ZIP·OTHER·XLSX·UNKNOWN 305개 원본(로컬 보존본, SHA 확인)과 일반 압축 내부 728개를 실체·분포·내용 가치·기술 조건으로 조사하고 IMP-009 Evidence에 요약했다. current-task를 조사 Task와 다음 단계(공통 기반 → XLSX → DOCX·PPTX → 옛 오피스 → 일반 ZIP → 이미지)로 갱신했다.

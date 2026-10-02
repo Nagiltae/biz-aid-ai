@@ -91,7 +91,9 @@ class DocumentParsingContractTests(unittest.TestCase):
         self.assertEqual(self.contract["routes"]["PDF"]["ocr"]["selection_scope"], "page")
         self.assertIn("document-average", self.contract["routes"]["PDF"]["ocr"]["trigger"])
         self.assertIs(self.contract["routes"]["PDF"]["docling_options"]["do_ocr"], False)
-        formats = {"PDF", "HWP", "HWPX", "ZIP", "XLSX", "OTHER", "UNKNOWN"}
+        # 2026-10-02 공통 기반: 새 판별 형식마다 route가 있어야 한다(없으면 UNSUPPORTED로 떨어진다).
+        formats = {"PDF", "HWP", "HWPX", "XLSX", "DOCX", "PPTX", "ODT", "DOC", "XLS", "PPT", "PNG", "JPEG", "HWPML",
+                   "ZIP", "OTHER", "UNKNOWN"}
         self.assertEqual(set(self.contract["routes"]), formats)
         self.assertEqual(self.contract["routes"]["PDF"]["route"], "DOCLING_PDF")
         self.assertEqual(self.contract["routes"]["HWP"]["route"], "HWP_PDF_DOCLING")
@@ -101,7 +103,9 @@ class DocumentParsingContractTests(unittest.TestCase):
         self.assertEqual(basis["parse_unit"], "unique_content_sha")
         baseline = basis["phase2_5_baseline"]
         by_format = baseline["by_detected_format"]
-        self.assertEqual(set(by_format), set(self.contract["routes"]))
+        # Phase 2.5 기준 집계는 당시 판별 기준(ZIP·OTHER·UNKNOWN 묶음)의 과거 기록이다. 그 형식은 모두 현재 route에 있어야 한다.
+        self.assertEqual(set(by_format), {"PDF", "HWP", "HWPX", "ZIP", "XLSX", "OTHER", "UNKNOWN"})
+        self.assertLessEqual(set(by_format), set(self.contract["routes"]))
         for name in ("unique_content_sha", "source_relation"):
             self.assertEqual(sum(item[name] for item in by_format.values()), baseline["totals"][name])
         for detected, counts in by_format.items():
@@ -119,12 +123,21 @@ class DocumentParsingContractTests(unittest.TestCase):
         zip_route = routes["ZIP"]
         self.assertEqual((zip_route["route"], zip_route["enabled"], zip_route["extraction_enabled"]),
                          ("POLICY_PENDING", False, False))
-        self.assertEqual(zip_route["container_subtypes"], ["DOCX", "PPTX", "ODT", "GENERIC_ZIP"])
+        # DOCX·PPTX·ODT container는 2026-10-02부터 따로 판별하고, ZIP은 일반 압축만 뜻한다.
+        self.assertEqual(zip_route["container_subtypes_detected_separately"], ["DOCX", "PPTX", "ODT"])
         self.assertEqual(set(zip_route["generic_zip_member_provenance_required"]), {
             "archive_source_sha256", "member_path", "member_sha256", "member_detected_format",
             "archive_depth", "parent_member_provenance"})
-        for detected in ("XLSX", "OTHER", "UNKNOWN"):
+        # 공통 기반 단계에서는 새 형식 route를 정의만 하고 하나도 켜지 않는다.
+        for detected in ("XLSX", "DOCX", "PPTX", "ODT", "DOC", "XLS", "PPT", "PNG", "JPEG", "HWPML", "OTHER", "UNKNOWN"):
             self.assertFalse(routes[detected]["enabled"])
+        xlsx = routes["XLSX"]
+        self.assertEqual(xlsx["limits"], {"max_visible_nonempty_cells": 5000, "max_file_bytes": 10485760, "max_sheets": 20})
+        self.assertIn("visible sheets only", xlsx["sheet_policy"])
+        self.assertIn("never recalculated", xlsx["formula_policy"])
+        self.assertIn("xlsx_limit_exceeded:<visible_nonempty_cells|file_bytes|sheets>", self.contract["failure_codes"]["PARSE_FAILED"])
+        self.assertEqual((routes["HWPML"]["route"], routes["PNG"]["route"], routes["DOC"]["route"]),
+                         ("POLICY_PENDING", "IMAGE_OCR", "LIBREOFFICE_TO_DOCX"))
         quality = routes["HWPX"]["quality_status"]
         self.assertEqual(quality["validated"], ["Paragraph", "List", "Table", "Reading Order", "Source Location", "Footnote/Header"])
         # 실제 문서에서 명시적 heading을 아직 관찰하지 못했으므로 Heading은 제한 사항으로 남긴다.
@@ -153,12 +166,18 @@ class DocumentParsingContractTests(unittest.TestCase):
             hwp = parse(hwpx({"Contents/section0.xml": section(paragraph("<hp:t>본문</hp:t>"))}), "HWP")
         hwp_pdf._identity.cache_clear()
         self.assertEqual((hwp.route, hwp.status, hwp.failure_code), ("HWP_PDF_DOCLING", "CONVERSION_FAILED", "hwp_converter_unavailable"))
-        for detected in ("ZIP", "XLSX", "OTHER", "UNKNOWN"):
+        for detected in ("ZIP", "HWPML", "OTHER", "UNKNOWN"):
             result = parse(raw, detected)
             self.assertEqual((result.route, result.status, result.failure_code),
                              ("POLICY_PENDING", "ROUTE_NOT_ENABLED", "policy_pending"))
             self.assertIsNone(result.document)
-        unknown = parse(raw, "DOCX")
+        # 정의만 하고 켜지 않은 새 route는 parser를 부르지 않고 route_not_enabled로 끝난다.
+        for detected, route in (("XLSX", "DOCLING_XLSX"), ("DOCX", "DOCLING_DOCX"), ("PPTX", "DOCLING_PPTX"),
+                                ("ODT", "LIBREOFFICE_TO_DOCX"), ("XLS", "LIBREOFFICE_TO_XLSX"), ("PNG", "IMAGE_OCR")):
+            result = parse(raw, detected)
+            self.assertEqual((result.route, result.status, result.failure_code), (route, "ROUTE_NOT_ENABLED", "route_not_enabled"))
+            self.assertIsNone(result.document)
+        unknown = parse(raw, "RTF")
         self.assertEqual((unknown.status, unknown.failure_code), ("UNSUPPORTED_FORMAT", "unknown_detected_format"))
         self.assertEqual(route_for("HWPX", self.contract), ("HWPX_DOCLING_ADAPTER", True))
 

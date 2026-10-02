@@ -71,6 +71,7 @@ HTTPS / www.bizinfo.go.kr / 공개 atchFileId·fileSn query만 허용하며 Redi
 SIZE_LIMIT_EXCEEDED의 저장 byte는 한도 내 prefix이며 observed size는 하한이다. 전체 파일 크기는 미측정이다.
 Secret 반사 응답·header·인증 URL은 저장/요청을 거부하며 예외 상세를 출력하지 않는다.
 PDF signature, HWP FileHeader signature, HWPX / XLSX ZIP 구조만 식별하며 본문·표·XML 내용을 추출하지 않는다.
+(이 Phase 0 도구의 판별은 그대로다. 본 문서 수집기 `documents/formats.py`는 2026-10-02 공통 기반부터 같은 방식, 즉 내용 추출 없이 signature·container 목록·OLE stream 이름으로 DOCX·PPTX·ODT·DOC·XLS·PPT·PNG·JPEG·HWPML도 구분한다.)
 형식 식별은 완전한 파일 유효성 검사가 아니다. Content-Type 차이는 Observation이며 filename/actual 차이는 FORMAT_MISMATCH다.
 SUCCESS는 완전한 non-empty HTTP 2xx body의 식별 가능한 형식이 filename 확장자와 일치하는 경우다.
 
@@ -154,7 +155,7 @@ S3 object key는 `biz-aid/documents/sha256/<2>/<2>/<sha256>`이며 확장자를 
 PDF: S3 byte → Docling DocumentConverter(do_ocr=false, 표 구조 off) → page별 native text 판정 → 부족한 page만 PP-OCRv5 text layer(`parsing/pdf_ocr.py`) → PP-TableMagic 표(OCR page는 OCR text, 나머지는 native text·grid adapter·품질 Gate) → 같은 DoclingDocument로 조립(`parsing/pdf_tables.py`, `parsing/pdf_assembly.py`). HWP: S3 byte → 전용 Docker 변환기(LibreOffice headless + H2Orestart, 네트워크 없음) → 임시 PDF → 같은 `parse_pdf` 경로(`parsing/hwp_pdf.py`).
 HWPX: S3 byte → 제한된 container read → header.xml 선언 + section XML → `HwpxDoclingAdapter`(명시 heading·list·각주·머리말, RichTableCell, `bizaid__hwpx` provenance) → DoclingDocument. 세 경로의 결과는 모두 DoclingDocument다.
 공통 후처리 `quality.normalize_document`가 text를 정규화하고 원문을 orig에 두며 `apply_gate`가 JSON 재적재·text 양으로 상태를 정한다.
-현재 구현은 HWPX route, Docling PDF route(`parsing/pdf.py`, do_ocr=false)와 공통 router/Gate다. HWP는 Docker 변환 후 PDF route를 재사용하고, XLSX/ZIP/OTHER/UNKNOWN은 POLICY_PENDING이다.
+현재 구현은 HWPX route, Docling PDF route(`parsing/pdf.py`, do_ocr=false)와 공통 router/Gate다. HWP는 Docker 변환 후 PDF route를 재사용한다. 2026-10-02 공통 기반에서 새 형식 route(이미지 OCR, DOCX·PPTX Docling, ODT·DOC·XLS·PPT LibreOffice 변환, XLSX Docling + 상한)를 정의만 했고 모두 꺼져 있다(ROUTE_NOT_ENABLED). HWPML·일반 ZIP·OTHER·UNKNOWN은 POLICY_PENDING이다. 진행 순서: 이미지 OCR → DOCX·PPTX(ODT) → 일반 ZIP → 화면 완주·cases-v2 기준점 → XLSX → 옛 오피스.
 
 Parse persistence는 `parsing/persistence.py`가 DoclingDocument를 결정론적 JSON으로 직렬화해 source SHA·parse_key 기반 S3 key에
 conditional PUT하고 HEAD checksum과 실제 byte를 재검증한 뒤, `parsing/repository.py`가 V5 MySQL metadata를 확정한다.
