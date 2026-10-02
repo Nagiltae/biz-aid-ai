@@ -1,5 +1,13 @@
 # Harness 변경 이력
 
+## 2026-10-02 — 미지원 첨부 형식 3단계: DOCX·PPTX
+
+사용자 결정: 단독 DOCX·PPTX를 Docling으로 직접 읽는다(VLM 없음). docling-slim format-docx·format-pptx extra 추가 승인(기존 버전 불변). ODT는 기존 변환 이미지 변경이 HWP parse_key를 바꾸므로 7단계로 연기. 압축 안 DOCX·PPTX는 4단계.
+의존성: requirements에 extra와 python-docx==1.2.0·python-pptx==1.0.2·xlsxwriter==3.2.9 고정(설치 전후 pip freeze 비교: 이 3개만 추가). 계약 `dependencies.docling.pin`과 test 기대값 갱신.
+코드: `parsing/office.py`(LibreOffice 렌더링을 끈 Word·PowerPoint backend 하위 class, `bizaid__office` 위치 meta, 서식 정보 제거), router 분기(page 없는 문서 단위 Gate), `parse_identity` route 전용 입력(office_parser_version·office_config_sha256·python-docx/pptx 버전 + docling_version), chunk provenance에 block_order·heading_path·slide.
+계약: DOCX·PPTX `enabled: true`, `office` 설정, `route_parse_key_inputs`·route_scope, 실패 코드 office_*, ODT 연기 이유를 pending_decisions에. chunking provenance 설명.
+검증: 기존 PDF·HWP·HWPX 155원본과 IMAGE_OCR 105원본의 parse_key·chunk_set_key·embedding_key 불변. Backlog IMP-024(질문 유형 LLM 단독 판단)·IMP-025(공고 선택 단계 없음) 신규. 규칙 변경 없음.
+
 ## 2026-10-02 — 미지원 첨부 형식 2단계: 이미지 OCR(PNG·JPEG)
 
 사용자 승인: 재분류 123관계를 한 트랜잭션으로 적용(확인 일치 → COMMIT, 로그 `artifacts/development/unsupported-formats-foundation/reclassify_apply_log.json`).

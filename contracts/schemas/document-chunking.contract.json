@@ -91,7 +91,8 @@
     "item": "each DocItem of the chunk contributes item_ref, label, page and top-left bbox when the parser gave a ProvenanceItem, and HWPX section and XML path, table quality verdict and OCR confidence from bizaid__* meta",
     "multi_location": "provenance is a list and pages is the sorted set of pages, so a chunk spanning several pages or sections keeps every location",
     "no_location": "HWPX has no page or coordinates; pages stay empty and section / XML path identify the source location",
-    "image_ocr": "IMAGE_OCR: page is the tile number, every page is the full original image size, so bbox_pt holds original image pixels (unit px); OCR confidence comes from bizaid__ocr"
+    "image_ocr": "IMAGE_OCR: page is the tile number, every page is the full original image size, so bbox_pt holds original image pixels (unit px); OCR confidence comes from bizaid__ocr",
+    "office": "DOCX / PPTX: block_order and heading_path from bizaid__office for every item; PPTX also slide (Docling slide page with EMU bbox); DOCX has no page or bbox"
   },
   "embedding_handoff": {
     "input_field": "embedding_text",

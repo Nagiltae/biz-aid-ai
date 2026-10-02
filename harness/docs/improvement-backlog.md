@@ -14,7 +14,7 @@
 | 단계 | 항목 | 기준 |
 | --- | --- | --- |
 | V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
-| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED) | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
+| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
 | 운영/AWS 단계 | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017, IMP-021, IMP-022, IMP-023 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
 | 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
 
@@ -129,6 +129,7 @@
 - Evidence(전체 corpus 조사, 2026-10-02, 읽기 전용): 고유 파일 ZIP 144 / OTHER 107 / XLSX 50 / UNKNOWN 4(V2 범위 125 / 105 / 39 / 2). ZIP = 일반 압축 134 + DOCX 8 + PPTX 1 + ODT 1, OTHER = PNG 59 + JPEG 48(HTML 오류 페이지 0), UNKNOWN = XLS 2 + DOC 1 + HWPML 1. 일반 압축 내부 728개(HWP 357·PDF 141·HWPX 90·XLSX 36·이미지 23·자리표시 txt 48·HWPML 8 등, 암호화·한도 위반·위험 파일 0, CP949 이름 237, 단독 첨부와 같은 SHA 8). XLSX 보이는 셀 중앙값 114·p95 42,059·최대 84,118, 양식형 35/50. V2 범위에서 point가 없는 27공고는 전부 미지원 형식 첨부만 가진 공고(이미지만 19). 형식별 정리·XLSX 상한 후보는 `2026-10-02-imp009-unsupported-formats.md`.
 - Evidence(1단계 공통 기반, 2026-10-02): 형식 판별 세분화(DOCX·PPTX·ODT·DOC·XLS·PPT·PNG·JPEG·HWPML), 새 route 정의(전부 비활성), XLSX 상한(보이는 셀 5,000·10MB·시트 20, 초과 시 문서 단위 실패), 출처 종류(document_role) 기록 규칙. 기존 PDF·HWP·HWPX·XLSX 판별 3,029관계와 parse_key·chunk_set_key·embedding_key 불변 확인. 기존 행 재분류 123관계(121파일)는 미리보기만 하고 미적용(`2026-10-02-unsupported-formats-foundation.md`).
 - Evidence(2단계 이미지 OCR, 2026-10-02): 재분류 123관계 적용(COMMIT). IMAGE_OCR route 활성화(표본만 실행). 표본 3개 PARSED(포스터 8.6초·6.9초, 긴 캡처 44.7초), 타일 경계 중복 제거 후 위치 기준 누락 0(`2026-10-02-image-ocr-stage2.md`). 전체 실행은 승인 대기.
+- Evidence(3단계 DOCX·PPTX, 2026-10-02): docling-slim format-docx·format-pptx extra 추가(python-docx 1.2.0·python-pptx 1.0.2·xlsxwriter 3.2.9, 기존 버전 변경 0), DOCLING_DOCX·DOCLING_PPTX 활성화(단독 첨부만, 표본만 실행), ODT는 7단계로 연기. 표본 3개 PARSED, DOCX 글자 XML 대비 99.6~100%(`2026-10-02-office-stage3.md`).
 - Status: OPEN
 
 ## IMP-010 Parser 품질 한계(OCR·읽기 순서·그림 해석)
@@ -279,4 +280,24 @@
 - Why deferred: 사용자 흐름은 V2 workflow로 옮겨 가고 있고, 같은 `traced` 감싸기로 필요할 때 추가할 수 있다.
 - Revisit trigger: V1 화면 사용량이 많거나 V1 경로 성능 분석이 필요할 때
 - Side effect: 추가할 때도 같은 형식 검사·자동 추적 off 범위를 지켜야 한다.
+- Status: OPEN
+
+## IMP-024 질문 유형(request_mode)이 LLM 판단만으로 정해짐
+
+- Area: AI 질문 처리(V1 AI 검색)
+- Issue: SEARCH_LIST·DOCUMENT_QA 분류를 `candidates/natural.py`의 LLM 출력이 정하고, 코드는 두 값 중 하나인지만 검사한다. 특정 공고의 내용을 묻는 질문이 목록 검색으로 분류될 수 있다.
+- Evidence: 화면 확인(2026-10-02)에서 "청년일자리도약장려금 지원 대상 알려줘", "2026년 청년일자리 도약장려금 참여기업 모집 공고의 지원 대상 알려줘"가 둘 다 DOCUMENT_QA가 아니라 SEARCH_LIST로 분류됐다(후보 1,554건). 기록: `2026-10-02-office-stage3.md`.
+- Why deferred: 분류 보정 방식(규칙 보조·예시·재질문)은 평가 질문과 기대값이 있어야 비교할 수 있다. 이번 단계(DOCX·PPTX)는 범위가 다르다.
+- Revisit trigger: cases-v2 작성 시(분류 보정 + 공고 선택 방식 비교)
+- Side effect: 분류를 바꾸면 SEARCH_LIST(목록) 질문의 동작도 함께 바뀐다. IMP-025(공고 선택)와 함께 본다.
+- Status: OPEN
+
+## IMP-025 이름이 비슷한 공고 중 특정 공고를 고르는 단계가 없음
+
+- Area: AI 질문 처리(DOCUMENT_QA 근거 범위)
+- Issue: DOCUMENT_QA는 MySQL 후보 전체 안에서 상위 조각을 검색해 답한다. 질문이 특정 공고를 가리켜도 그 공고 하나를 고르는 단계가 없어, 제목이 거의 같은 여러 공고(서울·충북·경기 등, 같은 제목의 [충북] 공고 2개)의 근거가 한 답변에 섞일 수 있다.
+- Evidence: 화면 확인(2026-10-02)의 청년일자리도약장려금 질문. `rag/service.py`는 후보 범위(pblanc_ids) 안에서 top_k를 고르며 공고 단위 선택을 하지 않는다. 기록: `2026-10-02-office-stage3.md`.
+- Why deferred: 공고 선택 방식(제목 일치 우선, 후보가 여럿이면 되묻기, 근거 공고 하나로 제한 등)은 cases-v2 기대값으로 비교해야 한다.
+- Revisit trigger: cases-v2 작성 시(분류 보정 + 공고 선택 방식 비교)
+- Side effect: 공고를 하나로 좁히면 여러 공고 비교 질문의 답이 달라진다. 근거 공고 격리 규칙(자격 판정)과 같은 원칙을 쓸지 함께 정한다.
 - Status: OPEN

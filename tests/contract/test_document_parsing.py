@@ -128,8 +128,8 @@ class DocumentParsingContractTests(unittest.TestCase):
         self.assertEqual(set(zip_route["generic_zip_member_provenance_required"]), {
             "archive_source_sha256", "member_path", "member_sha256", "member_detected_format",
             "archive_depth", "parent_member_provenance"})
-        # 2단계(이미지 OCR)에서 PNG·JPEG만 켰고, 나머지 새 형식 route는 정의만 하고 꺼 둔다.
-        for detected in ("XLSX", "DOCX", "PPTX", "ODT", "DOC", "XLS", "PPT", "HWPML", "OTHER", "UNKNOWN"):
+        # 2단계(이미지 OCR)에서 PNG·JPEG, 3단계에서 DOCX·PPTX를 켰다. 나머지 새 형식 route는 정의만 하고 꺼 둔다.
+        for detected in ("XLSX", "ODT", "DOC", "XLS", "PPT", "HWPML", "OTHER", "UNKNOWN"):
             self.assertFalse(routes[detected]["enabled"])
         self.assertEqual({fmt: (routes[fmt]["route"], routes[fmt]["enabled"]) for fmt in ("PNG", "JPEG")},
                          {"PNG": ("IMAGE_OCR", True), "JPEG": ("IMAGE_OCR", True)})
@@ -154,7 +154,8 @@ class DocumentParsingContractTests(unittest.TestCase):
         self.assertIn("MySQL", storage["commit_order"])
         docling = self.contract["dependencies"]["docling"]
         # 3-B는 PDF 전용 extras만 허용하며 OCR engine을 끌어오는 standard/ocr extras를 pin하지 않는다.
-        self.assertEqual(docling["pin"], "docling-slim[convert-core,format-pdf,models-local]==2.130.0")
+        # 3단계(사용자 승인): DOCX·PPTX용 format-docx·format-pptx extra만 더했다. 같은 버전이고 OCR·standard extra는 여전히 없다.
+        self.assertEqual(docling["pin"], "docling-slim[convert-core,format-pdf,models-local,format-docx,format-pptx]==2.130.0")
         self.assertNotIn("ocr", docling["pin"])
         self.assertNotIn("standard", docling["pin"])
 
@@ -174,8 +175,7 @@ class DocumentParsingContractTests(unittest.TestCase):
                              ("POLICY_PENDING", "ROUTE_NOT_ENABLED", "policy_pending"))
             self.assertIsNone(result.document)
         # 정의만 하고 켜지 않은 새 route는 parser를 부르지 않고 route_not_enabled로 끝난다.
-        for detected, route in (("XLSX", "DOCLING_XLSX"), ("DOCX", "DOCLING_DOCX"), ("PPTX", "DOCLING_PPTX"),
-                                ("ODT", "LIBREOFFICE_TO_DOCX"), ("XLS", "LIBREOFFICE_TO_XLSX")):
+        for detected, route in (("XLSX", "DOCLING_XLSX"), ("ODT", "LIBREOFFICE_TO_DOCX"), ("XLS", "LIBREOFFICE_TO_XLSX")):
             result = parse(raw, detected)
             self.assertEqual((result.route, result.status, result.failure_code), (route, "ROUTE_NOT_ENABLED", "route_not_enabled"))
             self.assertIsNone(result.document)

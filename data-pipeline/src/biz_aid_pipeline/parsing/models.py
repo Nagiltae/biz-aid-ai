@@ -171,7 +171,9 @@ PARSE_KEY_INPUTS = ("source_sha256", "route", "hwpx_adapter_version", "normalize
                     "docling_version", "docling_parse_version", "docling_ibm_models_version", "pipeline_config_sha256",
                     "model_artifacts_sha256", "converter_version", "paddlepaddle_version", "paddlex_version")
 # BOUNDARY: route 전용 입력은 그 route identity에만 더한다. 공통 목록에 넣으면 모든 route identity에 null key가 생겨 기존 parse_key가 바뀐다.
-ROUTE_PARSE_KEY_INPUTS = {"IMAGE_OCR": ("image_ocr_version", "image_ocr_config_sha256")}
+ROUTE_PARSE_KEY_INPUTS = {"IMAGE_OCR": ("image_ocr_version", "image_ocr_config_sha256"),
+                          "DOCLING_DOCX": ("office_parser_version", "office_config_sha256", "python_docx_version"),
+                          "DOCLING_PPTX": ("office_parser_version", "office_config_sha256", "python_pptx_version")}
 
 
 def parse_identity(source_sha256, route, contract, converter_version=None):
@@ -205,6 +207,16 @@ def parse_identity(source_sha256, route, contract, converter_version=None):
                         image_ocr_config_sha256=image_ocr_config_sha256(contract),
                         model_artifacts_sha256=folder_artifacts_sha256(contract, ocr_folders),
                         paddlepaddle_version=installed_version("paddlepaddle"), paddlex_version=installed_version("paddlex"))
+    if route in ("DOCLING_DOCX", "DOCLING_PPTX"):
+        # Docling Word·PowerPoint backend와 그 XML 라이브러리만 결과를 바꾼다. layout·표·OCR identity는 넣지 않는다.
+        office = contract["office"]
+        identity.update(docling_version=installed_version("docling-slim"), office_parser_version=office["office_parser_version"],
+                        office_config_sha256=hashlib.sha256(json.dumps({"office": office, "empty_text_max_chars":
+                                                                         contract["document_gate"]["empty_text_max_chars"]},
+                                                                        sort_keys=True, separators=(",", ":"),
+                                                                        ensure_ascii=False).encode()).hexdigest())
+        library = "python-docx" if route == "DOCLING_DOCX" else "python-pptx"
+        identity[library.replace("-", "_") + "_version"] = installed_version(library)
     expected = list(versioning["parse_key_inputs"]) + list(versioning.get("route_parse_key_inputs", {}).get(route, []))
     if sorted(identity) != sorted(expected):
         raise PipelineError("parse_key_contract_drift")

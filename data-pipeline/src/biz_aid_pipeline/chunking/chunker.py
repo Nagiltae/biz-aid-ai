@@ -169,6 +169,12 @@ def item_provenance(item, document):
     ocr = custom.get("bizaid__ocr")
     if ocr:
         entry.update(ocr_confidence=ocr.get("confidence"))
+    office = custom.get("bizaid__office")
+    if office:
+        # DOCX·PPTX: page가 없거나(DOCX) 슬라이드인(PPTX) 문서의 위치는 문서 순서·제목 경로·슬라이드 번호다.
+        entry.update(block_order=office.get("order"), heading_path=office.get("heading_path"))
+        if office.get("slide") is not None:
+            entry.update(slide=office["slide"])
     return entry
 
 

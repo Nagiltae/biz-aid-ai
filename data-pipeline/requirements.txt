@@ -4,7 +4,10 @@ PyMySQL[rsa]==1.2.3
 boto3[crt]==1.43.103
 docling-core[chunking]==2.99.0
 defusedxml==0.7.1
-docling-slim[convert-core,format-pdf,models-local]==2.130.0
+docling-slim[convert-core,format-pdf,models-local,format-docx,format-pptx]==2.130.0
+python-docx==1.2.0
+python-pptx==1.0.2
+xlsxwriter==3.2.9
 docling-ibm-models[opencv-python-headless]==4.0.3
 opencv-python-headless==4.10.0.84
 paddlepaddle==3.3.1

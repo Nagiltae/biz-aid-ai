@@ -19,7 +19,7 @@
     },
     "docling": {
       "distribution": "docling-slim",
-      "pin": "docling-slim[convert-core,format-pdf,models-local]==2.130.0",
+      "pin": "docling-slim[convert-core,format-pdf,models-local,format-docx,format-pptx]==2.130.0",
       "status": "installed",
       "reason": "the docling meta package equals docling-slim[standard], which also installs OCR engines (rapidocr, opencv) and office/chunking extras; the PDF-only extras keep OCR engines absent",
       "compatibility": "docling-slim 2.130.0 requires docling-core>=2.96.0,<3.0.0; resolved with the existing docling-core==2.99.0 and pydantic==2.13.5, pip check clean",
@@ -471,23 +471,23 @@
     },
     "DOCX": {
       "route": "DOCLING_DOCX",
-      "enabled": false,
-      "approved_direction": "Docling Word backend reading the OOXML directly (python-docx via docling-slim format-docx extra, not yet installed); no VLM",
+      "enabled": true,
+      "approved_direction": "Docling Word backend reading the OOXML directly (python-docx 1.2.0 via docling-slim format-docx extra); no VLM, no OCR",
       "stage": "stage 3",
-      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+      "status": "enabled 2026-10-02 (stage 3, standalone attachments only; members of generic ZIP archives wait for stage 4); configuration in office"
     },
     "PPTX": {
       "route": "DOCLING_PPTX",
-      "enabled": false,
-      "approved_direction": "Docling PowerPoint backend reading the OOXML directly (python-pptx via docling-slim format-pptx extra, not yet installed); no VLM",
+      "enabled": true,
+      "approved_direction": "Docling PowerPoint backend reading the OOXML directly (python-pptx 1.0.2 via docling-slim format-pptx extra); no VLM, no OCR",
       "stage": "stage 3",
-      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+      "status": "enabled 2026-10-02 (stage 3, standalone attachments only; members of generic ZIP archives wait for stage 4); configuration in office"
     },
     "ODT": {
       "route": "LIBREOFFICE_TO_DOCX",
       "enabled": false,
-      "approved_direction": "LibreOffice (existing converter image, Writer) converts ODT to DOCX, then the DOCLING_DOCX path; converter target must become a parameter",
-      "stage": "stage 3",
+      "approved_direction": "LibreOffice converts ODT to DOCX, then the DOCLING_DOCX path; deferred to stage 7 with legacy Office",
+      "stage": "stage 7",
       "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
     },
     "DOC": {
@@ -715,7 +715,10 @@
       "xlsx_limit_exceeded:<visible_nonempty_cells|file_bytes|sheets>",
       "image_pixels_exceeded",
       "image_format_mismatch",
-      "image_decode_failed:<ExceptionClass>"
+      "image_decode_failed:<ExceptionClass>",
+      "office_partial_conversion",
+      "office_conversion_failed",
+      "office_conversion_error:<ExceptionClass>"
     ],
     "REJECTED_UNSAFE": [
       "container_entries_rejected",
@@ -798,12 +801,34 @@
         "model_artifacts_sha256 (the two OCR model folders only)",
         "paddlepaddle_version",
         "paddlex_version"
+      ],
+      "DOCLING_DOCX": [
+        "docling_version",
+        "office_parser_version",
+        "office_config_sha256",
+        "python_docx_version"
+      ],
+      "DOCLING_PPTX": [
+        "docling_version",
+        "office_parser_version",
+        "office_config_sha256",
+        "python_pptx_version"
       ]
     },
     "route_parse_key_inputs": {
       "IMAGE_OCR": [
         "image_ocr_version",
         "image_ocr_config_sha256"
+      ],
+      "DOCLING_DOCX": [
+        "office_parser_version",
+        "office_config_sha256",
+        "python_docx_version"
+      ],
+      "DOCLING_PPTX": [
+        "office_parser_version",
+        "office_config_sha256",
+        "python_pptx_version"
       ]
     },
     "route_parse_key_rule": "route-specific inputs are added only to that route's identity; the common parse_key_inputs list is unchanged so PDF, HWP and HWPX parse keys keep their values"
@@ -847,7 +872,7 @@
     "LLM"
   ],
   "pending_decisions": [
-    "Stage 3 DOCX / PPTX: docling-slim format-docx / format-pptx extras; ODT conversion target parameter for the converter image",
+    "ODT (stage 7 with legacy Office): converting ODT needs the LibreOffice converter image to take a target format; changing that image changes the HWP_PDF_DOCLING converter identity and would make every existing HWP a reprocessing target, so ODT stays disabled until legacy Office is handled together",
     "Stage 4 Generic ZIP: member provenance table (migration), CP949 member names, depth-1 rule for nested archives, empty or placeholder members",
     "Stage 6 XLSX and stage 7 legacy Office (converter image Calc / Impress)",
     "HwpxDoclingAdapter broader quality validation (3-document targeted check done; real explicit headings not yet observed)"
@@ -903,5 +928,15 @@
     "document": "each tile is a DoclingDocument page whose size is the full original image, so item bbox (top-left origin) is in original image pixels; bizaid__ocr keeps source_sha256, page (tile), tile_y_px, bbox_px, unit px, confidence and engine identity",
     "acceptance": "the common document text gate with tiles as pages: average non-whitespace characters per tile at or below document_gate.pdf_ocr_required_max_chars_per_page is OCR_REQUIRED with OCR_TEXT_INSUFFICIENT and is not indexed; tiles at or below the threshold are listed in ocr.insufficient_pages",
     "value_basis": "107 PNG/JPEG originals: width median 1,000 / max 4,961 px, height median 1,632 / max 7,016 px, pixels median 1.8 M / p95 15.6 M / max 34.8 M; text detection keeps its own max_side_limit 4000"
+  },
+  "office": {
+    "office_parser_version": 1,
+    "dependencies": "docling-slim[convert-core,format-pdf,models-local,format-docx,format-pptx]==2.130.0 adds python-docx==1.2.0, python-pptx==1.0.2 and xlsxwriter==3.2.9 (python-pptx dependency); no existing package version changes",
+    "converter": "Docling DocumentConverter with only DOCX and PPTX allowed; the Word and PowerPoint backends never call an external LibreOffice to render DrawingML shapes (Docling would otherwise use one when installed), so results do not depend on the host; text in text boxes and shapes is read from the XML",
+    "pages": "DOCX has no pages and no fake page is created; PPTX keeps Docling's slide pages (page = slide number, bbox in EMU) unchanged",
+    "location": "every item carries bizaid__office: source_sha256, format, order (document reading order), label, heading_path (from Docling title / section headers) and slide (PPTX); chunk provenance copies order, heading_path and slide",
+    "acceptance": "the common document text gate without pages (same as HWPX): more than document_gate.empty_text_max_chars non-whitespace characters is PARSED, otherwise EMPTY_TEXT",
+    "failure": "Docling partial conversion is PARSE_FAILED office_partial_conversion, a failed conversion office_conversion_failed, an exception office_conversion_error:<ExceptionClass>",
+    "scope": "standalone DOCX and PPTX attachments; DOCX / PPTX inside generic ZIP archives are handled in stage 4"
   }
 }

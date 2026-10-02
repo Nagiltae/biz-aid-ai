@@ -58,6 +58,16 @@ def parse_document(request, raw, contract=None):
             result.status, result.failure_code = "PARSE_FAILED", error.code
             return result
         result.unit_count = page_count
+    elif route in ("DOCLING_DOCX", "DOCLING_PPTX"):
+        # BOUNDARY: Office route는 Docling Word·PowerPoint backend만 쓴다. layout·표 engine·OCR 모델을 적재하지 않는다.
+        from biz_aid_pipeline.parsing.office import OfficeError, parse_office
+        try:
+            document = parse_office(raw, request.source_sha256, request.detected_format, contract, result)
+        except OfficeError as error:
+            result.status, result.failure_code = "PARSE_FAILED", error.code
+            return result
+        # page가 없는 형식이므로 HWPX와 같이 문서 단위 글자 기준만 쓴다(PPTX 슬라이드 수는 unit_count에만 남긴다).
+        page_count = None
     elif route == "IMAGE_OCR":
         # BOUNDARY: 이미지 OCR은 Docling layout·표 engine 없이 공유 OCR engine만 쓴다. 실패는 PARSE_FAILED + 코드로 드러낸다.
         from biz_aid_pipeline.parsing.image_ocr import ImageOcrError, parse_image
