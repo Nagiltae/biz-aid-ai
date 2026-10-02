@@ -1,5 +1,10 @@
 # Harness 변경 이력
 
+## 2026-10-02 — V2 적재 결과 확인과 완전성 검증
+
+규칙 변경 없음. V2 데이터 batch 결과를 읽기 전용으로 대조했다(2,541 → PARSED 2,534 → INDEXED 2,534 → Qdrant 2,534문서·61,335 point, final.ok=true, V1 3,849 유지). 제외 7문서와 마감 공고 point를 기존 Backlog IMP-006·007·010·018 Evidence로 기록하고, Master Guide §1·README 상태를 실제 값으로 갱신했다.
+결과: [Report](../workspace/reports/development/2026-10-02-v2-data-completeness.md). AGY 검토 pending.
+
 ## 2026-10-02 — 운영 배포 브랜치 이름 op → prod
 
 사용자 결정: 브랜치는 dev(개발) → main(최신 검증) → prod(운영 배포)로 쓴다. Registry `branches.deployment`, validator 기대값, Harness policy test, Git 정책·Workflow·PROJECT_DESIGN의 `op`(배포 workflow 예시 `deploy-op.yml` 포함)를 `prod`로 바꿨다. Git 정책에 prod 브랜치와 실행 환경 profile(`prod`)이 별개라는 문장을 추가했다.

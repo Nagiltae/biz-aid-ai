@@ -89,6 +89,7 @@
 - Why deferred: 현재는 같은 머신에서 실행해 문제가 없다. B-1로 source 단위 실패 격리는 확보했다.
 - Revisit trigger: indexing이나 서비스를 parsing 환경과 다른 곳에서 실행할 때, 또는 전체 corpus indexing 전
 - Side effect: "최신 PARSED" 선택 규칙을 바꾸면 오래된 parser 결과를 쓰게 될 위험이 있어 identity 규칙과 함께 결정해야 한다.
+- Evidence(V2 적재, 2026-10-02): HWP 3문서(32b2382125143427…, 3a1c386039528334…, afc8778b27ef…)가 모든 시도에서 `parse_result_key_mismatch`(EXECUTION_FAILED)였다. parse 결과의 parse_key와 저장 직전 실행 환경으로 다시 계산한 값이 달라 저장을 거부한 것이며 원인은 아직 확인하지 않았다(`2026-10-02-v2-data-completeness.md`).
 - Status: OPEN
 
 ## IMP-007 전체 corpus 실행 전 처리량·메모리·운영 조건
@@ -102,6 +103,7 @@
 - Why deferred: 사용자 결정으로 전체 corpus는 실행하지 않았다. 100-source로 기능 개발에 충분하다.
 - Revisit trigger: 전체 corpus parsing·indexing을 결정할 때
 - Side effect: 병렬화·MPS/fp16은 embedding identity(dtype·device)와 메모리 경쟁에 영향을 준다.
+- Evidence(V2 적재, 2026-10-02): 서비스 범위 2,541문서 batch가 AWS 로그인 만료로 2회 STOPPED_ENVIRONMENT, 실행 중 git 브랜치 전환(dev→main)으로 1회 중단(실행 중 코드·indexing script가 바뀜)됐고 같은 run-id 재개로 끝났다. 인덱싱 실측 2,534문서 274분(6.5s/source), 61,335 point(`2026-10-02-v2-data-completeness.md`).
 - Status: OPEN
 
 ## IMP-008 공고 relation이 비활성·삭제 공고를 거르지 않음
@@ -134,6 +136,7 @@
 - Why deferred: 100건에서 반복되는 구조적 parser blocker가 없었다. VLM 출력은 native source text가 아니라 production에서 보류했다.
 - Revisit trigger: RAG 실패가 OCR 오인식·순서·그림 정보 때문에 반복될 때
 - Side effect: parser 변경은 해당 route의 parse_key를 바꿔 재parsing·재indexing이 필요하다.
+- Evidence(V2 적재, 2026-10-02): 2,541문서 중 파싱 제외 4문서 — PDF 1(19ee2419ecd3…, docling_conversion_failed), HWPX 1(bcd40262462d…, malformed_xml), HWP 2(69d0e4d1c39c…, b86308ea8ac0…, OCR_REQUIRED). 각 공고는 다른 첨부 문서로 V2 collection에 남아 있다(`2026-10-02-v2-data-completeness.md`).
 - Status: OPEN
 
 ## IMP-011 신청기간 파생 날짜가 적어 마감 필터 효과가 작음
@@ -221,6 +224,7 @@
 - Why deferred: V2 개발·데모 기간(수일)에는 영향이 작고, 첫 적재를 끝내는 것이 먼저다.
 - Revisit trigger: V2 collection 전환 후 주기적 갱신이 필요할 때 또는 운영 배포 전
 - Side effect: 정리는 V2 collection에서만 한다. V1 collection은 baseline 재현용이라 대상이 아니다. MySQL·S3 원본은 지우지 않는다.
+- Evidence(V2 적재 현황, 2026-10-02): V2 collection point의 공고 중 현재 CLOSED가 17공고·1,719 point다. 13공고(1,115 point)는 기준일 2026-10-01에 마감된 공고다. 4공고(604 point)는 기준일 전(09-30)에 마감돼 범위 밖인데, 범위 안 공고와 같은 첨부 문서를 공유해 indexing이 공고 relation마다 point를 만들면서 들어왔다. V2 개인화 검색은 MySQL 후보 단계에서 요청일 기준 마감 공고를 빼므로(`exclude_closed_on`) 이 point를 결과로 내지 않는다. V1 경로(`/api/ai/query`)는 "지금" 표현이 없으면 마감 공고를 빼지 않는 기존 동작 그대로다. 정리는 하지 않았다(`2026-10-02-v2-data-completeness.md`).
 - Status: OPEN
 
 ## IMP-019 개인화 검색에서 기업정보는 후보 필터에만 쓰이고 순위에는 반영되지 않음

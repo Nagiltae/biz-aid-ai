@@ -126,22 +126,22 @@ V1 종료 시점의 10개 사례를 고정해 이후 변경의 비교 기준으�
 - V2 맞춤 추천 화면과 MySQL workflow State 저장
 - dev LangSmith 추적 설정 완료. `.env.dev`에서 전용 API key와 `BIZAID_TRACING_ENABLED=true`를 사용하며, 진단 중 잘못 생성된 `biz_aid` 프로젝트는 사용자가 삭제했습니다.
 
-### 진행 중
+### V2 데이터 상태
 
-- V2 서비스 범위 2,541개 문서의 파싱이 재개되어 실행 중
-- 2026-10-01 18:00 KST 조회 기준 파싱 runner 기록은 989/2,541(38.9%, PARSED 986, 실패 3)입니다. 과거 첫 파싱 중단 뒤 실행된 인덱싱 시도는 `STOPPED_ENVIRONMENT`였고, V2 collection은 아직 Smoke 207 point입니다.
+- V2 서비스 범위 데이터 적재는 2026-10-02에 끝났습니다. 2,541문서 중 2,534문서가 V2 collection에 61,335 point로 적재됐고 완전성 검증을 통과했습니다(7문서는 파싱 실패·OCR 필요로 제외).
+- 서비스 검색은 아직 V1 collection을 읽습니다. V2 전환은 다음 작업입니다.
 
 ### 아직 검증하지 않음
 
-- V2 전체 collection 완전성 및 서비스 전환
+- V2 collection 서비스 전환
 - V2 전체 데이터에서의 검색·추천 품질과 V1 기준선 비교
 - V2 전체 workflow가 LangSmith에서 단계별로 기록되는지에 대한 실제 사용자 흐름 검증
 
 ### 다음 작업
 
-1. 현재 파싱 batch의 완료와 실패 3건을 확인합니다.
-2. 기존 batch는 파싱 다음 인덱싱을 실행하는 순차 명령이므로, 파싱 완료 뒤 같은 batch가 인덱싱으로 전환했는지 먼저 확인합니다. 중복 재시작을 가정하지 않습니다.
-3. 인덱싱 완료 뒤 source·point·provenance를 검증하고, 검증된 경우에만 `QDRANT_COLLECTION_NAMESPACE=v2`로 전환해 V2 평가를 실행합니다.
+1. `QDRANT_COLLECTION_NAMESPACE=v2`로 V2 collection 전환
+2. React 화면에서 추천 흐름을 끝까지 진행하고 LangSmith 기록 확인
+3. cases-v2로 V2 평가
 
 V1 collection `bizaid_chunks_v1_228acdd12220`은 기준선 재현용이므로 수정하거나 추가 적재하지 않습니다. V2 기능 Smoke는 아직 V1 collection 또는 3문서 V2 smoke collection을 사용한 기능 확인이며, V2 전체 품질 결론이 아닙니다.
 

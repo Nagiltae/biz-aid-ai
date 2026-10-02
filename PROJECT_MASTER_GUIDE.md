@@ -79,17 +79,17 @@
 | LangChain(LLM 호출 계층만) | 적용(V2-0) |
 | LangGraph(추천 흐름 단계·분기, State는 MySQL ai_workflows) | 적용(V2-3) |
 | LangSmith(AI 실행 추적, 선택적·개인정보 제외) | 적용(V2-6, 설정으로 켬) |
-| V2 서비스 범위 데이터(종료 공고 제외, 문서 2,541개) | 파싱 진행 중, 전체 Qdrant 적재·전환 미완료(V2-0, 별도 collection) |
+| V2 서비스 범위 데이터(종료 공고 제외, 문서 2,541개) | 적재 완료·완전성 확인(2,534문서·61,335 point), 서비스 전환·품질 평가 미실행 |
 
 V1 release 후보는 데이터 수집부터 React → Spring Boot → FastAPI 서비스와 고정 AI 기준선까지 포함한다.
 운영 배포 완료를 뜻하지 않으며 FastAPI Compose 통합, 전체 문서 처리, 일부 표·OCR 품질은 Backlog에 남아 있다.
 
-### 현재 상태 구분(2026-10-01)
+### 현재 상태 구분(2026-10-02)
 
 - **완료**: V1 E2E·고정 평가, V2-0 LangChain 호출 경계부터 V2-6 개인화 workflow·React 화면·선택적 LangSmith 추적까지의 기능 구현.
-- **진행 중**: V2 서비스 범위 문서 2,541개의 파싱이 재개돼 실행 중이다. 사용자가 마지막으로 공유한 runner 화면은 1,384/2,541(54.5%, PARSED 1,380 · OCR_REQUIRED 1 · 실패 3 · 이전 run 결과 건너뜀 352, RUNNING)이다. 완료 수에는 건너뛴 352건이 포함돼 있어 PARSED와 더하지 않는다(1,380+1+3=1,384). 시점 스냅샷이므로 현재 값은 `--status`로 다시 조회한다. 과거 첫 파싱 중단 뒤 이어진 full indexing 시도는 0건 적재 후 `STOPPED_ENVIRONMENT`였고 별도 V2 collection은 Smoke 207 point 상태다.
-- **미검증**: V2 전체 collection 완전성·서비스 전환, V2 전체 데이터 검색/추천 품질, 실제 전체 workflow의 LangSmith 추적, React 화면에서 Top 3 판정 → 추가 질문 → 재판정 → 최종 결과까지 한 번에 끝까지 진행한 E2E(V2-5는 시작·다음 단계 1회·복원까지 확인), 실제 LLM 결과로 만든 final_result(V2-4는 mock 판정 결과 테스트로 검증).
-- **다음 작업**: 현재 파싱 완료를 확인한다. 기존 실행 명령은 파싱 다음 인덱싱을 잇는 순차 batch이므로 같은 batch의 전환 여부를 먼저 확인하고, 별도 재시작이 필요하다고 미리 단정하지 않는다. 인덱싱 완료 뒤 별도 V2 collection을 완전성 검증한 후 전환·V2 평가한다.
+- **V2 데이터 적재 완료(2026-10-02)**: 서비스 범위 2,541문서 중 2,534문서 파싱 성공(PARSED), 7문서 제외(파싱 실패 2·실행 실패 3·OCR 필요 2). 2,534문서 전부 V2 collection `bizaid_v2_chunks_v1_228acdd12220`에 적재돼 61,335 point다. 적재 뒤 자동 검증(`final.ok=true`)과 별도 재집계에서 문서 수·point 수·공고 ID·출처 누락 0이 맞았다. V1 collection은 3,849 point 그대로다. 수치·분류는 `2026-10-02-v2-data-completeness.md`.
+- **미검증**: V2 collection 서비스 전환(`QDRANT_COLLECTION_NAMESPACE=v2`), V2 전체 데이터 검색/추천 품질(cases-v2), 실제 전체 workflow의 LangSmith 추적, React 화면에서 Top 3 판정 → 추가 질문 → 재판정 → 최종 결과까지 한 번에 끝까지 진행한 E2E(V2-5는 시작·다음 단계 1회·복원까지 확인), 실제 LLM 결과로 만든 final_result(V2-4는 mock 판정 결과 테스트로 검증).
+- **다음 작업**: V2 collection 전환 → React 화면에서 추천 흐름 끝까지 진행 + LangSmith 기록 확인 → cases-v2 평가.
 
 기능 구현 완료와 전체 데이터 검증 완료는 다르다. V2-1~V2-6 Smoke는 V1 collection 또는 3문서 V2 Smoke를 사용했으며 V2 전체 품질 결론이 아니다.
 
@@ -116,7 +116,7 @@ V1 release 후보는 데이터 수집부터 React → Spring Boot → FastAPI �
 | 흐름 관리 | 요청마다 독립 | LangGraph State를 Spring이 MySQL `ai_workflows`에 저장, 새로고침 후 복원 |
 | 결과 | 목록·답변·단일 판정 | 추천 가능·지원 불가·판단 불가(final_result, §12 V2-4) |
 | LLM 호출 | V1 당시 직접 만든 Ollama 호출 → V2-0부터 V1 경로도 LangChain 호출 계층 공유 | 같음 |
-| 문서 데이터 | V1 collection 100문서·3,849 조각(기준선 재현용 동결) | 종료 공고를 뺀 서비스 범위 2,541문서, 별도 V2 collection에 적재 진행 중 |
+| 문서 데이터 | V1 collection 100문서·3,849 조각(기준선 재현용 동결) | 종료 공고를 뺀 서비스 범위 2,541문서 중 2,534문서·61,335 point를 별도 V2 collection에 적재(전환 전) |
 | 관측 | 없음 | LangSmith 선택적 추적(V2-6) |
 | 품질 평가 | 고정 기준선 10건 중 7 PASS | 전체 데이터 기준 평가는 아직 없음(Smoke만) |
 

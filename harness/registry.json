@@ -220,7 +220,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-10-01-handoff-review.md",
+  "report": "harness/workspace/reports/development/2026-10-02-v2-data-completeness.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
