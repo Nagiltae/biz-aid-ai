@@ -1,5 +1,11 @@
 # Harness 변경 이력
 
+## 2026-10-02 — 기업정보 필수·내 기업정보 화면 개편
+
+사용자 결정: 로그인 뒤 기업정보가 없으면 등록 화면으로 보내고 AI 검색·맞춤 추천은 등록 뒤에만 쓴다(지원사업 목록·상세는 공개 유지). 기업 규모는 선택 상자(소상공인·중소기업·중견기업·모름). 내 기업정보는 보기 화면 + [수정] 버튼, 메뉴는 계정 영역으로 이동.
+React: `useMyCompany`·`RequireCompany`, 로그인 직후 기업정보 확인, 보기/수정 모드, 메뉴 잠금. Spring: `CompanyService.requireRegistered`를 대화·AI 검색 진입점에 적용, `CompanyRequest.companySize` 허용값 검사. 화면 API 계약 갱신. 규칙 변경 없음.
+결과: [Report](../workspace/reports/development/2026-10-02-company-required.md).
+
 ## 2026-10-02 — 회원가입 50초 지연 수정
 
 원인: `AuthService.signup` 트랜잭션이 커밋 전 새 users 행을 잠근 상태에서 `ActivityLogService`가 REQUIRES_NEW(다른 연결)로 `activity_logs`(users FK)를 저장해 MySQL 잠금 대기 50초 후 실패했다(가입 SIGNUP 기록 유실).

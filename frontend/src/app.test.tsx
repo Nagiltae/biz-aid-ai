@@ -15,6 +15,16 @@ const loggedIn: Handler = (url) => (url === "/api/auth/refresh" ? { status: 200,
 const loggedOut: Handler = (url) =>
   url === "/api/auth/refresh" ? { status: 401, body: { error: { code: "auth_refresh_invalid", message: "만료" } } } : undefined;
 
+// AI 검색·맞춤 추천은 기업정보 등록이 필요하다. 등록된 사용자를 흉내 내는 응답.
+const COMPANY = { id: 1, companyName: "비즈에이드", businessEntityType: "법인", companySize: "소상공인", region: "경기도", industry: null,
+  businessStartDate: null, businessStatus: "영업중", employeeCount: 5, annualRevenueKrw: null, ventureCertified: null,
+  researchInstitute: null, exporter: true, updatedAt: "2026-10-01T00:00:00Z" };
+const hasCompany: Handler = (url, init) =>
+  url === "/api/company" && (init.method ?? "GET") === "GET" ? { status: 200, body: COMPANY } : undefined;
+const noCompany: Handler = (url, init) =>
+  url === "/api/company" && (init.method ?? "GET") === "GET"
+    ? { status: 404, body: { error: { code: "company_not_registered", message: "등록된 기업정보가 없습니다." } } } : undefined;
+
 function mockFetch(...handlers: Handler[]) {
   const calls: { url: string; init: RequestInit }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit = {}) => {
@@ -87,7 +97,7 @@ test("기업정보가 없으면 등록 form을 보여 주고 저장하면 POST�
     return undefined;
   });
   renderAt("/company");
-  expect(await screen.findByText(/아직 등록된 기업정보가 없습니다/)).toBeInTheDocument();
+  expect(await screen.findByText(/기업정보를 먼저 등록해야/)).toBeInTheDocument();
   await userEvent.type(screen.getByLabelText("회사명 *"), "비즈에이드");
   await userEvent.selectOptions(screen.getByLabelText("사업자 형태"), "법인");
   await userEvent.click(screen.getByRole("button", { name: "등록" }));
@@ -119,7 +129,7 @@ test("SEARCH_LIST 결과를 FastAPI 순위 그대로 공고 카드로 보여 준
   const program = (rank: number, id: string, name: string) => ({ rank, pblancId: id, name, category: "금융", target: "소상공인",
     jurisdictionName: "중소벤처기업부", executingOrgName: null, applicationStartDate: null, applicationEndDate: null,
     applicationPeriodRaw: "예산 소진시까지" });
-  const calls = mockFetch(loggedIn, aiServer({ requestMode: "SEARCH_LIST", status: "LISTED", candidateCount: 69, answer: null, citations: null,
+  const calls = mockFetch(loggedIn, hasCompany, aiServer({ requestMode: "SEARCH_LIST", status: "LISTED", candidateCount: 69, answer: null, citations: null,
     naturalFilter: { applied: { categories: ["금융"] } },
     programs: [program(1, "PBLN_000000000000009", "크라우드펀딩"), program(2, "PBLN_000000000000001", "비즈플러스카드")] }));
   renderAt("/ai");
@@ -134,7 +144,7 @@ test("SEARCH_LIST 결과를 FastAPI 순위 그대로 공고 카드로 보여 준
 });
 
 test("DOCUMENT_QA 답변과 공고문 근거(공고명·페이지·문단)를 보여 준다", async () => {
-  mockFetch(loggedIn, aiServer({ requestMode: "DOCUMENT_QA", status: "ANSWERED", candidateCount: 1, programs: null, naturalFilter: null,
+  mockFetch(loggedIn, hasCompany, aiServer({ requestMode: "DOCUMENT_QA", status: "ANSWERED", candidateCount: 1, programs: null, naturalFilter: null,
     answer: "업력 6개월 이상 개인사업자가 대상입니다.",
     citations: [{ evidenceId: "E1", rank: 1, pblancId: "PBLN_000000000119801", title: "비즈플러스카드 공고", pages: [3], location: null,
       headingPath: ["2. 지원 요건"] }] }));
@@ -149,7 +159,7 @@ test("DOCUMENT_QA 답변과 공고문 근거(공고명·페이지·문단)를 �
 });
 
 test("자격 판정의 추가 정보 필요 상태·조건별 결과·부족한 정보를 한글로 보여 준다", async () => {
-  mockFetch(loggedIn, (url, init) => {
+  mockFetch(loggedIn, hasCompany, (url, init) => {
     if (url === "/api/programs/PBLN_000000000119801" && (init.method ?? "GET") === "GET") {
       return { status: 200, body: { pblancId: "PBLN_000000000119801", name: "비즈플러스카드", category: "금융", target: "소상공인",
         jurisdictionName: "중소벤처기업부", executingOrgName: null, applicationStartDate: null, applicationEndDate: null,
@@ -227,7 +237,7 @@ test("맞춤 추천은 서버가 CONTINUE를 주는 동안 한 단계씩 진행�
       finalResult: { recommended: [finalItem("A", "ELIGIBLE", "all_criteria_met", "MET")], excluded: [finalItem("B", "INELIGIBLE", "criteria_not_met", "NOT_MET")],
         unresolved: [], counts: { recommended: 1, excluded: 1, unresolved: 0 }, disclaimer: "참고용 안내" } }),
   ];
-  const calls = mockFetch(loggedIn, (url, init) => {
+  const calls = mockFetch(loggedIn, hasCompany, (url, init) => {
     if (url === "/api/ai/workflows" && init.method === "POST") return { status: 201, body: workflow({}) };
     if (url === "/api/ai/workflows/7/continue") return { status: 200, body: steps.shift() };
     if (url === "/api/ai/workflows/7/answers") return { status: 200, body: workflow({ round: 1,
@@ -270,7 +280,7 @@ test("맞춤 추천은 서버가 CONTINUE를 주는 동안 한 단계씩 진행�
 
 test("새로고침하면 저장된 상태만 조회하고, 사용자가 누를 때 한 단계만 진행하며 409는 재시도하지 않는다", async () => {
   let gets = 0;
-  const calls = mockFetch(loggedIn, (url, init) => {
+  const calls = mockFetch(loggedIn, hasCompany, (url, init) => {
     if (url === "/api/ai/workflows/7" && (init.method ?? "GET") === "GET") {
       gets += 1;
       return { status: 200, body: workflow({}) };
@@ -295,7 +305,7 @@ test("새로고침하면 저장된 상태만 조회하고, 사용자가 누를 �
 });
 
 test("추천 가능 공고가 0건이어도 정상 결과로 보여 주고 판단 불가를 지원 가능으로 표시하지 않는다", async () => {
-  mockFetch(loggedIn, (url) => url === "/api/ai/workflows/7" ? { status: 200, body: workflow({
+  mockFetch(loggedIn, hasCompany, (url) => url === "/api/ai/workflows/7" ? { status: 200, body: workflow({
     status: "COMPLETED", currentStep: "DONE", nextAction: "NONE", pendingPblancIds: [],
     progress: { total: 2, completed: 1, failed: 1, pending: 0, round: 0 },
     evaluations: [done("A", "INSUFFICIENT_EVIDENCE"), { ...workflow({}).evaluations[1], evaluationStatus: "FAILED", errorCode: "llm_timeout" }],
@@ -311,4 +321,74 @@ test("추천 가능 공고가 0건이어도 정상 결과로 보여 주고 판�
   expect(within(unresolved).queryAllByText("지원 가능")).toHaveLength(0);
   expect([...unresolved.querySelectorAll(".final-card .badge")].map((badge) => badge.textContent)).toEqual(["판단 불가", "판단 불가"]);
   expect(screen.getAllByText("판정 실패").length).toBeGreaterThan(0);
+});
+
+test("가입 직후 기업정보가 없으면 등록 화면으로 가고, 등록 전에는 AI 기능이 잠기며 지원사업은 열려 있다", async () => {
+  let registered = false;
+  mockFetch(loggedOut, (url, init) => {
+    if (url === "/api/auth/signup") return { status: 200, body: TOKEN };
+    if (url === "/api/company" && (init.method ?? "GET") === "GET") {
+      return registered ? { status: 200, body: COMPANY }
+        : { status: 404, body: { error: { code: "company_not_registered", message: "등록된 기업정보가 없습니다." } } };
+    }
+    if (url === "/api/company" && init.method === "POST") {
+      registered = true;
+      return { status: 201, body: { ...COMPANY, ...JSON.parse(String(init.body)) } };
+    }
+    if (url.startsWith("/api/programs")) return { status: 200, body: { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 } };
+    if (url === "/api/conversations") return { status: 200, body: [] };
+    return undefined;
+  });
+  renderAt("/login");
+  await userEvent.click(await screen.findByRole("tab", { name: "회원가입" }));
+  await userEvent.type(screen.getByLabelText("이메일"), "new@example.com");
+  await userEvent.type(screen.getByLabelText(/비밀번호/), "password123");
+  await userEvent.type(screen.getByLabelText("이름"), "대표");
+  await userEvent.click(screen.getByRole("button", { name: "가입하고 시작하기" }));
+  // 가입하면 원래 기본 화면(AI 검색) 대신 기업정보 등록 화면으로 간다. AI 메뉴는 잠기고 지원사업 메뉴는 열려 있다.
+  expect(await screen.findByRole("form", { name: "기업정보 등록" })).toBeInTheDocument();
+  expect(screen.getByText("AI 검색")).toHaveAttribute("aria-disabled", "true");
+  expect(screen.getByText("맞춤 추천")).toHaveAttribute("aria-disabled", "true");
+  expect(screen.getByRole("link", { name: "지원사업" })).toBeInTheDocument();
+  // 기업 규모는 선택 상자다.
+  expect(screen.getByLabelText("기업 규모").tagName).toBe("SELECT");
+  await userEvent.type(screen.getByLabelText("회사명 *"), "새회사");
+  await userEvent.selectOptions(screen.getByLabelText("기업 규모"), "중소기업");
+  await userEvent.click(screen.getByRole("button", { name: "등록" }));
+  // 등록하면 원래 가려던 AI 검색 화면으로 돌아가고 메뉴가 열린다.
+  expect(await screen.findByRole("heading", { name: "기업에 맞는 지원사업을 찾아보세요" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "맞춤 추천" })).toBeInTheDocument();
+});
+
+test("기업정보가 없으면 주소로 AI 검색·맞춤 추천에 들어가도 등록 화면으로 보낸다", async () => {
+  mockFetch(loggedIn, noCompany);
+  renderAt("/recommend");
+  expect(await screen.findByRole("form", { name: "기업정보 등록" })).toBeInTheDocument();
+  expect(screen.getByText(/기업정보를 먼저 등록해야/)).toBeInTheDocument();
+});
+
+test("등록된 기업정보는 보기 화면으로 보여 주고 [수정]을 눌러야 고칠 수 있으며 취소하면 바뀌지 않는다", async () => {
+  const calls = mockFetch(loggedIn, hasCompany, (url, init) =>
+    url === "/api/company" && init.method === "PUT" ? { status: 200, body: { ...COMPANY, ...JSON.parse(String(init.body)) } } : undefined);
+  renderAt("/company");
+  const view = await screen.findByRole("region", { name: "등록된 기업정보" });
+  expect(view).toHaveTextContent("비즈에이드");
+  expect(view).toHaveTextContent("소상공인");
+  expect(screen.queryByRole("form")).not.toBeInTheDocument();
+  // 내 기업정보 메뉴는 계정 영역(이름 오른쪽)에 있다.
+  expect(screen.getByText("대표님").nextElementSibling).toHaveTextContent("내 기업정보");
+
+  await userEvent.click(screen.getByRole("button", { name: "수정" }));
+  await userEvent.selectOptions(screen.getByLabelText("기업 규모"), "중견기업");
+  await userEvent.click(screen.getByRole("button", { name: "취소" }));
+  expect(await screen.findByRole("region", { name: "등록된 기업정보" })).toHaveTextContent("소상공인");
+  expect(calls.some((call) => call.init.method === "PUT")).toBe(false);
+
+  await userEvent.click(screen.getByRole("button", { name: "수정" }));
+  await userEvent.selectOptions(screen.getByLabelText("기업 규모"), "중견기업");
+  await userEvent.click(screen.getByRole("button", { name: "저장" }));
+  expect(await screen.findByText("저장했습니다.")).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "등록된 기업정보" })).toHaveTextContent("중견기업");
+  const put = calls.find((call) => call.init.method === "PUT");
+  expect(JSON.parse(String(put?.init.body))).toMatchObject({ companyName: "비즈에이드", companySize: "중견기업" });
 });

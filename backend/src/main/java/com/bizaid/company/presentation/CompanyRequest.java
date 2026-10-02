@@ -18,7 +18,8 @@ public record CompanyRequest(
         @NotBlank(message = "회사명을 입력해 주세요.") @Size(max = 100, message = "회사명은 100자 이하로 입력해 주세요.")
         String companyName,
         @Pattern(regexp = "개인사업자|법인", message = "사업자 형태는 개인사업자 또는 법인입니다.") String businessEntityType,
-        @Size(max = 30, message = "기업 규모는 30자 이하로 입력해 주세요.") String companySize,
+        // 맞춤 추천의 기업규모 → 지원대상 매핑과 같은 선택지만 받는다(비우면 "모름·해당 없음"). 기존 자유 입력 값은 다음 수정 때 다시 고른다.
+        @Pattern(regexp = "소상공인|중소기업|중견기업", message = "기업 규모는 소상공인·중소기업·중견기업 중에서 선택해 주세요.") String companySize,
         @Size(max = 100, message = "지역은 100자 이하로 입력해 주세요.") String region,
         @Size(max = 100, message = "업종은 100자 이하로 입력해 주세요.") String industry,
         @PastOrPresent(message = "개업일은 오늘 이전 날짜여야 합니다.") LocalDate businessStartDate,

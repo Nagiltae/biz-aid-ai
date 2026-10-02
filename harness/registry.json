@@ -220,7 +220,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-10-02-signup-latency-fix.md",
+  "report": "harness/workspace/reports/development/2026-10-02-company-required.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -463,7 +463,9 @@
     "frontend/src/features/auth/RequireAuth.tsx",
     "frontend/src/features/auth/authApi.ts",
     "frontend/src/features/company/CompanyPage.tsx",
+    "frontend/src/features/company/RequireCompany.tsx",
     "frontend/src/features/company/companyApi.ts",
+    "frontend/src/features/company/useMyCompany.ts",
     "frontend/src/features/programs/ProgramDetailPage.tsx",
     "frontend/src/features/programs/ProgramListPage.tsx",
     "frontend/src/features/programs/StatusBadge.tsx",

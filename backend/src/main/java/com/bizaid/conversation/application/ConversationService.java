@@ -4,6 +4,7 @@ import com.bizaid.activity.application.ActivityLogService;
 import com.bizaid.activity.domain.ActivityAction;
 import com.bizaid.common.error.ApiException;
 import com.bizaid.common.error.ErrorCode;
+import com.bizaid.company.application.CompanyService;
 import com.bizaid.conversation.domain.Conversation;
 import com.bizaid.conversation.domain.Message;
 import com.bizaid.conversation.domain.MessageRole;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 대화와 메시지 저장·조회.
  * 다른 사용자의 대화는 존재 여부도 알려 주지 않도록 "없음"과 같은 오류로 처리한다.
+ * 대화·AI 검색은 기업정보를 등록한 사용자만 쓴다(없으면 company_not_registered).
  */
 @Service
 public class ConversationService {
@@ -33,18 +35,21 @@ public class ConversationService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final ActivityLogService activityLog;
+    private final CompanyService companyService;
 
     public ConversationService(ConversationRepository conversations, MessageRepository messages, ObjectMapper objectMapper,
-                               Clock clock, ActivityLogService activityLog) {
+                               Clock clock, ActivityLogService activityLog, CompanyService companyService) {
         this.conversations = conversations;
         this.messages = messages;
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.activityLog = activityLog;
+        this.companyService = companyService;
     }
 
     @Transactional
     public ConversationDtos.ConversationResponse create(Long userId, String title) {
+        companyService.requireRegistered(userId);
         String value = title == null || title.isBlank() ? DEFAULT_TITLE : title.strip();
         Conversation conversation = conversations.save(new Conversation(userId, value, clock.instant()));
         activityLog.success(ActivityAction.CONVERSATION_CREATE, userId, "CONVERSATION", conversation.getId(), null);
@@ -53,12 +58,14 @@ public class ConversationService {
 
     @Transactional(readOnly = true)
     public List<ConversationDtos.ConversationResponse> list(Long userId) {
+        companyService.requireRegistered(userId);
         return conversations.findTop50ByUserIdOrderByUpdatedAtDescIdDesc(userId).stream()
                 .map(ConversationDtos.ConversationResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
     public List<ConversationDtos.MessageResponse> messages(Long userId, Long conversationId) {
+        companyService.requireRegistered(userId);
         owned(userId, conversationId);
         return messages.findByConversationIdOrderByIdAsc(conversationId).stream().map(this::toResponse).toList();
     }
@@ -66,6 +73,7 @@ public class ConversationService {
     /** 사용자 질문 저장. */
     @Transactional
     public ConversationDtos.MessageResponse addUserMessage(Long userId, Long conversationId, String content) {
+        companyService.requireRegistered(userId);
         return append(owned(userId, conversationId), MessageRole.USER, content.strip(), null, null);
     }
 
@@ -75,6 +83,8 @@ public class ConversationService {
      */
     @Transactional
     public ConversationDtos.StartedQuestion startQuestion(Long userId, Long conversationId, String question) {
+        // AI 검색(/api/ai/query)도 이 진입점을 거치므로 여기서 함께 막힌다.
+        companyService.requireRegistered(userId);
         String text = question.strip();
         Conversation conversation;
         if (conversationId == null) {

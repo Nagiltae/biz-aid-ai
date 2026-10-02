@@ -100,7 +100,7 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
 
     @Test
     void searchListKeepsFastApiOrderAndIsSavedAsStructuredAssistantMessage() throws Exception {
-        String token = signup("list@example.com");
+        String token = signupWithCompany("list@example.com");
         reply = new Reply(200, """
                 {"request_mode":"SEARCH_LIST","status":"LISTED","candidate_count":69,
                  "programs":[{"rank":1,"pblanc_id":"PBLN_000000000000002","name":"두번째 ID지만 1위","category":"금융","target":"소상공인",
@@ -140,7 +140,7 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
 
     @Test
     void documentQaAnswerAndCitationsArePassedAndAnswerBecomesMessageText() throws Exception {
-        String token = signup("qa@example.com");
+        String token = signupWithCompany("qa@example.com");
         reply = new Reply(200, """
                 {"request_mode":"DOCUMENT_QA","status":"ANSWERED","query":"비즈플러스카드 지원요건","answer":"업력 6개월 이상 개인사업자입니다. [E1]",
                  "citations":[{"evidence_id":"E1","rank":1,"chunk_id":"c-1","pblanc_id":"PBLN_000000000119801","title":"비즈플러스카드 공고",
@@ -392,7 +392,7 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
 
     @Test
     void timeoutAndInternalAuthFailureBecomeServiceErrorsWithoutFakeAssistantMessage() throws Exception {
-        String token = signup("fail@example.com");
+        String token = signupWithCompany("fail@example.com");
         reply = new Reply(200, "{\"request_mode\":\"SEARCH_LIST\",\"status\":\"LISTED\",\"programs\":[]}", 2_000);
         String body = mvc.perform(post("/api/ai/query").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"query\":\"느린 질문\"}"))

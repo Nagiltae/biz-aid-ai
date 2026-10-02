@@ -3,21 +3,23 @@ import { AiSearchPage } from "./features/ai/AiSearchPage";
 import { LoginPage } from "./features/auth/LoginPage";
 import { RequireAuth } from "./features/auth/RequireAuth";
 import { CompanyPage } from "./features/company/CompanyPage";
+import { RequireCompany } from "./features/company/RequireCompany";
 import { ProgramDetailPage } from "./features/programs/ProgramDetailPage";
 import { ProgramListPage } from "./features/programs/ProgramListPage";
 import { RecommendPage } from "./features/recommend/RecommendPage";
 import { Layout } from "./shared/components/Layout";
 
-// 지원사업 목록·상세는 공개 공고라 로그인 없이 볼 수 있고, 기업정보·AI 검색은 로그인이 필요하다(Spring 보안 규칙과 같다).
+// 지원사업 목록·상세는 공개 공고라 로그인·기업정보 없이 볼 수 있다. 기업정보 화면은 로그인이 필요하고,
+// AI 검색·맞춤 추천은 로그인과 기업정보 등록이 모두 필요하다(Spring도 같은 규칙으로 막는다).
 export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Navigate to="/ai" replace />} />
-        <Route path="/ai" element={<RequireAuth><AiSearchPage /></RequireAuth>} />
+        <Route path="/ai" element={<RequireAuth><RequireCompany><AiSearchPage /></RequireCompany></RequireAuth>} />
         {/* 주소의 workflowId로 새로고침해도 진행 상태를 복원한다(같은 화면이 유지되도록 선택 경로 하나로 둔다). */}
-        <Route path="/recommend/:workflowId?" element={<RequireAuth><RecommendPage /></RequireAuth>} />
+        <Route path="/recommend/:workflowId?" element={<RequireAuth><RequireCompany><RecommendPage /></RequireCompany></RequireAuth>} />
         <Route path="/programs" element={<ProgramListPage />} />
         <Route path="/programs/:pblancId" element={<ProgramDetailPage />} />
         <Route path="/company" element={<RequireAuth><CompanyPage /></RequireAuth>} />

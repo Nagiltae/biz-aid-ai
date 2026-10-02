@@ -1,5 +1,6 @@
 package com.bizaid;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -30,6 +31,10 @@ class CompanyConversationAiTest extends ApiTestSupport {
                         .content("{\"companyName\":\"\",\"businessEntityType\":\"주식회사\"}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("validation_failed"))
                 .andExpect(jsonPath("$.error.fieldErrors.length()").value(2));
+        // 기업 규모는 선택지(소상공인·중소기업·중견기업)만 받는다.
+        mvc.perform(post("/api/company").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"companyName\":\"비즈에이드\",\"companySize\":\"대기업\"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.fieldErrors[0].field").value("companySize"));
         mvc.perform(post("/api/company").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"companyName\":\"비즈에이드\",\"businessEntityType\":\"법인\",\"region\":\"경기도\","
                                 + "\"businessStartDate\":\"2023-03-02\",\"employeeCount\":5}"))
@@ -38,8 +43,8 @@ class CompanyConversationAiTest extends ApiTestSupport {
                         .content("{\"companyName\":\"두번째\"}"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("company_already_registered"));
         mvc.perform(put("/api/company").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"companyName\":\"비즈에이드\",\"businessEntityType\":\"법인\",\"exporter\":true}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.exporter").value(true))
+                        .content("{\"companyName\":\"비즈에이드\",\"businessEntityType\":\"법인\",\"companySize\":\"중견기업\",\"exporter\":true}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.exporter").value(true)).andExpect(jsonPath("$.companySize").value("중견기업"))
                 .andExpect(jsonPath("$.region").doesNotExist());
         mvc.perform(get("/api/company").header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.exporter").value(true));
@@ -47,8 +52,8 @@ class CompanyConversationAiTest extends ApiTestSupport {
 
     @Test
     void conversationMessagesAreSavedAndHiddenFromOtherUsers() throws Exception {
-        String owner = signup("chat@example.com");
-        String other = signup("other@example.com");
+        String owner = signupWithCompany("chat@example.com");
+        String other = signupWithCompany("other@example.com");
         String created = mvc.perform(post("/api/conversations").header(HttpHeaders.AUTHORIZATION, owner)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"금융 지원사업\"}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
@@ -70,9 +75,14 @@ class CompanyConversationAiTest extends ApiTestSupport {
         String token = signup("ai@example.com");
         mvc.perform(post("/api/ai/query").contentType(MediaType.APPLICATION_JSON).content("{\"query\":\"금융 지원\"}"))
                 .andExpect(status().isUnauthorized());
+        // 기업정보가 없으면 AI 검색·대화는 서버에서도 막힌다(화면을 거치지 않은 직접 호출 포함). 질문도 저장하지 않는다.
         mvc.perform(post("/api/ai/query").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"query\":\"소상공인 금융 지원사업 찾아줘\"}"))
-                .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("ai_service_unavailable"));
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("company_not_registered"));
+        mvc.perform(get("/api/conversations").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("company_not_registered"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM conversations c JOIN users u ON u.id = c.user_id "
+                + "WHERE u.email = 'ai@example.com'", Integer.class)).isZero();
 
         jdbc.update("INSERT INTO support_programs (id, pblanc_id, name, source_active, source_deleted) VALUES (900, 'PBLN_900', '판정 대상', true, false)");
         String path = "/api/programs/PBLN_900/eligibility";
@@ -80,6 +90,9 @@ class CompanyConversationAiTest extends ApiTestSupport {
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("company_not_registered"));
         mvc.perform(post("/api/company").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"companyName\":\"판정기업\"}")).andExpect(status().isCreated());
+        mvc.perform(post("/api/ai/query").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"query\":\"소상공인 금융 지원사업 찾아줘\"}"))
+                .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("ai_service_unavailable"));
         mvc.perform(post("/api/programs/PBLN_MISSING/eligibility").header(HttpHeaders.AUTHORIZATION, token)
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("program_not_found"));

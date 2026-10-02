@@ -801,6 +801,33 @@ a:focus-visible {
   color: var(--muted);
 }
 
+/* 기업정보 미등록 시 잠긴 메뉴, 계정 영역의 내 기업정보, 기업정보 보기/수정 화면 */
+.nav-link.disabled,
+.nav-link.disabled:hover {
+  color: var(--muted);
+  background: none;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button.small.active {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--info-bg);
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.company-view dd {
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 760px) {
   .detail-layout,
   .ai-layout,

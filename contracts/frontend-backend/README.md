@@ -18,10 +18,10 @@ React는 Spring Boot `/api`만 호출하며 DB와 FastAPI에 직접 접근하지
 | GET | /api/programs | 없음 | 지원사업 목록(keyword·category·target·jurisdiction·status·page·size) |
 | GET | /api/programs/filter-options | 없음 | 필터 선택지(활성 공고의 실제 값) |
 | GET | /api/programs/{pblancId} | 없음 | 지원사업 상세 |
-| GET · POST · PUT | /api/company | 필요 | 내 기업정보 조회·등록·수정 |
-| POST · GET | /api/conversations | 필요 | 대화 생성·목록 |
-| GET · POST | /api/conversations/{id}/messages | 필요 | 메시지 조회·사용자 메시지 저장 |
-| POST | /api/ai/query | 필요 | AI 검색·질문 `{query, conversationId?}` → `{conversationId, userMessage, assistantMessage, result}` |
+| GET · POST · PUT | /api/company | 필요 | 내 기업정보 조회·등록·수정. 미등록이면 GET 404 `company_not_registered`. `companySize`는 `소상공인`·`중소기업`·`중견기업` 또는 null만(그 밖 400) |
+| POST · GET | /api/conversations | 필요 + 기업정보 | 대화 생성·목록. 기업정보 미등록이면 404 `company_not_registered` |
+| GET · POST | /api/conversations/{id}/messages | 필요 + 기업정보 | 메시지 조회·사용자 메시지 저장 |
+| POST | /api/ai/query | 필요 + 기업정보 | AI 검색·질문(기업정보 미등록이면 404 `company_not_registered`, 질문 저장 안 함) `{query, conversationId?}` → `{conversationId, userMessage, assistantMessage, result}` |
 | POST | /api/ai/personalized-search | 필요 | V2 기업정보 기반 개인화 검색 `{query}` → `{status, candidateCount, programs(≤3), appliedConditions, unappliedConditions, ...}`(기업정보 미등록 시 404 company_not_registered) |
 | POST | /api/ai/personalized-eligibility | 필요 | V2 Top 3 자격 판정 `{query}` → `{search, evaluations[{rank, pblancId, program, evaluationStatus(COMPLETED/FAILED), eligibility, errorCode}]}` |
 | POST · GET | /api/ai/workflows · /api/ai/workflows/{workflowId} | 필요 | V2-3 추천 흐름 시작(검색·Top 3) · 현재 상태 조회. 응답 `{workflowId, status, currentStep, nextAction, progress, search, evaluations, missingInformation, temporaryCompanyFacts, failureCode, finalResult, pendingPblancIds}`. pendingPblancIds는 State가 정한 남은 판정 순서(진행 표시용, V2-5). finalResult는 COMPLETED일 때만 `{recommended, excluded, unresolved, counts, disclaimer}`(항목: rank·pblancId·program·eligibilityStatus·reasonCode·errorCode·reasons·missingInformation·citations, 검색 순위 순). 추천 0건도 정상이며 V2-3 때 완료된 State는 null |

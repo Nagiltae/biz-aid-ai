@@ -1,28 +1,24 @@
-# Current Task — 회원가입 응답 지연 원인 파악과 수정
+# Current Task — 기업정보 필수와 내 기업정보 화면 개편
 
 ## Goal / Context
 
-2026-10-02 사용자 요청: React에서 회원가입 응답이 매우 느린 원인을 찾고, 사용자가 고른 추천 방법(성공 활동 기록을 본 트랜잭션 커밋 뒤에 저장)으로 고친다.
-인증 방식·DB 스키마·migration·다른 기능 변경은 범위가 아니다. 직전 Task(V2 적재 완전성 검증)의 결과는 `2026-10-02-v2-data-completeness.md`에 있다.
-
-## Current State Snapshot
-
-- 원인: 가입 트랜잭션이 커밋 전 새 users 행을 잠근 채 별도 트랜잭션으로 activity_logs(users FK)를 저장 → MySQL 잠금 대기 50초 후 실패 → 그 뒤 가입 커밋.
-- 수정: `ActivityLogService.success`를 커밋 뒤 기록으로 변경. 실패 기록은 즉시 별도 트랜잭션 그대로.
-- 결과: 실제 가입 50.2초 → 0.06~0.3초, backend 로그의 잠금 대기·기록 실패 0.
-- V2 데이터: 적재·완전성 검증 완료(전환 전). 다음 단계는 V2 collection 전환 → 화면 완주 + LangSmith 확인 → cases-v2 평가.
+2026-10-02 사용자 요구: 로그인 뒤 기업정보가 없으면 바로 등록 화면으로 보내고, 기업정보가 있어야 다른 기능을 쓰게 한다. 기업 규모는 선택 상자로 바꾼다. 내 기업정보는 등록돼 있으면 보기 화면과 [수정] 버튼으로 보여 주고, 메뉴는 "이름님" 오른쪽으로 옮긴다.
+사용자 결정: 지원사업 목록·상세(`/programs`)는 기업정보 없이도 공개, 기업 규모 선택지는 소상공인·중소기업·중견기업·모름, 서버(대화·AI 검색 API)도 같은 규칙으로 막음, 예전 자유 입력 값은 다음 수정 때 다시 고름.
+DB 스키마·migration, 인증 방식, AI 로직은 범위가 아니다.
 
 ## Read First
 
-[AGENTS](../../AGENTS.md) → [DB 규칙](../rules/database-rules.md) → [Testing](../docs/testing.md).
+[AGENTS](../../AGENTS.md) → [파일 경계](../rules/file-boundaries.md) → [화면 API](../../contracts/frontend-backend/README.md).
 
 ## Scope / Acceptance
 
-1. 원인을 측정과 로그로 확인하고, 테스트가 수정 전 실패·수정 후 통과한다.
-2. 실패 기록(로그인 실패 등)은 본 트랜잭션이 되돌려져도 계속 남는다.
-3. Spring 테스트·check-all이 통과한다.
+1. 로그인·가입 직후 기업정보가 없으면 `/company` 등록 화면, 있으면 원래 화면으로 간다.
+2. 기업정보가 없으면 `/ai`·`/recommend`는 화면(메뉴 잠금·주소 접근)과 서버(`company_not_registered`)에서 막힌다. `/programs`는 열려 있다.
+3. 기업 규모는 선택 상자이고 서버도 같은 허용값만 받는다.
+4. 등록된 기업정보는 보기 화면, [수정] → 저장·취소 뒤 보기 화면. 내 기업정보 메뉴는 계정 영역에 있다.
+5. React·Spring 테스트, 실제 화면 확인, check-all이 통과한다.
 AGY 독립 Review / 사용자 검토는 pending이다.
 
 ## Validation / Reports
 
-[Final Report](reports/development/2026-10-02-signup-latency-fix.md). 마지막에 `./scripts/check-all.sh`를 1회 실행한다.
+[Final Report](reports/development/2026-10-02-company-required.md). 마지막에 `./scripts/check-all.sh`를 1회 실행한다.

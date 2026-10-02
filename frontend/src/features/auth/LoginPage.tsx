@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
-import { ApiError } from "../../shared/api/client";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ApiError, setAccessToken } from "../../shared/api/client";
+import { companyApi } from "../company/companyApi";
+import { MY_COMPANY_KEY } from "../company/useMyCompany";
 import { FieldMessage, fieldMessage } from "../../shared/components/StateViews";
 import { authApi } from "./authApi";
 import { useAuth } from "./AuthContext";
@@ -11,19 +13,28 @@ type Mode = "login" | "signup";
 export function LoginPage() {
   const { user, accept } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? "/ai";
   const [mode, setMode] = useState<Mode>("login");
   const [form, setForm] = useState({ email: "", password: "", displayName: "" });
 
   const mutation = useMutation({
-    mutationFn: () =>
-      mode === "login"
-        ? authApi.login({ email: form.email, password: form.password })
-        : authApi.signup(form),
-    onSuccess: (response) => {
+    mutationFn: async () => {
+      const response = mode === "login"
+        ? await authApi.login({ email: form.email, password: form.password })
+        : await authApi.signup(form);
+      // 로그인 직후 기업정보 등록 여부를 확인한다. 조회가 실패해도 로그인은 성공이므로 이동 뒤 보호 routing이 다시 확인한다.
+      setAccessToken(response.accessToken);
+      const company = await companyApi.find().catch(() => undefined);
+      return { response, company };
+    },
+    onSuccess: ({ response, company }) => {
+      if (company !== undefined) queryClient.setQueryData(MY_COMPANY_KEY, company);
       accept(response);
-      navigate(from, { replace: true });
+      // 기업정보가 없으면 다른 기능을 쓸 수 없으므로 바로 등록 화면으로 보낸다(가입 직후는 항상 이 경우).
+      if (company === null) navigate("/company", { replace: true, state: { from, needCompany: true } });
+      else navigate(from, { replace: true });
     },
   });
 

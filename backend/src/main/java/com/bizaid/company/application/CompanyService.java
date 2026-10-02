@@ -31,6 +31,17 @@ public class CompanyService {
         return CompanyResponse.from(find(userId));
     }
 
+    /**
+     * 기업정보가 있어야 쓰는 기능(AI 검색·대화)의 공통 확인. 없으면 company_not_registered로 막는다.
+     * 화면도 같은 규칙으로 막지만, API를 직접 호출하는 우회를 서버에서 한 번 더 막는다.
+     */
+    @Transactional(readOnly = true)
+    public void requireRegistered(Long userId) {
+        if (!companies.existsByUserId(userId)) {
+            throw new ApiException(ErrorCode.COMPANY_NOT_REGISTERED);
+        }
+    }
+
     /** 다른 기능(자격 판정)이 기업정보를 읽을 때 쓰는 진입점. 엔티티는 같은 트랜잭션 안에서만 쓴다. */
     @Transactional(readOnly = true)
     public Company find(Long userId) {
