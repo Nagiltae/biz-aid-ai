@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { ErrorMessage, Loading } from "../../shared/components/StateViews";
+import { useMyCompany } from "../company/useMyCompany";
 import { AiErrorNotice } from "./AiErrorNotice";
 import { AiQueryResultView } from "./AiQueryResultView";
 import { aiApi } from "./aiApi";
@@ -15,14 +17,17 @@ const EXAMPLES = ["소상공인이 받을 수 있는 금융 지원사업 찾아�
  */
 export function AiSearchPage() {
   const queryClient = useQueryClient();
+  // 기업정보가 있어야 AI 검색을 쓴다. 화면에는 들어올 수 있지만 등록 전에는 입력·버튼을 잠그고 등록을 안내한다(서버도 막는다).
+  const company = useMyCompany();
+  const locked = company.data == null;
   const [text, setText] = useState("");
   const [lastQuestion, setLastQuestion] = useState("");
   const [conversationId, setConversationId] = useState<number | null>(null);
-  const conversations = useQuery({ queryKey: ["conversations"], queryFn: conversationApi.list });
+  const conversations = useQuery({ queryKey: ["conversations"], queryFn: conversationApi.list, enabled: !locked });
   const messages = useQuery({
     queryKey: ["messages", conversationId],
     queryFn: () => conversationApi.messages(conversationId as number),
-    enabled: conversationId !== null,
+    enabled: conversationId !== null && !locked,
   });
 
   const ask = useMutation({
@@ -42,7 +47,7 @@ export function AiSearchPage() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const question = text.trim();
-    if (!question || ask.isPending) return;
+    if (!question || ask.isPending || locked) return;
     setLastQuestion(question);
     ask.mutate(question);
     setText("");
@@ -52,6 +57,8 @@ export function AiSearchPage() {
     ask.reset();
   };
   const history = conversationId !== null ? messages.data ?? [] : [];
+  // 기업정보 확인 전에는 잠금 여부를 모르므로 입력칸을 그리지 않는다(맞춤 추천 화면과 같은 확인 문구).
+  if (company.isPending) return <Loading message="기업정보를 확인하고 있습니다." />;
 
   return (
     <div className="page ai-layout">
@@ -59,15 +66,22 @@ export function AiSearchPage() {
         <div className="hero">
           <h1>기업에 맞는 지원사업을 찾아보세요</h1>
           <p className="muted">찾고 싶은 지원사업이나 궁금한 공고를 문장으로 적으면, 공고 조건과 공고문 근거로 답합니다.</p>
+          {company.data === null && (
+            <div className="alert warn company-required-inline" role="status" aria-label="기업정보 입력 필요">
+              <span>기업정보를 먼저 입력해야 AI 검색을 쓸 수 있습니다.</span>
+              <Link className="button small primary" to="/company" state={{ from: "/ai", needCompany: true }}>기업정보 입력하기</Link>
+            </div>
+          )}
           <form className="search-row large" onSubmit={submit}>
-            <input aria-label="지원사업 질문" placeholder={EXAMPLES[0]} value={text} maxLength={2000} onChange={(event) => setText(event.target.value)} />
-            <button className="button primary" type="submit" disabled={ask.isPending || !text.trim()}>
+            <input aria-label="지원사업 질문" placeholder={EXAMPLES[0]} value={text} maxLength={2000} disabled={locked}
+                   onChange={(event) => setText(event.target.value)} />
+            <button className="button primary" type="submit" disabled={locked || ask.isPending || !text.trim()}>
               {ask.isPending ? "찾는 중..." : "찾기"}
             </button>
           </form>
           <div className="examples">
             {EXAMPLES.map((example) => (
-              <button key={example} type="button" className="chip" onClick={() => setText(example)}>{example}</button>
+              <button key={example} type="button" className="chip" disabled={locked} onClick={() => setText(example)}>{example}</button>
             ))}
           </div>
         </div>
@@ -100,7 +114,7 @@ export function AiSearchPage() {
       <aside className="ai-side card">
         <div className="side-head">
           <h2>최근 대화</h2>
-          <button type="button" className="button small" onClick={() => open(null)}>새 대화</button>
+          <button type="button" className="button small" disabled={locked} onClick={() => open(null)}>새 대화</button>
         </div>
         {conversations.isError && <ErrorMessage error={conversations.error} />}
         {conversations.data?.length === 0 && <p className="muted small">아직 대화가 없습니다.</p>}

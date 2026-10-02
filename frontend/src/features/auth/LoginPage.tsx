@@ -38,7 +38,14 @@ export function LoginPage() {
     },
   });
 
-  if (user) return <Navigate to={from} replace />;
+  if (user) {
+    // 로그인 성공 직후의 다시 그리기도 여기로 온다. 기업정보가 없다고 확인됐으면 원래 화면 대신 등록 화면으로 보낸다
+    // (onSuccess의 이동과 같은 목적지라 어느 쪽이 먼저 실행돼도 결과가 같다).
+    if (queryClient.getQueryData(MY_COMPANY_KEY) === null) {
+      return <Navigate to="/company" replace state={{ from, needCompany: true }} />;
+    }
+    return <Navigate to={from} replace />;
+  }
 
   const error = mutation.error instanceof ApiError ? mutation.error : null;
   const submit = (event: FormEvent) => {

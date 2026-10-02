@@ -347,8 +347,9 @@ test("가입 직후 기업정보가 없으면 등록 화면으로 가고, 등록
   await userEvent.click(screen.getByRole("button", { name: "가입하고 시작하기" }));
   // 가입하면 원래 기본 화면(AI 검색) 대신 기업정보 등록 화면으로 간다. AI 메뉴는 잠기고 지원사업 메뉴는 열려 있다.
   expect(await screen.findByRole("form", { name: "기업정보 등록" })).toBeInTheDocument();
-  expect(screen.getByText("AI 검색")).toHaveAttribute("aria-disabled", "true");
-  expect(screen.getByText("맞춤 추천")).toHaveAttribute("aria-disabled", "true");
+  // 메뉴는 잠그지 않는다(AI 검색·맞춤 추천은 화면 안에서 입력 안내).
+  expect(screen.getByRole("link", { name: "AI 검색" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "맞춤 추천" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "지원사업" })).toBeInTheDocument();
   // 기업 규모는 선택 상자다.
   expect(screen.getByLabelText("기업 규모").tagName).toBe("SELECT");
@@ -360,11 +361,26 @@ test("가입 직후 기업정보가 없으면 등록 화면으로 가고, 등록
   expect(screen.getByRole("link", { name: "맞춤 추천" })).toBeInTheDocument();
 });
 
-test("기업정보가 없으면 주소로 AI 검색·맞춤 추천에 들어가도 등록 화면으로 보낸다", async () => {
-  mockFetch(loggedIn, noCompany);
-  renderAt("/recommend");
+test("기업정보가 없으면 AI 검색은 입력·버튼을 잠근 채 입력을 안내하고, 맞춤 추천은 안내 화면을 보여 준다", async () => {
+  const calls = mockFetch(loggedIn, noCompany);
+  renderAt("/ai");
+  // AI 검색 화면에는 들어가지만 검색칸·버튼·예시는 비활성이고 입력 안내가 나온다. 대화 목록도 요청하지 않는다.
+  const inline = await screen.findByRole("status", { name: "기업정보 입력 필요" });
+  expect(inline).toHaveTextContent("기업정보를 먼저 입력해야 AI 검색을 쓸 수 있습니다.");
+  expect(screen.getByLabelText("지원사업 질문")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "찾기" })).toBeDisabled();
+  expect(calls.some((call) => call.url.startsWith("/api/conversations") || call.url.startsWith("/api/ai/"))).toBe(false);
+  await userEvent.click(within(inline).getByRole("link", { name: "기업정보 입력하기" }));
   expect(await screen.findByRole("form", { name: "기업정보 등록" })).toBeInTheDocument();
-  expect(screen.getByText(/기업정보를 먼저 등록해야/)).toBeInTheDocument();
+
+  await userEvent.click(screen.getByRole("link", { name: "맞춤 추천" }));
+  const notice = await screen.findByRole("region", { name: "기업정보 입력 필요" });
+  expect(notice).toHaveTextContent("기업정보를 먼저 입력해 주세요.");
+  // 추천 질문 입력칸은 보이지 않고, AI 요청도 보내지 않는다.
+  expect(screen.queryByLabelText("추천 질문")).not.toBeInTheDocument();
+  expect(calls.some((call) => call.url.startsWith("/api/ai/"))).toBe(false);
+  await userEvent.click(screen.getByRole("link", { name: "기업정보 입력하기" }));
+  expect(await screen.findByRole("form", { name: "기업정보 등록" })).toBeInTheDocument();
 });
 
 test("등록된 기업정보는 보기 화면으로 보여 주고 [수정]을 눌러야 고칠 수 있으며 취소하면 바뀌지 않는다", async () => {

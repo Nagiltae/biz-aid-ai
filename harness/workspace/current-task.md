@@ -13,7 +13,7 @@ DB 스키마·migration, 인증 방식, AI 로직은 범위가 아니다.
 ## Scope / Acceptance
 
 1. 로그인·가입 직후 기업정보가 없으면 `/company` 등록 화면, 있으면 원래 화면으로 간다.
-2. 기업정보가 없으면 `/ai`·`/recommend`는 화면(메뉴 잠금·주소 접근)과 서버(`company_not_registered`)에서 막힌다. `/programs`는 열려 있다.
+2. 기업정보가 없어도 메뉴·화면은 열려 있다. `/ai`는 검색칸·버튼 비활성 + 입력 안내, `/recommend`는 안내 화면(추가 요청)이며 서버도 `company_not_registered`로 막는다. `/programs`는 열려 있다.
 3. 기업 규모는 선택 상자이고 서버도 같은 허용값만 받는다.
 4. 등록된 기업정보는 보기 화면, [수정] → 저장·취소 뒤 보기 화면. 내 기업정보 메뉴는 계정 영역에 있다.
 5. React·Spring 테스트, 실제 화면 확인, check-all이 통과한다.
