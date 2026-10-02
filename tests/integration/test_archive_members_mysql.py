@@ -29,12 +29,12 @@ from biz_aid_pipeline.storage import S3DocumentStore
 from tests.contract.test_s3_document_store import FakeS3Client
 from validate import database_comments
 
-PENDING_MIGRATION = ROOT / "data-pipeline/pending-migrations/V10__document_archive_members.sql"
+MIGRATION = ROOT / "migrations/V10__document_archive_members.sql"
 PDF = b"%PDF-1.7\nsynthetic-archive-member\n%%EOF\n"
 
 
 class ArchiveMembersMysqlTests(unittest.TestCase):
-    """승인 전 V10 DDL을 테스트 전용 DB에서만 검증한다. dev DB에는 적용하지 않는다."""
+    """V10 표를 테스트 전용 DB에서 검증한다. Flyway가 이미 만든 표면 그대로 쓰고, 없으면 만들었다가 지운다."""
 
     @classmethod
     def setUpClass(cls):
@@ -44,7 +44,7 @@ class ArchiveMembersMysqlTests(unittest.TestCase):
             cls.created = not inspect(connection).has_table(MEMBER_TABLE)
             if cls.created:
                 # 테스트가 만든 표는 끝나면 지운다. 나중에 Flyway V10이 같은 이름으로 만들 수 있어야 한다.
-                connection.exec_driver_sql(PENDING_MIGRATION.read_text(encoding="utf-8").strip().rstrip(";"))
+                connection.exec_driver_sql(MIGRATION.read_text(encoding="utf-8").strip().rstrip(";"))
 
     @classmethod
     def tearDownClass(cls):

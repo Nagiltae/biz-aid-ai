@@ -133,6 +133,7 @@
 - Evidence(3단계 전체 실행, 2026-10-02): PPTX 위치를 EMU → pt로 맞춘 뒤 V2 범위 단독 DOCX 6·PPTX 1을 적재(7 PARSED·7 INDEXED·신규 58 point, 기존 point 변경 0). V2 범위 1,372공고 전부 point 보유. 남은 미지원: 일반 ZIP·XLSX·옛 오피스(ODT·DOC·XLS·PPT)·HWPML(`2026-10-02-office-stage3.md` §8).
 - Decision(2026-10-02, 사용자): XLSX·DOC·XLS·PPT는 의도적으로 제외한다(단독·압축 안 모두). 근거: 내용이 빈 신청 양식·명단·참고표 위주이고, 이 형식만 가진 공고가 없어 미적재 공고를 구제하는 효과가 0이며, 검색 근거를 밀어낼 위험이 있다. 다시 볼 조건: 서류·양식 질문이 반복 실패할 때, 양식 중심 기능(신청서 작성 도우미 등)을 만들 때. 일반 ZIP 안에서는 `EXCLUDED intentionally_excluded_format`으로 상태만 남긴다(V2 미리보기 XLSX 23개).
 - Evidence(4단계 일반 ZIP, 2026-10-02): 펼치기 구현·미리보기(쓰기 없음). V2 범위 117압축 → 내부 639개 중 처리 대상 539(고유 510), 단독 첨부 중복 7, 제외 93, 압축 거부 0. ODT 1개 공고는 같은 제목 HWPX·HWP가 V2에 적재돼 있음(95 point). 기록 `2026-10-02-generic-zip-stage4.md`.
+- Evidence(4단계 승인 실행, 2026-10-02): V10 적용(dev·test, backend Flyway 11.7.2 validate 통과). 117압축 펼치기 → DB 639행·S3 새 object 510(미리보기와 같음). 표본 7 파싱(PARSED 5·OCR_REQUIRED 2, Qdrant 없음). document_role 확인: 무작위 FORM 15/15가 실제 양식, "제출서류" 단서 오판 3. 전체 범위 A(510)/B(FORM 제외 191) 결정 대기(`2026-10-02-generic-zip-stage4.md` §9).
 - Status: OPEN
 
 ## IMP-010 Parser 품질 한계(OCR·읽기 순서·그림 해석)

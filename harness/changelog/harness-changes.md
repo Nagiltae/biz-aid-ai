@@ -1,5 +1,11 @@
 # Harness 변경 이력
 
+## 2026-10-02 — 일반 ZIP 승인 실행: V10 적용·내부 파일 S3 저장·표본 파싱
+
+V10을 공통 `migrations/`로 옮겨(보관 폴더 삭제) dev·test에 적용, COMMENT 검사 통과, Spring backend Flyway(11.7.2) validate 통과. Registry·계약·테스트 경로 갱신.
+V2 범위 117압축 `--execute`: DB 639행, S3 새 object 510(덮어쓰기 0), 미리보기와 같음. 표본 7원본 파싱(DB·S3 저장, Qdrant 적재 없음).
+document_role 확인(무작위 30 + 집중 16), 규칙 개선은 제안만(변경 없음). 전체 범위 A/B는 사용자 결정 대기. 규칙 변경 없음.
+
 ## 2026-10-02 — 미지원 첨부 형식 4단계: 일반 ZIP(구현·미리보기)
 
 사용자 결정: 일반 ZIP 내부 파일을 각각 문서로(깊이 1), 내부 파일 표 신설, 이름 UTF-8/CP949/원래 byte, 원본과 같은 S3 key(덮어쓰기 금지), 공고 relation 상속, 처리 제외·단독 첨부 중복은 상태만, 기존 route로 파싱, document_role은 내부 파일명.

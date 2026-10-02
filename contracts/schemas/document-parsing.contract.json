@@ -553,7 +553,7 @@
       "approved_direction": "each member becomes its own document, depth 1 (archives inside an archive are recorded, not expanded); stage 4 (user decision 2026-10-02)",
       "activation_rule": "the archive itself is never parsed (route stays POLICY_PENDING); members are expanded by generic_zip and parsed through the existing route of their own detected format",
       "stage": "stage 4",
-      "status": "extraction implemented 2026-10-02 (stage 4); the member table migration, S3 storage and member parsing wait for user approval"
+      "status": "extraction implemented 2026-10-02 (stage 4); V10 applied, members stored in S3 and a sample parsed after user approval; full member parsing and indexing wait for the scope decision (all members or FORM kept out of the index)"
     },
     "OTHER": {
       "route": "POLICY_PENDING",
@@ -875,7 +875,7 @@
   ],
   "pending_decisions": [
     "ODT (stage 7 with legacy Office): converting ODT needs the LibreOffice converter image to take a target format; changing that image changes the HWP_PDF_DOCLING converter identity and would make every existing HWP a reprocessing target, so ODT stays disabled until legacy Office is handled together",
-    "Stage 4 Generic ZIP: apply V10 (document_archive_members), store members in S3 and parse a sample after user approval; then full member parsing and indexing",
+    "Stage 4 Generic ZIP: full member parsing and indexing after the user chooses the scope (A: all 510 unique members, B: BODY / UNKNOWN / LIST indexed and FORM stored only)",
     "Stage 6 XLSX and stage 7 legacy Office (converter image Calc / Impress)",
     "HwpxDoclingAdapter broader quality validation (3-document targeted check done; real explicit headings not yet observed)"
   ],
@@ -1034,7 +1034,7 @@
     ],
     "archive_failure_recording": "an archive failure writes no member rows; the extraction run result file records the archive SHA and failure code",
     "storage": "STORED members use the same S3 bucket, prefix and content-addressed key as original attachments (S3DocumentStore.object_key); objects are never overwritten (IfNoneMatch) and size plus SHA-256 are verified before the member row is committed",
-    "database": "document_archive_members (Flyway V10, held in data-pipeline/pending-migrations until the user approves applying it; common migrations/ would be applied to the dev DB by check-all)",
+    "database": "document_archive_members (Flyway V10 in the common migrations/, applied to dev and test on 2026-10-02 after user approval)",
     "member_key": "sha256(archive_source_sha256 + NUL + member_path_raw); rows are idempotent per member_key and a STORED row is never overwritten by a different decision",
     "program_relation": "inherited at read time from the archive's ACQUIRED document_sources relations; program ids are not copied into the member table",
     "parsing": "a STORED member SHA is a parsing source next to document_sources: verified_source_formats, verified_source, chunk program relations and V2 service scope read both; parse_key, chunk_set_key and embedding_key are the same functions of the member SHA as for a standalone attachment (no new parser)",

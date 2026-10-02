@@ -20,7 +20,7 @@ from test_phase0_document_download import PDF, hwp_fixture, zip_fixture
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\0" * 32
 HWPML = '<?xml version="1.0" encoding="UTF-8"?><HWPML Version="2.8"><HEAD/></HWPML>'.encode()
-PENDING_MIGRATION = ROOT / "data-pipeline/pending-migrations/V10__document_archive_members.sql"
+MIGRATION = ROOT / "migrations/V10__document_archive_members.sql"
 
 
 class RawNameInfo(zipfile.ZipInfo):
@@ -135,9 +135,9 @@ class GenericZipTests(unittest.TestCase):
         self.assertEqual(document_role("HWP", [member_basename("공고문_모음/붙임2. 사업계획서 양식.hwp")]), "FORM")
         self.assertEqual(document_role("PDF", [member_basename("양식/2026 모집공고.pdf")]), "BODY")
 
-    def test_member_rows_match_pending_migration(self):
+    def test_member_rows_match_migration(self):
         contract = parsing_contract()
-        sql = PENDING_MIGRATION.read_text(encoding="utf-8")
+        sql = MIGRATION.read_text(encoding="utf-8")
         columns = re.findall(r"^    ([a-z0-9_]+) [A-Z]", sql, re.MULTILINE)
         raw = archive([("공고.pdf", PDF)])
         member = plan(raw).members[0]
@@ -149,9 +149,9 @@ class GenericZipTests(unittest.TestCase):
         for status in contract["generic_zip"]["statuses"]:
             self.assertIn(f"'{status}'", sql)
         self.assertEqual(len(re.findall(r" COMMENT '", sql)), len(columns))
-        # BOUNDARY: 승인 전에는 Flyway가 읽는 migrations/에 두지 않는다(check-all이 dev DB에 적용하므로).
-        self.assertIn("pending-migrations", contract["generic_zip"]["database"])
-        self.assertFalse(list((ROOT / "migrations").glob("V10__*.sql")))
+        # 승인(2026-10-02) 뒤 공통 Flyway 계보로 옮겼다. 두 번째 migration 보관 위치가 남지 않는다.
+        self.assertIn("migrations/", contract["generic_zip"]["database"])
+        self.assertFalse((ROOT / "data-pipeline/pending-migrations").exists())
 
 
 if __name__ == "__main__":

@@ -27,8 +27,8 @@ V1/V2는 수정하지 않으며 V3의 모든 Table / Column도 동일 COMMENT �
 네 S3 field는 모두 NULL 또는 모두 non-NULL이어야 한다. `storage_path`는 legacy 로컬 migration source로 유지한다.
 로컬 corpus 삭제나 이 호환 제약 변경은 Phase 2.5 독립 검토 이후 별도 신규 migration에서만 판단한다.
 
-일반 ZIP 내부 파일 표 `V10__document_archive_members.sql`은 사용자 승인 전이라 `data-pipeline/pending-migrations/`에 있다.
-이 폴더는 Flyway가 읽지 않는다. 승인 뒤 이 폴더로 옮겨 적용한다(check-all의 dev 준비 단계가 이 폴더의 migration을 dev DB에 적용하기 때문).
+`V10__document_archive_members.sql`은 일반 ZIP 내부 파일의 경로·SHA·실제 형식·처리 결정·S3 위치를 보존한다(2026-10-02 사용자 승인 뒤 적용).
+승인 전에는 Flyway가 읽지 않는 별도 폴더에 두었다. 이 폴더의 migration은 check-all의 dev 준비 단계와 Spring backend가 dev DB에 적용하기 때문이다.
 
 `V5__document_parse_results.sql`은 `(source_sha256, parse_key)`별 parsing 상태와 parser identity를 보존한다.
 PARSED 결과만 검증된 S3 DoclingDocument JSON pointer·artifact SHA·byte 크기를 가지며, 비성공 결과는 artifact metadata를 가질 수 없다.
