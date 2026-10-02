@@ -1,5 +1,10 @@
 # Harness 변경 이력
 
+## 2026-10-02 — DOCX·PPTX 전체 실행(PPTX 위치 단위 수정 포함)
+
+PPTX 슬라이드 크기·bbox를 EMU에서 pt로 환산(`parsing/office.py`), 계약 office·chunking provenance 설명과 단위 test 추가. 위치는 식별값 입력이 아니며 기존 route key 불변.
+V2 범위 단독 DOCX 6·PPTX 1 파싱·적재(7 PARSED·7 INDEXED·58 point). 기존 V2 61,481·V1 3,849 point hash 변경 0. V2 61,539 point·2,646 원본, 범위 1,372공고 전부 point 보유. Master Guide §1 갱신. 규칙 변경 없음.
+
 ## 2026-10-02 — 미지원 첨부 형식 3단계: DOCX·PPTX
 
 사용자 결정: 단독 DOCX·PPTX를 Docling으로 직접 읽는다(VLM 없음). docling-slim format-docx·format-pptx extra 추가 승인(기존 버전 불변). ODT는 기존 변환 이미지 변경이 HWP parse_key를 바꾸므로 7단계로 연기. 압축 안 DOCX·PPTX는 4단계.

@@ -101,6 +101,10 @@ class OfficeParsingTests(unittest.TestCase):
         self.assertEqual(office_meta(body)["slide"], 2)
         entry = item_provenance(body, document)
         self.assertEqual((entry["slide"], entry["page"]), (2, 2))
+        # 위치 단위는 다른 형식과 같은 pt다(기본 4:3 슬라이드 = 10 × 7.5 inch = 720 × 540 pt). EMU 값이 남으면 수십만 단위가 된다.
+        self.assertEqual({(page.size.width, page.size.height) for page in document.pages.values()}, {(720.0, 540.0)})
+        left, top, right, bottom = entry["bbox_pt"]
+        self.assertTrue(0 <= left < right <= 720 and 0 <= top < bottom <= 540, entry["bbox_pt"])
         table = document.tables[0]
         self.assertEqual((table.data.num_rows, table.data.num_cols, office_meta(table)["slide"]), (2, 2, 2))
 
@@ -117,6 +121,15 @@ class OfficeParsingTests(unittest.TestCase):
             present = {key for key, value in identity.items() if value is not None}
             self.assertEqual(present, {"source_sha256", "route", "normalizer_version", "docling_core_version", "docling_version",
                                        "office_parser_version", "office_config_sha256", library})
+        # 근거 위치(page·bbox·provenance)는 어떤 식별값의 입력도 아니다. 단위를 바꿔도 key가 바뀌지 않는다.
+        from biz_aid_pipeline.chunking.chunker import chunking_contract
+        from biz_aid_pipeline.indexing.embedder import indexing_contract
+        chunk_inputs = chunking_contract()["identity"]["chunk_set_key_inputs"]
+        embedding_inputs = indexing_contract()["identity"]["embedding_key_inputs"]
+        for name in ("provenance", "bbox_pt", "page", "pages", "slide"):
+            self.assertNotIn(name, chunk_inputs)
+            self.assertNotIn(name, embedding_inputs)
+            self.assertNotIn(name, identity)
         # 기존 route identity에는 Office 전용 key가 생기지 않는다.
         self.assertNotIn("office_parser_version", parse_identity("0" * 64, "DOCLING_PDF", contract))
 

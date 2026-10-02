@@ -933,7 +933,7 @@
     "office_parser_version": 1,
     "dependencies": "docling-slim[convert-core,format-pdf,models-local,format-docx,format-pptx]==2.130.0 adds python-docx==1.2.0, python-pptx==1.0.2 and xlsxwriter==3.2.9 (python-pptx dependency); no existing package version changes",
     "converter": "Docling DocumentConverter with only DOCX and PPTX allowed; the Word and PowerPoint backends never call an external LibreOffice to render DrawingML shapes (Docling would otherwise use one when installed), so results do not depend on the host; text in text boxes and shapes is read from the XML",
-    "pages": "DOCX has no pages and no fake page is created; PPTX keeps Docling's slide pages (page = slide number, bbox in EMU) unchanged",
+    "pages": "DOCX has no pages and no fake page is created; PPTX keeps Docling's slide pages (page = slide number) with the slide size and every bbox converted from EMU to points (1 pt = 12,700 EMU, top-left origin) so bbox_pt has the same unit as other formats",
     "location": "every item carries bizaid__office: source_sha256, format, order (document reading order), label, heading_path (from Docling title / section headers) and slide (PPTX); chunk provenance copies order, heading_path and slide",
     "acceptance": "the common document text gate without pages (same as HWPX): more than document_gate.empty_text_max_chars non-whitespace characters is PARSED, otherwise EMPTY_TEXT",
     "failure": "Docling partial conversion is PARSE_FAILED office_partial_conversion, a failed conversion office_conversion_failed, an exception office_conversion_error:<ExceptionClass>",

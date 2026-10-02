@@ -130,6 +130,7 @@
 - Evidence(1단계 공통 기반, 2026-10-02): 형식 판별 세분화(DOCX·PPTX·ODT·DOC·XLS·PPT·PNG·JPEG·HWPML), 새 route 정의(전부 비활성), XLSX 상한(보이는 셀 5,000·10MB·시트 20, 초과 시 문서 단위 실패), 출처 종류(document_role) 기록 규칙. 기존 PDF·HWP·HWPX·XLSX 판별 3,029관계와 parse_key·chunk_set_key·embedding_key 불변 확인. 기존 행 재분류 123관계(121파일)는 미리보기만 하고 미적용(`2026-10-02-unsupported-formats-foundation.md`).
 - Evidence(2단계 이미지 OCR, 2026-10-02): 재분류 123관계 적용(COMMIT). IMAGE_OCR route 활성화(표본만 실행). 표본 3개 PARSED(포스터 8.6초·6.9초, 긴 캡처 44.7초), 타일 경계 중복 제거 후 위치 기준 누락 0(`2026-10-02-image-ocr-stage2.md`). 전체 실행은 승인 대기.
 - Evidence(3단계 DOCX·PPTX, 2026-10-02): docling-slim format-docx·format-pptx extra 추가(python-docx 1.2.0·python-pptx 1.0.2·xlsxwriter 3.2.9, 기존 버전 변경 0), DOCLING_DOCX·DOCLING_PPTX 활성화(단독 첨부만, 표본만 실행), ODT는 7단계로 연기. 표본 3개 PARSED, DOCX 글자 XML 대비 99.6~100%(`2026-10-02-office-stage3.md`).
+- Evidence(3단계 전체 실행, 2026-10-02): PPTX 위치를 EMU → pt로 맞춘 뒤 V2 범위 단독 DOCX 6·PPTX 1을 적재(7 PARSED·7 INDEXED·신규 58 point, 기존 point 변경 0). V2 범위 1,372공고 전부 point 보유. 남은 미지원: 일반 ZIP·XLSX·옛 오피스(ODT·DOC·XLS·PPT)·HWPML(`2026-10-02-office-stage3.md` §8).
 - Status: OPEN
 
 ## IMP-010 Parser 품질 한계(OCR·읽기 순서·그림 해석)

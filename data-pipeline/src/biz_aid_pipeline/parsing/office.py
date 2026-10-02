@@ -2,7 +2,7 @@
 
 - 그림의 의미를 해석하지 않는다(VLM 없음). OCR도 쓰지 않는다.
 - DOCX에는 page가 없다. 가짜 page를 만들지 않고 문서 순서·제목 경로를 bizaid__office meta로 남긴다(HWPX와 같은 방식).
-- PPTX는 Docling이 슬라이드를 page로 둔다(위치 단위 EMU). 그 출력은 바꾸지 않고 슬라이드 번호를 meta에도 남긴다.
+- PPTX는 Docling이 슬라이드를 page로 둔다. 위치 단위만 EMU에서 pt로 바꿔 다른 형식의 bbox_pt와 맞추고 슬라이드 번호를 meta에도 남긴다.
 - Docling은 실행 환경에 LibreOffice가 있으면 도형(DrawingML)을 그림으로 바꾸려고 외부 프로그램을 부른다.
   같은 원본이 환경에 따라 다른 결과가 되지 않게 그 변환을 항상 끈다(도형 안 글자·텍스트 상자는 Docling이 XML에서 읽는다).
 """
@@ -18,6 +18,8 @@ from biz_aid_pipeline.parsing.pdf_assembly import bizaid_meta
 FORMATS = {"DOCX": ("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
            "PPTX": ("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")}
 HEADING_LABELS = (DocItemLabel.TITLE, DocItemLabel.SECTION_HEADER)
+# PowerPoint 좌표 단위 EMU(English Metric Unit). 1pt = 12,700 EMU. 다른 형식의 bbox_pt와 같은 단위로 맞춘다.
+EMU_PER_POINT = 12700
 
 
 class OfficeError(Exception):
@@ -47,6 +49,18 @@ def _converter():
     return DocumentConverter(allowed_formats=[InputFormat.DOCX, InputFormat.PPTX], format_options={
         InputFormat.DOCX: WordFormatOption(backend=WordBackend),
         InputFormat.PPTX: PowerpointFormatOption(backend=PowerpointBackend)})
+
+
+def emu_to_points(document):
+    """PPTX 슬라이드 크기와 item 위치를 EMU에서 pt로 바꾼다. 기준점(왼쪽 위)과 상대 위치는 그대로다."""
+    from docling_core.types.doc import BoundingBox, Size
+    for page in document.pages.values():
+        page.size = Size(width=round(page.size.width / EMU_PER_POINT, 2), height=round(page.size.height / EMU_PER_POINT, 2))
+    for item, _ in document.iterate_items(traverse_pictures=True):
+        for prov in getattr(item, "prov", None) or []:
+            box = prov.bbox
+            prov.bbox = BoundingBox(l=round(box.l / EMU_PER_POINT, 2), t=round(box.t / EMU_PER_POINT, 2),
+                                    r=round(box.r / EMU_PER_POINT, 2), b=round(box.b / EMU_PER_POINT, 2), coord_origin=box.coord_origin)
 
 
 def annotate(document, source_sha256, detected_format):
@@ -89,6 +103,8 @@ def parse_office(raw, source_sha256, detected_format, contract, result):
     # HWPX와 같은 규칙으로 문서 이름·origin을 원본 SHA 기준으로 고정한다(입력 파일명이 결과에 들어가지 않게).
     document.name = source_sha256
     document.origin = DocumentOrigin(mimetype=mimetype, binary_hash=int(source_sha256[:16], 16), filename=f"{source_sha256}.{extension}")
+    if detected_format == "PPTX":
+        emu_to_points(document)
     annotate(document, source_sha256, detected_format)
     if detected_format == "PPTX":
         result.unit_count = len(document.pages)
