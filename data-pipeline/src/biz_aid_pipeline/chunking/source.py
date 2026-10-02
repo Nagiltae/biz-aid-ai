@@ -31,7 +31,10 @@ def current_parse_key(source_sha256, detected_format, contract):
 
 
 def announcements(repository, source_sha256):
-    """source가 붙은 공고(pblanc_id, 공고명). 같은 SHA가 여러 공고에 붙으면 모두 돌려준다."""
+    """source가 붙은 공고(pblanc_id, 공고명). 같은 SHA가 여러 공고에 붙으면 모두 돌려준다.
+
+    일반 ZIP 내부 파일은 자기를 담은 압축 첨부의 공고를 물려받는다(STORED·DUPLICATE_SOURCE 연결 모두).
+    """
     from sqlalchemy import MetaData, Table
     programs = Table("support_programs", MetaData(), autoload_with=repository.engine)
     sources = repository.sources
@@ -39,16 +42,29 @@ def announcements(repository, source_sha256):
         rows = connection.execute(select(sources.c.pblanc_id, programs.c.name).distinct().join(
             programs, programs.c.pblanc_id == sources.c.pblanc_id).where(
             sources.c.content_sha256 == source_sha256, sources.c.download_status == "ACQUIRED")).all()
-    return tuple(sorted((row[0], row[1]) for row in rows))
+        members = getattr(repository, "members", None)
+        if members is not None:
+            archives = select(members.c.archive_source_sha256).where(
+                members.c.member_sha256 == source_sha256, members.c.processing_status.in_(("STORED", "DUPLICATE_SOURCE")))
+            rows += connection.execute(select(sources.c.pblanc_id, programs.c.name).distinct().join(
+                programs, programs.c.pblanc_id == sources.c.pblanc_id).where(
+                sources.c.content_sha256.in_(archives), sources.c.download_status == "ACQUIRED")).all()
+    return tuple(sorted({(row[0], row[1]) for row in rows}))
 
 
 def original_filenames(repository, source_sha256):
-    """원본에 붙은 첨부 파일명들. 출처 종류(document_role) 판정의 단서로만 쓴다."""
+    """원본에 붙은 첨부 파일명들. 출처 종류(document_role) 판정의 단서로만 쓴다. 내부 파일은 압축 이름이 아니라 자기 파일명을 쓴다."""
+    from biz_aid_pipeline.documents.archive import member_basename
     sources = repository.sources
     with repository.engine.connect() as connection:
         rows = connection.execute(select(sources.c.original_filename).distinct().where(
             sources.c.content_sha256 == source_sha256, sources.c.download_status == "ACQUIRED")).all()
-    return sorted(row[0] for row in rows if row[0])
+        names = [row[0] for row in rows]
+        members = getattr(repository, "members", None)
+        if members is not None:
+            names += [member_basename(row[0]) for row in connection.execute(select(members.c.member_path).distinct().where(
+                members.c.member_sha256 == source_sha256, members.c.processing_status == "STORED")).all()]
+    return sorted({name for name in names if name})
 
 
 def load_chunk_source(root, profile, source_sha256, explicit_parse_key=None):

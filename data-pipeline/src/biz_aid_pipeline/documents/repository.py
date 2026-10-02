@@ -26,6 +26,8 @@ class DocumentRepository:
             self.programs = Table("support_programs", metadata, autoload_with=self.engine)
             self.runs = Table("document_acquisition_runs", metadata, autoload_with=self.engine)
             self.sources = Table("document_sources", metadata, autoload_with=self.engine)
+            from biz_aid_pipeline.documents.archive import optional_member_table
+            self.members = optional_member_table(self.engine, metadata)
         except Exception:
             self.engine.dispose()
             raise PipelineError("document_schema_unavailable_run_flyway") from None
@@ -110,6 +112,14 @@ class DocumentRepository:
                 self.sources.c.content_sha256 == content_sha256,
                 self.sources.c.download_status == "ACQUIRED",
             )).mappings().all()
+            if not rows and self.members is not None:
+                # 첨부 원본이 아니면 S3에 저장·검증된 일반 ZIP 내부 파일(STORED)을 같은 descriptor로 읽는다.
+                members = self.members.c
+                rows = connection.execute(select(
+                    members.member_sha256.label("content_sha256"), members.member_detected_format.label("detected_format"),
+                    members.member_byte_size.label("byte_size"), members.s3_region, members.s3_bucket_name,
+                    members.s3_object_key, members.s3_verified_at,
+                ).where(members.member_sha256 == content_sha256, members.processing_status == "STORED")).mappings().all()
         if not rows or any(row[name] is None for row in rows for name in (
                 "byte_size", "s3_region", "s3_bucket_name", "s3_object_key", "s3_verified_at")):
             raise PipelineError("verified_document_source_required")

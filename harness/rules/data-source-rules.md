@@ -96,8 +96,14 @@ parsing·test runtime의 모델 네트워크 다운로드는 금지하며 artifa
 Container는 풀어서 디스크에 쓰지 않고 메모리에서 제한적으로 읽는다. 절대·상위 경로, 중복 entry, 암호화 entry,
 entry 수·전체 해제 크기·압축비·XML 크기 한도 초과는 REJECTED_UNSAFE 또는 ENCRYPTED다. XML은 DTD·entity를 거부한다.
 압축 container는 판별 단계에서 HWPX·XLSX·DOCX·PPTX·ODT를 각자의 형식으로 나누고 나머지만 ZIP(일반 압축)으로 둔다. OLE는 HWP·DOC·XLS·PPT를 stream 이름으로, 이미지는 PNG·JPEG로 나눈다. HTML은 OTHER, XML 기반 한글은 HWPML로 판별만 한다.
-새 형식의 route는 Contract에 정의하되 단계별 승인 전에는 켜지 않는다. 일반 ZIP은 archive source SHA·member path·member SHA·
-member detected format·archive depth·parent/member provenance를 표현하는 Contract 전까지 전개하지 않고 POLICY_PENDING으로 보존한다(전개 방향: 내부 파일을 각각 문서로, 깊이 1).
+새 형식의 route는 Contract에 정의하되 단계별 승인 전에는 켜지 않는다.
+일반 ZIP(2026-10-02 사용자 결정, 4단계)은 압축 자체를 파싱하지 않고(POLICY_PENDING 유지) 내부 파일을 각각 문서로 펼친다. 깊이 1이며 압축 안 압축은 열지 않고 상태만 남긴다.
+압축은 메모리에서만 열고 안전 한도는 위 container 규칙(hwpx_container_limits)을 그대로 쓴다. 한도 위반·암호화·경로 탈출이면 압축 전체를 거부하고 내부 파일을 하나도 기록하지 않는다.
+내부 파일마다 archive source SHA·member path(원래 이름 byte 포함)·member SHA·member detected format·archive depth·parent member provenance·처리 상태·사유를 `document_archive_members`(V10)에 남긴다.
+이름은 UTF-8 플래그가 있으면 UTF-8, 없으면 CP949로 읽고, 실패하면 원래 byte만 기록한다. 형식은 확장자가 아니라 내용으로 판별한다(실제 PDF인 `.ai`는 PDF route).
+처리 제외(상태만 기록): OS 메타 파일(Thumbs.db 등), 빈·자리표시 txt, 압축 안 압축, HWPML(보류), XLSX·DOC·XLS·PPT(의도적 제외), 켜진 route가 없는 형식.
+단독 첨부와 같은 SHA인 내부 파일은 다시 저장·파싱하지 않고 연결만 남긴다. 처리할 내부 파일은 원본과 같은 S3 prefix·content SHA key에 덮어쓰기 없이 저장·검증한 뒤 행을 기록한다.
+공고 relation은 복사하지 않고 압축 첨부의 relation을 물려받는다. 내부 파일 파싱은 실제 형식의 기존 route를 쓰며 새 parser를 만들지 않는다. 출처 종류는 내부 파일명으로 정한다.
 판별 규칙이 바뀌어도 저장된 detected_format은 자동으로 고치지 않는다. 재분류는 미리보기(전후 값·행 수)를 남기고 사용자 승인 뒤 한 트랜잭션으로 적용한다.
 Parsed artifact의 영구 저장소는 S3이며 로컬 filesystem은 fixture·scratch·임시 처리만 허용한다.
 DoclingDocument는 결정론적 JSON byte로 직렬화하고 source SHA·parse_key 주소의 immutable S3 object로 저장한다.

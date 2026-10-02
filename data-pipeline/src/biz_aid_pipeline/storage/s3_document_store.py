@@ -90,6 +90,25 @@ class S3DocumentStore:
         if actual_sha256 != sha256_hex:
             raise ValueError(f"file sha256 mismatch: expected={sha256_hex}, actual={actual_sha256}")
 
+        with file_path.open("rb") as file_obj:
+            return self._put_new(key, file_obj, sha256_hex, byte_size, content_type)
+
+    def put_bytes(self, raw: bytes, sha256_hex: str,
+                  content_type: str = "application/octet-stream") -> str:
+        """메모리의 원본 byte를 content-addressed key에 저장한다. 덮어쓰지 않는다.
+
+        압축 내부 파일처럼 디스크에 풀지 않는 원본을 위한 경로다. key·검증·재사용 규칙은 put과 같다.
+        """
+        self._validate_sha256(sha256_hex)
+        actual_sha256 = hashlib.sha256(raw).hexdigest()
+        if actual_sha256 != sha256_hex:
+            raise ValueError(f"byte sha256 mismatch: expected={sha256_hex}, actual={actual_sha256}")
+        if not raw:
+            raise ValueError("byte_size must be positive")
+        return self._put_new(self.object_key(sha256_hex), raw, sha256_hex, len(raw), content_type)
+
+    def _put_new(self, key: str, body, sha256_hex: str, byte_size: int, content_type: str) -> str:
+        """검증된 body를 새 object로만 만든다. 같은 key가 있으면 검증 뒤 재사용하고 덮어쓰지 않는다."""
         # 이미 같은 SHA object가 존재하면 덮어쓰지 않는다.
         if self.exists_key(key):
             if not self.verify_key(key, sha256_hex, byte_size):
@@ -107,19 +126,18 @@ class S3DocumentStore:
         )
 
         try:
-            with file_path.open("rb") as file_obj:
-                self.client.put_object(
-                    Bucket=self.bucket,
-                    Key=key,
-                    Body=file_obj,
-                    ContentLength=byte_size,
-                    ContentType=content_type,
-                    ChecksumSHA256=checksum_base64,
+            self.client.put_object(
+                Bucket=self.bucket,
+                Key=key,
+                Body=body,
+                ContentLength=byte_size,
+                ContentType=content_type,
+                ChecksumSHA256=checksum_base64,
 
-                    # 동시에 같은 SHA object를 생성하려는 경우에도
-                    # 기존 object를 덮어쓰지 않는다.
-                    IfNoneMatch="*",
-                )
+                # 동시에 같은 SHA object를 생성하려는 경우에도
+                # 기존 object를 덮어쓰지 않는다.
+                IfNoneMatch="*",
+            )
 
         except ClientError as exc:
             status_code = (

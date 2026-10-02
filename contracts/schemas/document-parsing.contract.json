@@ -194,9 +194,9 @@
     }
   },
   "input": {
-    "unit": "unique document_sources.content_sha256 with download_status=ACQUIRED and verified s3_* metadata",
+    "unit": "unique document_sources.content_sha256 with download_status=ACQUIRED and verified s3_* metadata, plus STORED document_archive_members.member_sha256 with verified s3_* metadata (generic_zip)",
     "binary_source": "S3 object read through S3DocumentStore.read with byte size and SHA-256 re-verification",
-    "format_source": "document_sources.detected_format",
+    "format_source": "document_sources.detected_format or document_archive_members.member_detected_format",
     "trusted_format_hints": [],
     "untrusted_format_hints": [
       "original_filename extension",
@@ -535,7 +535,7 @@
     "ZIP": {
       "route": "POLICY_PENDING",
       "enabled": false,
-      "extraction_enabled": false,
+      "extraction_enabled": true,
       "generic_zip_member_provenance_required": [
         "archive_source_sha256",
         "member_path",
@@ -550,8 +550,10 @@
         "PPTX",
         "ODT"
       ],
-      "approved_direction": "each member becomes its own document, depth 1 (archives inside an archive are not expanded); stage 4",
-      "activation_rule": "Generic ZIP extraction stays POLICY_PENDING until a contract represents every member provenance field"
+      "approved_direction": "each member becomes its own document, depth 1 (archives inside an archive are recorded, not expanded); stage 4 (user decision 2026-10-02)",
+      "activation_rule": "the archive itself is never parsed (route stays POLICY_PENDING); members are expanded by generic_zip and parsed through the existing route of their own detected format",
+      "stage": "stage 4",
+      "status": "extraction implemented 2026-10-02 (stage 4); the member table migration, S3 storage and member parsing wait for user approval"
     },
     "OTHER": {
       "route": "POLICY_PENDING",
@@ -863,7 +865,7 @@
     ],
     "xml_parser": "defusedxml; DTD, entity and external reference are rejected"
   },
-  "run_gate_pass": "every input SHA has exactly one result for the current parse_key; every PARSED artifact reloads as DoclingDocument and its SHA-256 re-verifies; every result joins back to at least one document_sources relation; status and warning counts per detected_format are reported; failure-rate acceptance is a Human Review decision, not automatic",
+  "run_gate_pass": "every input SHA has exactly one result for the current parse_key; every PARSED artifact reloads as DoclingDocument and its SHA-256 re-verifies; every result joins back to at least one document_sources relation or a STORED document_archive_members row whose archive has one; status and warning counts per detected_format are reported; failure-rate acceptance is a Human Review decision, not automatic",
   "out_of_scope": [
     "Chunking",
     "Embedding",
@@ -873,7 +875,7 @@
   ],
   "pending_decisions": [
     "ODT (stage 7 with legacy Office): converting ODT needs the LibreOffice converter image to take a target format; changing that image changes the HWP_PDF_DOCLING converter identity and would make every existing HWP a reprocessing target, so ODT stays disabled until legacy Office is handled together",
-    "Stage 4 Generic ZIP: member provenance table (migration), CP949 member names, depth-1 rule for nested archives, empty or placeholder members",
+    "Stage 4 Generic ZIP: apply V10 (document_archive_members), store members in S3 and parse a sample after user approval; then full member parsing and indexing",
     "Stage 6 XLSX and stage 7 legacy Office (converter image Calc / Impress)",
     "HwpxDoclingAdapter broader quality validation (3-document targeted check done; real explicit headings not yet observed)"
   ],
@@ -938,5 +940,105 @@
     "acceptance": "the common document text gate without pages (same as HWPX): more than document_gate.empty_text_max_chars non-whitespace characters is PARSED, otherwise EMPTY_TEXT",
     "failure": "Docling partial conversion is PARSE_FAILED office_partial_conversion, a failed conversion office_conversion_failed, an exception office_conversion_error:<ExceptionClass>",
     "scope": "standalone DOCX and PPTX attachments; DOCX / PPTX inside generic ZIP archives are handled in stage 4"
+  },
+  "generic_zip": {
+    "extraction_version": 1,
+    "depth": "1: members of a generic ZIP attachment are expanded; an archive inside an archive is recorded as EXCLUDED nested_archive and never opened",
+    "container_limits": "hwpx_container_limits is reused: max_entries, max_total_uncompressed_bytes, max_compression_ratio for entries of at least compression_ratio_min_entry_bytes, absolute or parent-relative path (/ and \\ separators), duplicate raw entry name and encrypted entry reject the whole archive with no member rows; max_xml_entry_bytes and max_sections are HWPX-only",
+    "reading": "the archive is opened in memory only; members are never written to local disk; each member is read up to its declared size and must match it (CRC checked by zipfile)",
+    "member_name_decoding": {
+      "utf8_flag": "general purpose bit 11 set: the stored name is UTF-8 (UTF8_FLAG)",
+      "otherwise": "the original name bytes are decoded as CP949 (CP949); if that fails member_path is null and only the raw bytes are kept (RAW_BYTES)",
+      "raw_bytes": "member_path_raw always keeps the original name bytes",
+      "unicode_path_extra_field": "the Info-ZIP Unicode Path extra field (0x7075) is not used for the name; previews compare it with the CP949 result as evidence only"
+    },
+    "member_rules_in_order": [
+      "read failure (CRC, unsupported compression, size mismatch, member larger than input.max_source_bytes) -> FAILED with failure code",
+      "directory entries are not members and are not recorded",
+      "operating-system metadata file -> EXCLUDED os_metadata_file",
+      "zero-byte member that is not .txt -> EXCLUDED empty_member",
+      ".txt member that is empty or a single-line placeholder of at most text_placeholder_max_chars characters -> EXCLUDED empty_or_placeholder_text",
+      "detected ZIP (or an UNKNOWN member with an archive extension) -> EXCLUDED nested_archive",
+      "detected HWPML -> EXCLUDED hwpml_on_hold",
+      "detected XLSX, DOC, XLS or PPT -> EXCLUDED intentionally_excluded_format",
+      "a format without an enabled parsing route (ODT, OTHER, UNKNOWN including other .txt) -> EXCLUDED unsupported_format",
+      "processable format whose SHA already exists as an ACQUIRED document_sources attachment -> DUPLICATE_SOURCE same_sha_as_attachment (not stored or parsed again; only the link is recorded)",
+      "otherwise -> STORED after the bytes are stored and verified in S3"
+    ],
+    "processable_formats": "formats with an enabled parsing route minus the excluded lists: PDF, HWP, HWPX, PNG, JPEG, DOCX, PPTX; an Illustrator .ai file whose bytes are PDF follows the PDF route and its quality gate",
+    "os_metadata_files": [
+      "thumbs.db",
+      ".ds_store",
+      "desktop.ini"
+    ],
+    "os_metadata_path_prefixes": [
+      "__MACOSX/"
+    ],
+    "text_extensions": [
+      ".txt"
+    ],
+    "text_placeholder_max_chars": 120,
+    "archive_extensions": [
+      ".zip",
+      ".7z",
+      ".rar",
+      ".alz",
+      ".egg",
+      ".tar",
+      ".gz"
+    ],
+    "on_hold_formats": [
+      "HWPML"
+    ],
+    "intentionally_excluded_formats": [
+      "XLSX",
+      "DOC",
+      "XLS",
+      "PPT"
+    ],
+    "intentional_exclusion_basis": "2026-10-02 user decision: mostly blank application forms, lists and reference tables; no program depends on these formats alone so they rescue no unindexed program; risk of pushing body evidence out of search. Revisit when document / form questions keep failing or when a form-centred feature (application writing helper) is built",
+    "statuses": [
+      "STORED",
+      "DUPLICATE_SOURCE",
+      "EXCLUDED",
+      "FAILED"
+    ],
+    "status_reasons": {
+      "DUPLICATE_SOURCE": [
+        "same_sha_as_attachment"
+      ],
+      "EXCLUDED": [
+        "os_metadata_file",
+        "empty_member",
+        "empty_or_placeholder_text",
+        "nested_archive",
+        "hwpml_on_hold",
+        "intentionally_excluded_format",
+        "unsupported_format"
+      ],
+      "FAILED": [
+        "member_too_large",
+        "member_size_mismatch",
+        "member_read_failed:<ExceptionClass>"
+      ]
+    },
+    "archive_failures": [
+      "archive_unreadable",
+      "archive_unsafe:entry_limit",
+      "archive_unsafe:total_size",
+      "archive_unsafe:compression_ratio",
+      "archive_unsafe:path",
+      "archive_unsafe:duplicate_name",
+      "archive_unsafe:name_too_long",
+      "archive_encrypted"
+    ],
+    "archive_failure_recording": "an archive failure writes no member rows; the extraction run result file records the archive SHA and failure code",
+    "storage": "STORED members use the same S3 bucket, prefix and content-addressed key as original attachments (S3DocumentStore.object_key); objects are never overwritten (IfNoneMatch) and size plus SHA-256 are verified before the member row is committed",
+    "database": "document_archive_members (Flyway V10, held in data-pipeline/pending-migrations until the user approves applying it; common migrations/ would be applied to the dev DB by check-all)",
+    "member_key": "sha256(archive_source_sha256 + NUL + member_path_raw); rows are idempotent per member_key and a STORED row is never overwritten by a different decision",
+    "program_relation": "inherited at read time from the archive's ACQUIRED document_sources relations; program ids are not copied into the member table",
+    "parsing": "a STORED member SHA is a parsing source next to document_sources: verified_source_formats, verified_source, chunk program relations and V2 service scope read both; parse_key, chunk_set_key and embedding_key are the same functions of the member SHA as for a standalone attachment (no new parser)",
+    "document_role": "decided from the member file name (last path component), not the archive name",
+    "qdrant_payload": "no new payload field; the member provenance stays in MySQL and joins by source_sha256"
   }
 }

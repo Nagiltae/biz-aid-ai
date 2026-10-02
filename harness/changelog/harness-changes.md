@@ -1,5 +1,13 @@
 # Harness 변경 이력
 
+## 2026-10-02 — 미지원 첨부 형식 4단계: 일반 ZIP(구현·미리보기)
+
+사용자 결정: 일반 ZIP 내부 파일을 각각 문서로(깊이 1), 내부 파일 표 신설, 이름 UTF-8/CP949/원래 byte, 원본과 같은 S3 key(덮어쓰기 금지), 공고 relation 상속, 처리 제외·단독 첨부 중복은 상태만, 기존 route로 파싱, document_role은 내부 파일명.
+**규칙 변경**: `data-source-rules.md` 일반 ZIP 조항을 "Contract 전까지 POLICY_PENDING 보존"에서 위 결정의 구체 규칙으로 바꿨다(압축 자체는 계속 POLICY_PENDING).
+DB: V10 `document_archive_members`(한국어 COMMENT·CHECK 7). check-all이 공통 `migrations/`를 dev DB에 적용하므로 승인 전에는 `data-pipeline/pending-migrations/`에 보관(`migrations/README.md`). 검증은 테스트 DB에서 표를 만들고 지우는 방식.
+코드: `documents/archive.py`(펼치기·분류·저장·기록), `scripts/run_archive_extraction.py`, `S3DocumentStore.put_bytes`, 파싱 입력·공고 상속·V2 범위에 STORED 내부 파일 포함(표가 없으면 동작 불변). 계약 `generic_zip`, ZIP `extraction_enabled: true`.
+검증: 기존 V2 221·V1 46원본 key 불변. 미리보기(쓰기 없음) V2 117압축 → 내부 639, 처리 대상 고유 510. Backlog IMP-009 결정(XLSX·DOC·XLS·PPT 의도적 제외), IMP-026 신규. README V2 상태 갱신.
+
 ## 2026-10-02 — DOCX·PPTX 전체 실행(PPTX 위치 단위 수정 포함)
 
 PPTX 슬라이드 크기·bbox를 EMU에서 pt로 환산(`parsing/office.py`), 계약 office·chunking provenance 설명과 단위 test 추가. 위치는 식별값 입력이 아니며 기존 route key 불변.

@@ -19,6 +19,9 @@ class ParseResultRepository:
         try:
             self.sources = Table("document_sources", metadata, autoload_with=self.engine)
             self.results = Table("document_parse_results", metadata, autoload_with=self.engine)
+            # 일반 ZIP 내부 파일(STORED)도 원본과 같은 파싱 입력이다. V10 적용 전에는 None이다.
+            from biz_aid_pipeline.documents.archive import optional_member_table
+            self.members = optional_member_table(self.engine, metadata)
         except Exception:
             self.engine.dispose()
             raise PipelineError("parse_result_schema_unavailable_run_flyway") from None
@@ -29,6 +32,10 @@ class ParseResultRepository:
                 self.sources.c.content_sha256 == source_sha256,
                 self.sources.c.download_status == "ACQUIRED",
                 self.sources.c.s3_object_key.is_not(None)).limit(1)).first()
+            if exists is None and self.members is not None:
+                exists = connection.execute(select(self.members.c.member_sha256).where(
+                    self.members.c.member_sha256 == source_sha256, self.members.c.processing_status == "STORED",
+                    self.members.c.s3_verified_at.is_not(None)).limit(1)).first()
         if exists is None:
             raise PipelineError("verified_document_source_required")
 
@@ -54,12 +61,17 @@ class ParseResultRepository:
             return "UPDATED"
 
     def verified_source_formats(self):
-        """검증된 원본의 (content SHA, detected_format) 목록. corpus 대상 선택에만 쓴다."""
+        """검증된 원본의 (content SHA, detected_format) 목록. 첨부 원본과 S3에 저장된 일반 ZIP 내부 파일(STORED)을 함께 돌려준다."""
         with self.engine.connect() as connection:
-            return [tuple(row) for row in connection.execute(select(
+            rows = [tuple(row) for row in connection.execute(select(
                 self.sources.c.content_sha256, self.sources.c.detected_format).where(
                 self.sources.c.download_status == "ACQUIRED", self.sources.c.s3_object_key.is_not(None),
                 self.sources.c.s3_verified_at.is_not(None)).distinct())]
+            if self.members is not None:
+                rows += [tuple(row) for row in connection.execute(select(
+                    self.members.c.member_sha256, self.members.c.member_detected_format).where(
+                    self.members.c.processing_status == "STORED", self.members.c.s3_verified_at.is_not(None)).distinct())]
+        return list(dict.fromkeys(rows))
 
     def get(self, source_sha256, result_parse_key):
         with self.engine.connect() as connection:

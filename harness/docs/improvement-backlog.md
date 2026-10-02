@@ -14,7 +14,7 @@
 | 단계 | 항목 | 기준 |
 | --- | --- | --- |
 | V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
-| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
+| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025, IMP-026 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
 | 운영/AWS 단계 | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017, IMP-021, IMP-022, IMP-023 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
 | 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
 
@@ -131,6 +131,8 @@
 - Evidence(2단계 이미지 OCR, 2026-10-02): 재분류 123관계 적용(COMMIT). IMAGE_OCR route 활성화(표본만 실행). 표본 3개 PARSED(포스터 8.6초·6.9초, 긴 캡처 44.7초), 타일 경계 중복 제거 후 위치 기준 누락 0(`2026-10-02-image-ocr-stage2.md`). 전체 실행은 승인 대기.
 - Evidence(3단계 DOCX·PPTX, 2026-10-02): docling-slim format-docx·format-pptx extra 추가(python-docx 1.2.0·python-pptx 1.0.2·xlsxwriter 3.2.9, 기존 버전 변경 0), DOCLING_DOCX·DOCLING_PPTX 활성화(단독 첨부만, 표본만 실행), ODT는 7단계로 연기. 표본 3개 PARSED, DOCX 글자 XML 대비 99.6~100%(`2026-10-02-office-stage3.md`).
 - Evidence(3단계 전체 실행, 2026-10-02): PPTX 위치를 EMU → pt로 맞춘 뒤 V2 범위 단독 DOCX 6·PPTX 1을 적재(7 PARSED·7 INDEXED·신규 58 point, 기존 point 변경 0). V2 범위 1,372공고 전부 point 보유. 남은 미지원: 일반 ZIP·XLSX·옛 오피스(ODT·DOC·XLS·PPT)·HWPML(`2026-10-02-office-stage3.md` §8).
+- Decision(2026-10-02, 사용자): XLSX·DOC·XLS·PPT는 의도적으로 제외한다(단독·압축 안 모두). 근거: 내용이 빈 신청 양식·명단·참고표 위주이고, 이 형식만 가진 공고가 없어 미적재 공고를 구제하는 효과가 0이며, 검색 근거를 밀어낼 위험이 있다. 다시 볼 조건: 서류·양식 질문이 반복 실패할 때, 양식 중심 기능(신청서 작성 도우미 등)을 만들 때. 일반 ZIP 안에서는 `EXCLUDED intentionally_excluded_format`으로 상태만 남긴다(V2 미리보기 XLSX 23개).
+- Evidence(4단계 일반 ZIP, 2026-10-02): 펼치기 구현·미리보기(쓰기 없음). V2 범위 117압축 → 내부 639개 중 처리 대상 539(고유 510), 단독 첨부 중복 7, 제외 93, 압축 거부 0. ODT 1개 공고는 같은 제목 HWPX·HWP가 V2에 적재돼 있음(95 point). 기록 `2026-10-02-generic-zip-stage4.md`.
 - Status: OPEN
 
 ## IMP-010 Parser 품질 한계(OCR·읽기 순서·그림 해석)
@@ -301,4 +303,14 @@
 - Why deferred: 공고 선택 방식(제목 일치 우선, 후보가 여럿이면 되묻기, 근거 공고 하나로 제한 등)은 cases-v2 기대값으로 비교해야 한다.
 - Revisit trigger: cases-v2 작성 시(분류 보정 + 공고 선택 방식 비교)
 - Side effect: 공고를 하나로 좁히면 여러 공고 비교 질문의 답이 달라진다. 근거 공고 격리 규칙(자격 판정)과 같은 원칙을 쓸지 함께 정한다.
+- Status: OPEN
+
+## IMP-026 Office 설정 hash가 계약 설명 문구까지 포함함
+
+- Area: 문서 파싱 식별값(DOCLING_DOCX·DOCLING_PPTX parse_key)
+- Issue: `office_config_sha256`이 계약 `office` 구역 전체를 hash한다. 이 구역에는 실행 설정뿐 아니라 설명 문구(converter·pages·location 등 영어 설명)가 들어 있어, 결과에 영향이 없는 문구 수정만으로 DOCX·PPTX parse_key가 바뀌고 재파싱 대상이 된다.
+- Evidence: 3단계 PPTX 위치 단위 수정 때 `office.pages` 설명만 고쳤는데 DOCX·PPTX parse_key가 새 값이 됐다(그때는 저장된 결과가 없어 영향 없음, `2026-10-02-office-stage3.md` §8). 지금은 V2에 DOCX·PPTX 7원본·58 point가 있어 같은 수정이 재파싱을 부른다.
+- Why deferred: 지금 고치면 그 자체가 hash 입력을 바꿔 적재된 7원본의 parse_key가 바뀐다. 사용자 결정으로 이번에는 기록만 한다.
+- Revisit trigger: Office 설정을 바꿀 때(결과에 영향을 주는 값만 hash하는 구역으로 분리 — 예: `office.identity`)
+- Side effect: 분리하는 순간 DOCX·PPTX parse_key가 한 번 바뀌므로 7원본 재파싱·재적재가 함께 필요하다. `image_ocr_config_sha256`도 `image_ocr` 구역 전체(설명 문구 engine·tiling·acceptance·value_basis 등 포함)를 hash하는 같은 구조라 IMAGE_OCR 105원본에도 같은 위험이 있다. 함께 정한다.
 - Status: OPEN

@@ -106,7 +106,8 @@ class FakeS3Client:
                 "PutObject",
             )
 
-        raw = Body.read()
+        # 파일 객체(put)와 메모리 byte(put_bytes)를 모두 받는다. boto3도 두 형태를 같은 PUT으로 보낸다.
+        raw = Body.read() if hasattr(Body, "read") else bytes(Body)
 
         if len(raw) != ContentLength:
             raise AssertionError(
@@ -169,6 +170,25 @@ class S3DocumentStoreTests(
             prefix="biz-aid/documents",
             client=self.client,
         )
+
+    def test_put_bytes_uses_same_key_and_never_overwrites(self):
+        # 압축 내부 파일은 디스크에 풀지 않고 메모리 byte를 원본과 같은 content key로 저장한다.
+        raw = b"biz-aid-archive-member"
+        digest = hashlib.sha256(raw).hexdigest()
+        key = self.store.put_bytes(raw, digest)
+        self.assertEqual(key, self.store.object_key(digest))
+        self.assertEqual(self.store.put_bytes(raw, digest), key)
+        self.assertEqual(self.client.put_calls, 1)
+        self.assertEqual(self.store.read_key(key, digest, len(raw)), raw)
+        # 이미 있는 object가 다른 byte면 덮어쓰지 않고 실패한다.
+        self.client.objects[("test-bucket", key)]["raw"] = b"tampered-member"
+        with self.assertRaises(RuntimeError):
+            self.store.put_bytes(raw, digest)
+        self.assertEqual(self.client.put_calls, 1)
+        with self.assertRaises(ValueError):
+            self.store.put_bytes(b"other", digest)
+        with self.assertRaises(ValueError):
+            self.store.put_bytes(b"", hashlib.sha256(b"").hexdigest())
 
     def test_put_verify_read_and_reuse(
             self,

@@ -44,6 +44,15 @@ def select_scope(engine, as_of, enabled_formats):
             sources.c.pblanc_id.in_(service_ids), sources.c.download_status == "ACQUIRED",
             sources.c.s3_object_key.is_not(None), sources.c.s3_verified_at.is_not(None),
             sources.c.detected_format.in_(list(enabled_formats)))).all()
+        from biz_aid_pipeline.documents.archive import optional_member_table
+        members = optional_member_table(engine, metadata)
+        if members is not None:
+            # 일반 ZIP 내부 파일(STORED)은 압축 첨부가 붙은 서비스 공고의 문서다.
+            rows += connection.execute(select(members.c.member_sha256, members.c.member_detected_format, sources.c.pblanc_id).join(
+                sources, sources.c.content_sha256 == members.c.archive_source_sha256).where(
+                sources.c.pblanc_id.in_(service_ids), sources.c.download_status == "ACQUIRED",
+                members.c.processing_status == "STORED", members.c.s3_verified_at.is_not(None),
+                members.c.member_detected_format.in_(list(enabled_formats))).distinct()).all()
     documents = {}
     for sha, detected, _ in rows:
         documents.setdefault(sha, detected)

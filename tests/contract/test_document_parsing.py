@@ -84,7 +84,9 @@ class DocumentParsingContractTests(unittest.TestCase):
         self.assertEqual(representation["document_model"], "DoclingDocument")
         self.assertIs(representation["own_canonical_document_tree"], False)
         self.assertEqual(self.contract["input"]["trusted_format_hints"], [])
-        self.assertEqual(self.contract["input"]["format_source"], "document_sources.detected_format")
+        # 4단계부터 일반 ZIP 내부 파일(STORED)도 파싱 입력이다. 형식은 두 표 모두 byte로 판별한 값만 믿는다.
+        self.assertEqual(self.contract["input"]["format_source"],
+                         "document_sources.detected_format or document_archive_members.member_detected_format")
         for excluded in ("Chunking", "Embedding", "Qdrant"):
             self.assertIn(excluded, self.contract["out_of_scope"])
         # OCR은 low-text page에만 허용되고 Docling 자체 OCR은 계속 꺼져 있다.
@@ -121,8 +123,10 @@ class DocumentParsingContractTests(unittest.TestCase):
         self.assertIn("Docker", routes["HWP"]["converter"]["decision"])
         self.assertEqual(routes["HWPX"]["route"], "HWPX_DOCLING_ADAPTER")
         zip_route = routes["ZIP"]
+        # 4단계(2026-10-02): 압축 자체는 파싱하지 않고(POLICY_PENDING) 내부 파일만 깊이 1로 펼친다.
         self.assertEqual((zip_route["route"], zip_route["enabled"], zip_route["extraction_enabled"]),
-                         ("POLICY_PENDING", False, False))
+                         ("POLICY_PENDING", False, True))
+        self.assertTrue(zip_route["approved_direction"].startswith("each member becomes its own document, depth 1"))
         # DOCX·PPTX·ODT container는 2026-10-02부터 따로 판별하고, ZIP은 일반 압축만 뜻한다.
         self.assertEqual(zip_route["container_subtypes_detected_separately"], ["DOCX", "PPTX", "ODT"])
         self.assertEqual(set(zip_route["generic_zip_member_provenance_required"]), {
