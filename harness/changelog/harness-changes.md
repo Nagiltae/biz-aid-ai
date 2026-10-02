@@ -1,5 +1,11 @@
 # Harness 변경 이력
 
+## 2026-10-02 — 회원가입 50초 지연 수정
+
+원인: `AuthService.signup` 트랜잭션이 커밋 전 새 users 행을 잠근 상태에서 `ActivityLogService`가 REQUIRES_NEW(다른 연결)로 `activity_logs`(users FK)를 저장해 MySQL 잠금 대기 50초 후 실패했다(가입 SIGNUP 기록 유실).
+수정: `ActivityLogService.success`는 진행 중 트랜잭션이 있으면 커밋 뒤(`afterCommit`)에 기록한다. 실패 기록은 기존대로 즉시 별도 트랜잭션. `ActivityLogTest`가 H2에 V8과 같은 외래키를 걸어 수정 전 실패를 재현하고 수정 후 통과한다. 실측 50.2초 → 0.06~0.3초. 규칙 변경 없음.
+결과: [Report](../workspace/reports/development/2026-10-02-signup-latency-fix.md).
+
 ## 2026-10-02 — V2 적재 결과 확인과 완전성 검증
 
 규칙 변경 없음. V2 데이터 batch 결과를 읽기 전용으로 대조했다(2,541 → PARSED 2,534 → INDEXED 2,534 → Qdrant 2,534문서·61,335 point, final.ok=true, V1 3,849 유지). 제외 7문서와 마감 공고 point를 기존 Backlog IMP-006·007·010·018 Evidence로 기록하고, Master Guide §1·README 상태를 실제 값으로 갱신했다.

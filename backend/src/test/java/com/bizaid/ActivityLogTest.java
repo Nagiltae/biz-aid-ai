@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import jakarta.servlet.http.Cookie;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -23,6 +24,14 @@ class ActivityLogTest extends ApiTestSupport {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @BeforeEach
+    void mirrorMysqlForeignKey() {
+        // 테스트 H2는 Entity로 테이블을 만들어 V8의 activity_logs → users 외래키가 없다. 실제 MySQL과 같게 맞춰야
+        // "커밋 전 새 사용자를 가리키는 기록"이 잠금 대기·실패하는 문제를 테스트에서 볼 수 있다.
+        jdbc.execute("ALTER TABLE activity_logs ADD CONSTRAINT IF NOT EXISTS fk_activity_logs_user "
+                + "FOREIGN KEY (user_id) REFERENCES users(id)");
+    }
 
     @Test
     void authAndCompanyActivitiesAreRecordedWithoutSecrets() throws Exception {

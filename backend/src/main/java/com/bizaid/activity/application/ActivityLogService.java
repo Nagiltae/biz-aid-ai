@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -19,6 +21,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>WHY 명시 호출(AOP 대신): 무엇을 언제 어떤 metadata로 남기는지가 서비스 코드에 그대로 보인다. 로그인 실패 이유,
  * AI 결과 종류처럼 흐름 안에서만 아는 값을 넣기도 쉽다.
  * <p>WHY 별도 트랜잭션(REQUIRES_NEW): 로그인 실패처럼 본 트랜잭션이 되돌려지는 경우에도 기록이 남아야 한다.
+ * <p>WHY 성공 기록은 본 트랜잭션 커밋 뒤: 회원가입처럼 같은 트랜잭션에서 만든(아직 커밋 전) 행을 user_id 외래키로 가리키면,
+ * 다른 연결의 기록 저장이 그 행의 잠금을 기다리다 MySQL 잠금 대기 한도(50초)로 실패했다. 커밋 뒤에 쓰면 기다릴 잠금이 없고,
+ * 본 작업이 되돌려지면 성공 기록도 남지 않아 의미가 맞다.
  * <p>RISK: 기록 실패가 사용자 요청을 실패시키면 안 되므로 예외는 서버 로그로만 남긴다.
  * metadata에는 식별자·결과 종류·개수 같은 값만 넣는다(비밀번호·토큰·키·질문/답변 전문 금지).
  */
@@ -42,6 +47,16 @@ public class ActivityLogService {
     }
 
     public void success(ActivityAction action, Long userId, String targetType, Object targetId, Map<String, ?> metadata) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()
+                && TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    record(action, userId, targetType, targetId, true, null, metadata);
+                }
+            });
+            return;
+        }
         record(action, userId, targetType, targetId, true, null, metadata);
     }
 
