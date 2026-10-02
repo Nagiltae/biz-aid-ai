@@ -84,12 +84,14 @@
     "pages",
     "provenance",
     "chunker_identity",
-    "embedding_model"
+    "embedding_model",
+    "document_role"
   ],
   "provenance": {
     "item": "each DocItem of the chunk contributes item_ref, label, page and top-left bbox when the parser gave a ProvenanceItem, and HWPX section and XML path, table quality verdict and OCR confidence from bizaid__* meta",
     "multi_location": "provenance is a list and pages is the sorted set of pages, so a chunk spanning several pages or sections keeps every location",
-    "no_location": "HWPX has no page or coordinates; pages stay empty and section / XML path identify the source location"
+    "no_location": "HWPX has no page or coordinates; pages stay empty and section / XML path identify the source location",
+    "image_ocr": "IMAGE_OCR: page is the tile number, every page is the full original image size, so bbox_pt holds original image pixels (unit px); OCR confidence comes from bizaid__ocr"
   },
   "embedding_handoff": {
     "input_field": "embedding_text",
@@ -99,5 +101,6 @@
     "model_repo_id": "BAAI/bge-m3",
     "model_revision": "5617a9f61b028005a4858fdac845db406aefb181",
     "alignment_rule": "model_repo_id and model_revision must equal tokenizer.repo_id and tokenizer.revision"
-  }
+  },
+  "document_role": "optional; set from the source format and original filenames (document-indexing contract document_role) when the source is chunked from 2026-10-02 (image OCR stage onward); omitted from the payload when unset; never an input of chunk_set_key, chunk_id, content_key or embedding_text"
 }

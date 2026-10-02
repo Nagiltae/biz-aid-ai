@@ -128,9 +128,11 @@ class DocumentParsingContractTests(unittest.TestCase):
         self.assertEqual(set(zip_route["generic_zip_member_provenance_required"]), {
             "archive_source_sha256", "member_path", "member_sha256", "member_detected_format",
             "archive_depth", "parent_member_provenance"})
-        # 공통 기반 단계에서는 새 형식 route를 정의만 하고 하나도 켜지 않는다.
-        for detected in ("XLSX", "DOCX", "PPTX", "ODT", "DOC", "XLS", "PPT", "PNG", "JPEG", "HWPML", "OTHER", "UNKNOWN"):
+        # 2단계(이미지 OCR)에서 PNG·JPEG만 켰고, 나머지 새 형식 route는 정의만 하고 꺼 둔다.
+        for detected in ("XLSX", "DOCX", "PPTX", "ODT", "DOC", "XLS", "PPT", "HWPML", "OTHER", "UNKNOWN"):
             self.assertFalse(routes[detected]["enabled"])
+        self.assertEqual({fmt: (routes[fmt]["route"], routes[fmt]["enabled"]) for fmt in ("PNG", "JPEG")},
+                         {"PNG": ("IMAGE_OCR", True), "JPEG": ("IMAGE_OCR", True)})
         xlsx = routes["XLSX"]
         self.assertEqual(xlsx["limits"], {"max_visible_nonempty_cells": 5000, "max_file_bytes": 10485760, "max_sheets": 20})
         self.assertIn("visible sheets only", xlsx["sheet_policy"])
@@ -173,7 +175,7 @@ class DocumentParsingContractTests(unittest.TestCase):
             self.assertIsNone(result.document)
         # 정의만 하고 켜지 않은 새 route는 parser를 부르지 않고 route_not_enabled로 끝난다.
         for detected, route in (("XLSX", "DOCLING_XLSX"), ("DOCX", "DOCLING_DOCX"), ("PPTX", "DOCLING_PPTX"),
-                                ("ODT", "LIBREOFFICE_TO_DOCX"), ("XLS", "LIBREOFFICE_TO_XLSX"), ("PNG", "IMAGE_OCR")):
+                                ("ODT", "LIBREOFFICE_TO_DOCX"), ("XLS", "LIBREOFFICE_TO_XLSX")):
             result = parse(raw, detected)
             self.assertEqual((result.route, result.status, result.failure_code), (route, "ROUTE_NOT_ENABLED", "route_not_enabled"))
             self.assertIsNone(result.document)

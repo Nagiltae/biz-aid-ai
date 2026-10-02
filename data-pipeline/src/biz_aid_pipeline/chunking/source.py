@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from biz_aid_pipeline.config.settings import DbConfig, PipelineError, S3Config
 from biz_aid_pipeline.chunking.chunker import ChunkSource
+from biz_aid_pipeline.indexing.document_role import document_role
 from biz_aid_pipeline.parsing.models import parse_key, parsing_contract
 from biz_aid_pipeline.parsing.persistence import PARSED_ARTIFACT_PREFIX
 from biz_aid_pipeline.parsing.repository import ParseResultRepository
@@ -41,6 +42,15 @@ def announcements(repository, source_sha256):
     return tuple(sorted((row[0], row[1]) for row in rows))
 
 
+def original_filenames(repository, source_sha256):
+    """원본에 붙은 첨부 파일명들. 출처 종류(document_role) 판정의 단서로만 쓴다."""
+    sources = repository.sources
+    with repository.engine.connect() as connection:
+        rows = connection.execute(select(sources.c.original_filename).distinct().where(
+            sources.c.content_sha256 == source_sha256, sources.c.download_status == "ACQUIRED")).all()
+    return sorted(row[0] for row in rows if row[0])
+
+
 def load_chunk_source(root, profile, source_sha256, explicit_parse_key=None):
     """(DoclingDocument, ChunkSource). S3 artifact는 DB에 기록된 크기와 SHA-256으로 검증한 byte만 쓴다."""
     from docling_core.types.doc import DoclingDocument
@@ -59,6 +69,7 @@ def load_chunk_source(root, profile, source_sha256, explicit_parse_key=None):
         if row is None or row["parse_status"] != "PARSED":
             raise PipelineError("current_parsed_artifact_required")
         linked = announcements(repository, source_sha256)
+        role = document_role(formats[source_sha256], original_filenames(repository, source_sha256))
     finally:
         repository.close()
     s3 = S3Config.load(Path(root), profile)
@@ -68,4 +79,4 @@ def load_chunk_source(root, profile, source_sha256, explicit_parse_key=None):
     identity = row["parser_identity_json"]
     identity = json.loads(identity) if isinstance(identity, str) else identity
     document = DoclingDocument.model_validate_json(raw)
-    return document, ChunkSource(source_sha256, row["detected_format"], row["route"], key, identity, linked)
+    return document, ChunkSource(source_sha256, row["detected_format"], row["route"], key, identity, linked, role)

@@ -1,5 +1,12 @@
 # Harness 변경 이력
 
+## 2026-10-02 — 미지원 첨부 형식 2단계: 이미지 OCR(PNG·JPEG)
+
+사용자 승인: 재분류 123관계를 한 트랜잭션으로 적용(확인 일치 → COMMIT, 로그 `artifacts/development/unsupported-formats-foundation/reclassify_apply_log.json`).
+코드: `parsing/image_ocr.py`(PDF route의 고정 PP-OCRv5 재사용, 세로 타일·겹침·중복 줄 제거, page = 타일·bbox = 원본 px, 픽셀 상한 초과 실패), router IMAGE_OCR 분기, `parse_identity`에 route 전용 입력(IMAGE_OCR만 image_ocr_version·image_ocr_config_sha256, OCR 두 모델 hash), chunk payload `document_role`(값이 있을 때만).
+계약: document-parsing PNG·JPEG `enabled: true`, `image_ocr` 설정(타일 2,000px·겹침 0.12·픽셀 40M·신뢰도 0.0), `route_parse_key_inputs`, 경고 IMAGE_OCR_APPLIED, 실패 코드 image_*. document-chunking `final_chunk_fields`에 document_role, 이미지 provenance 설명. 다른 새 route는 그대로 꺼져 있다.
+검증: 실제 point 155원본의 parse_key·chunk_set_key·embedding_key 불변 재확인. 규칙 변경 없음.
+
 ## 2026-10-02 — 미지원 첨부 형식 1단계: 공통 기반
 
 사용자 확정 순서: 공통 기반 → 이미지 OCR → DOCX·PPTX(ODT는 LibreOffice→DOCX) → 일반 ZIP(깊이 1) → 화면 완주·cases-v2 기준점 → XLSX → 옛 오피스. HWPML 보류, VLM 미도입.

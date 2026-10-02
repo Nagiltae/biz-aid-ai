@@ -58,6 +58,15 @@ def parse_document(request, raw, contract=None):
             result.status, result.failure_code = "PARSE_FAILED", error.code
             return result
         result.unit_count = page_count
+    elif route == "IMAGE_OCR":
+        # BOUNDARY: 이미지 OCR은 Docling layout·표 engine 없이 공유 OCR engine만 쓴다. 실패는 PARSE_FAILED + 코드로 드러낸다.
+        from biz_aid_pipeline.parsing.image_ocr import ImageOcrError, parse_image
+        try:
+            document, page_count = parse_image(raw, request.source_sha256, request.detected_format, contract, result)
+        except ImageOcrError as error:
+            result.status, result.failure_code = "PARSE_FAILED", error.code
+            return result
+        result.unit_count = page_count
     else:
         raise PipelineError("enabled_route_without_handler")
     normalize_document(document, result)

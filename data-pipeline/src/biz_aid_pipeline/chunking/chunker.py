@@ -101,6 +101,8 @@ class ChunkSource:
     parse_key: str
     parser_identity: dict
     announcements: tuple  # (pblanc_id, 공고명) 쌍의 목록
+    # 출처 종류(BODY·FORM·LIST·UNKNOWN). 기록용이며 chunk 식별값·embedding 입력이 아니다. 없으면 payload에 넣지 않는다.
+    document_role: str | None = None
 
 
 @dataclass
@@ -135,6 +137,7 @@ class FinalChunk:
     provenance: list
     chunker_identity: dict
     embedding_model: dict = field(default_factory=dict)
+    document_role: str | None = None
 
     def to_dict(self):
         return asdict(self)
@@ -143,6 +146,9 @@ class FinalChunk:
         """vector store payload. embedding 입력 text는 vector 자체로 대체되므로 넣지 않는다."""
         values = self.to_dict()
         values.pop("embedding_text")
+        # BOUNDARY: 출처 종류를 정하지 않은 chunk는 필드를 두지 않는다(기존 point와 같은 모양 = UNKNOWN 취급).
+        if values.get("document_role") is None:
+            values.pop("document_role", None)
         return values
 
 
@@ -205,7 +211,8 @@ def chunk_document(document, source, contract=None, parse_contract=None):
                 item_labels=sorted({entry["label"] for entry in provenance}), source_format=source.source_format,
                 source_sha256=source.source_sha256, route=source.route, parse_key=source.parse_key,
                 parser_identity=source.parser_identity, pages=pages, provenance=provenance,
-                chunker_identity=dict(identity, chunk_set_key=set_key), embedding_model=embedding_model))
+                chunker_identity=dict(identity, chunk_set_key=set_key), embedding_model=embedding_model,
+                document_role=source.document_role))
     return results
 
 

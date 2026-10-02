@@ -513,17 +513,17 @@
     },
     "PNG": {
       "route": "IMAGE_OCR",
-      "enabled": false,
+      "enabled": true,
       "approved_direction": "text recognition (OCR) of the whole image with the pinned Korean PP-OCRv5 models; no VLM picture interpretation",
       "stage": "stage 2",
-      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+      "status": "enabled 2026-10-02 (stage 2); configuration in image_ocr"
     },
     "JPEG": {
       "route": "IMAGE_OCR",
-      "enabled": false,
+      "enabled": true,
       "approved_direction": "text recognition (OCR) of the whole image with the pinned Korean PP-OCRv5 models; no VLM picture interpretation",
       "stage": "stage 2",
-      "status": "defined but disabled (2026-10-02 common foundation); enabling a route is a separate approved stage that also defines its parse_key route_scope inputs"
+      "status": "enabled 2026-10-02 (stage 2); configuration in image_ocr"
     },
     "HWPML": {
       "route": "POLICY_PENDING",
@@ -687,7 +687,8 @@
     "PDF_TABLE_PICTURE_OVERLAP",
     "PDF_OCR_APPLIED",
     "OCR_TEXT_INSUFFICIENT",
-    "HWPX_STYLE_HEADER_MISSING"
+    "HWPX_STYLE_HEADER_MISSING",
+    "IMAGE_OCR_APPLIED"
   ],
   "failure_codes": {
     "rule": "status names the outcome class; failure_code names the concrete cause and is null for PARSED, EMPTY_TEXT and OCR_REQUIRED",
@@ -711,7 +712,10 @@
       "pp_table_engine_error:<ExceptionClass>",
       "pdf_page_count_mismatch",
       "ocr_engine_error:<ExceptionClass>",
-      "xlsx_limit_exceeded:<visible_nonempty_cells|file_bytes|sheets>"
+      "xlsx_limit_exceeded:<visible_nonempty_cells|file_bytes|sheets>",
+      "image_pixels_exceeded",
+      "image_format_mismatch",
+      "image_decode_failed:<ExceptionClass>"
     ],
     "REJECTED_UNSAFE": [
       "container_entries_rejected",
@@ -787,8 +791,22 @@
         "paddlepaddle_version",
         "paddlex_version"
       ],
-      "rule": "a component identity is filled only on routes whose output it can change; other inputs stay null; a normalizer or DoclingDocument (docling-core) change affects every route"
-    }
+      "rule": "a component identity is filled only on routes whose output it can change; other inputs stay null; a normalizer or DoclingDocument (docling-core) change affects every route",
+      "IMAGE_OCR": [
+        "image_ocr_version",
+        "image_ocr_config_sha256",
+        "model_artifacts_sha256 (the two OCR model folders only)",
+        "paddlepaddle_version",
+        "paddlex_version"
+      ]
+    },
+    "route_parse_key_inputs": {
+      "IMAGE_OCR": [
+        "image_ocr_version",
+        "image_ocr_config_sha256"
+      ]
+    },
+    "route_parse_key_rule": "route-specific inputs are added only to that route's identity; the common parse_key_inputs list is unchanged so PDF, HWP and HWPX parse keys keep their values"
   },
   "normalization": {
     "unicode_form": "NFC",
@@ -829,11 +847,9 @@
     "LLM"
   ],
   "pending_decisions": [
-    "Stage 2 image OCR: OCR engine reuse (PP-OCRv5 from the PDF route), long-image tiling, OCR quality acceptance and parse_key route_scope",
     "Stage 3 DOCX / PPTX: docling-slim format-docx / format-pptx extras; ODT conversion target parameter for the converter image",
     "Stage 4 Generic ZIP: member provenance table (migration), CP949 member names, depth-1 rule for nested archives, empty or placeholder members",
     "Stage 6 XLSX and stage 7 legacy Office (converter image Calc / Impress)",
-    "Applying the detected_format reclassification of existing document_sources rows (preview only, needs user approval)",
     "HwpxDoclingAdapter broader quality validation (3-document targeted check done; real explicit headings not yet observed)"
   ],
   "test_runtime": {
@@ -871,5 +887,21 @@
     "upper_bound": "--max-completed N stops before starting a new source once completed (processed + skipped current-key) reaches N",
     "graceful_stop": "SIGTERM / SIGINT request a stop at the next source boundary; the in-flight source finishes and persists; the runner kills its worker only on source_timeout",
     "reprocess": "--sources-file limits a run to listed enabled verified SHAs so a fix reprocesses only affected sources; parse_key idempotency is unchanged"
+  },
+  "image_ocr": {
+    "image_ocr_version": 1,
+    "engine": "the pinned PP-OCRv5 detection + Korean recognition models and module options of routes.PDF.ocr (no new model, no Docling layout or table engine, no VLM)",
+    "input": "PNG / JPEG decoded with EXIF orientation applied and transparency composited on white; the width is never reduced",
+    "tile_height_px": 2000,
+    "tile_overlap_ratio": 0.12,
+    "tiling": "vertical tiles of tile_height_px; consecutive tiles overlap by tile_overlap_ratio; the last tile is aligned to the bottom so every tile has the same height; an image not taller than one tile is a single tile",
+    "max_total_pixels": 40000000,
+    "pixel_rule": "width x height above max_total_pixels fails the whole document as PARSE_FAILED image_pixels_exceeded before decoding; nothing is downscaled or cropped",
+    "min_line_confidence": 0.0,
+    "confidence_rule": "same as the PDF OCR text layer (TextRecognition score_thresh 0.0): no OCR line is dropped for low confidence; every line keeps its confidence in bizaid__ocr",
+    "deduplication": "a line belongs to the tile whose ownership band (overlap split in the middle) contains its vertical center; a remaining line with the same non-space text overlapping an earlier kept line by at least half is dropped",
+    "document": "each tile is a DoclingDocument page whose size is the full original image, so item bbox (top-left origin) is in original image pixels; bizaid__ocr keeps source_sha256, page (tile), tile_y_px, bbox_px, unit px, confidence and engine identity",
+    "acceptance": "the common document text gate with tiles as pages: average non-whitespace characters per tile at or below document_gate.pdf_ocr_required_max_chars_per_page is OCR_REQUIRED with OCR_TEXT_INSUFFICIENT and is not indexed; tiles at or below the threshold are listed in ocr.insufficient_pages",
+    "value_basis": "107 PNG/JPEG originals: width median 1,000 / max 4,961 px, height median 1,632 / max 7,016 px, pixels median 1.8 M / p95 15.6 M / max 34.8 M; text detection keeps its own max_side_limit 4000"
   }
 }

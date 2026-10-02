@@ -1,27 +1,27 @@
-# Current Task — 미지원 첨부 형식 1단계: 공통 기반
+# Current Task — 미지원 첨부 형식 2단계: 이미지 OCR(PNG·JPEG)
 
 ## Goal / Context
 
-2026-10-02 사용자 요청: 미지원 첨부 형식 지원의 공통 기반(형식 판별 세분화·파싱 Contract route 정의·출처 종류 설계·기존 행 재분류 미리보기)을 만든다.
-근거: `reports/development/2026-10-02-imp009-unsupported-formats.md`. 실제 파싱·인덱싱·route 활성화·DB UPDATE·라이브러리 설치·변환 이미지 수정·기존 parse_key/chunk_set_key 변경·`.env.dev`·V1 collection/baseline·commit/push는 범위가 아니다.
-
-사용자 확정: XLSX는 보이는 셀 5,000·파일 10MB·시트 20 상한(넘으면 자르지 않고 문서 단위 실패), 숨긴 시트 제외, 저장된 계산값 사용. 빈 신청 양식은 출처 종류만 기록하고 순위 반영은 cases-v2 뒤 결정. HWPML 보류(판별만). VLM 미도입.
+2026-10-02 사용자 요청: PNG·JPEG 첨부를 IMAGE_OCR route로 읽는다. 근거: `2026-10-02-imp009-unsupported-formats.md`, `2026-10-02-unsupported-formats-foundation.md`.
+사용자 승인·결정: 재분류 123행 적용(한 트랜잭션, 확인 불일치 시 ROLLBACK). PDF route의 고정 PP-OCRv5(한국어) 재사용, 새 모델·VLM 없음. 세로 타일 + 10~15% 겹침 + 중복 줄 제거, 타일 = page·bbox = 원본 좌표, 폭 축소 없음, 픽셀 상한 초과는 문서 단위 실패. 수용 기준은 PDF OCR 기존 기준, 미달은 OCR_REQUIRED(적재 안 함). parse_key는 IMAGE_OCR 전용 입력, 기존 parse_key 불변. document_role은 이번 단계부터 새 point payload에 기록(순위 미사용).
+표본 외 전체 파싱·인덱싱, 다른 새 route 활성화, 기존 point 변경·재적재, 새 모델 다운로드, `.env.dev`, V1 collection·baseline, commit/push는 범위가 아니다.
 
 ## Next Steps
 
-1 공통 기반(이번) → 2 이미지 OCR(PNG·JPEG) → 3 DOCX·PPTX(Docling XML 직접), ODT는 LibreOffice로 DOCX 변환 → 4 일반 ZIP(내부 파일을 각각 문서로, 깊이 1) → 5 화면 완주 + cases-v2 기준점 → 6 XLSX → 7 옛 오피스(DOC·XLS·PPT를 LibreOffice로 새 형식 변환).
+표본 확인 → (승인 후) 이미지 전체 파싱·인덱싱 → 3 DOCX·PPTX(ODT는 LibreOffice→DOCX) → 4 일반 ZIP(깊이 1) → 5 화면 완주 + cases-v2 기준점 → 6 XLSX → 7 옛 오피스.
 
 ## Read First
 
-[AGENTS](../../AGENTS.md) → [Source 규칙](../rules/data-source-rules.md) → [Pipeline](../docs/data-pipeline.md) → `contracts/schemas/document-parsing.contract.json`(routes) → `contracts/schemas/document-indexing.contract.json`(document_role).
+[AGENTS](../../AGENTS.md) → [Source 규칙](../rules/data-source-rules.md) → [Pipeline](../docs/data-pipeline.md) → `contracts/schemas/document-parsing.contract.json`(routes·image_ocr·versioning) → `contracts/schemas/document-chunking.contract.json`.
 
 ## Scope / Acceptance
 
-1. 기존 PDF·HWP·HWPX·XLSX 판별 결과와 parse_key·chunk_set_key·embedding_key가 바뀌지 않는다(테스트·실제 point 재계산).
-2. 새 형식 route는 정의만 하고 모두 꺼져 있다. 출처 종류는 식별값 입력이 아니며 순위에 쓰지 않는다.
-3. 기존 행 재분류는 미리보기·적용/되돌리기 계획만 남기고 사용자 승인을 받는다.
+1. 재분류가 기대값과 같을 때만 COMMIT되고 전후 값이 기록된다.
+2. IMAGE_OCR이 타일·겹침·중복 제거·원본 좌표 bbox·픽셀 상한·OCR_REQUIRED를 지키고, chunk provenance가 근거 위치를 잃지 않는다.
+3. 기존 PDF·HWP·HWPX의 parse_key·chunk_set_key·embedding_key가 그대로다.
+4. 표본 3개(포스터 2 + 긴 캡처 1)만 실행하고 전체 실행은 승인을 받는다.
 AGY 독립 Review / 사용자 검토는 pending이다.
 
 ## Validation / Reports
 
-[Final Report](reports/development/2026-10-02-unsupported-formats-foundation.md). 마지막에 `./scripts/check-all.sh`를 1회 실행한다.
+[Final Report](reports/development/2026-10-02-image-ocr-stage2.md). 마지막에 `./scripts/check-all.sh`를 1회 실행한다.

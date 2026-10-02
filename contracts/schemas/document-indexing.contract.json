@@ -104,7 +104,7 @@
     "ranking": "not used for search ranking, filtering or eligibility evidence selection until a decision after cases-v2 evaluation",
     "identity": "not an input of parse_key, chunk_set_key, chunk_id, embedding_text or embedding_key; this top-level section is outside the hashed contract sections (embedding, chunker)",
     "existing_points": "the 61,335 V2 points and all PDF / HWP / HWPX points indexed before 2026-10-02 have no document_role field and are read as UNKNOWN; they are not re-indexed for this field",
-    "attach_stage": "set on the payload when the newly supported formats are indexed (stage 2 onward); the indexing writer is unchanged in the common foundation stage",
+    "attach_stage": "set on the payload by chunking (ChunkSource.document_role from the source format and original filenames) from the image OCR stage (2026-10-02); existing points are not re-indexed for this field",
     "rule": "normalize every original filename (NFC, lower case, whitespace removed); each filename gets the first matching role in priority order FORM > LIST > BODY, otherwise the format default; when the filenames of one source disagree the role is UNKNOWN",
     "filename_cues": {
       "FORM": [

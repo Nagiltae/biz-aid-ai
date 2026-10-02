@@ -152,10 +152,26 @@ def pipeline_config_sha256(contract):
                                      separators=(",", ":")).encode()).hexdigest()
 
 
+def folder_artifacts_sha256(contract, folders):
+    """지정한 모델 폴더 파일만의 manifest SHA. 전체 artifact identity를 먼저 검증한다."""
+    model_artifacts_sha256(contract)
+    files = tuple((folder, name) for folder, name in artifact_files(contract) if folder in folders)
+    return artifacts_manifest_sha256(str(docling_artifacts_path(contract)), files)
+
+
+def image_ocr_config_sha256(contract):
+    """이미지 OCR 결과를 바꾸는 설정: 공유 OCR engine 설정(모델·검출·인식 옵션)과 이미지 OCR 설정(타일·겹침·픽셀 상한·신뢰도 기준)."""
+    return hashlib.sha256(json.dumps({"engine": contract["routes"]["PDF"]["ocr"], "image_ocr": contract["image_ocr"],
+                                      "document_gate": contract["document_gate"]["pdf_ocr_required_max_chars_per_page"]},
+                                     sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+
+
 # parse_key 입력은 코드가 소유한 목록이다. Contract의 parse_key_inputs와 다르면 drift로 실패한다.
 PARSE_KEY_INPUTS = ("source_sha256", "route", "hwpx_adapter_version", "normalizer_version", "docling_core_version",
                     "docling_version", "docling_parse_version", "docling_ibm_models_version", "pipeline_config_sha256",
                     "model_artifacts_sha256", "converter_version", "paddlepaddle_version", "paddlex_version")
+# BOUNDARY: route 전용 입력은 그 route identity에만 더한다. 공통 목록에 넣으면 모든 route identity에 null key가 생겨 기존 parse_key가 바뀐다.
+ROUTE_PARSE_KEY_INPUTS = {"IMAGE_OCR": ("image_ocr_version", "image_ocr_config_sha256")}
 
 
 def parse_identity(source_sha256, route, contract, converter_version=None):
@@ -165,7 +181,7 @@ def parse_identity(source_sha256, route, contract, converter_version=None):
     """
     # WHY: 한 route의 부품 변경이 다른 route 문서까지 재처리하게 만들지 않는다(예: HWPX adapter 변경이 PDF key를 바꾸던 문제).
     versioning = contract["versioning"]
-    identity = dict.fromkeys(PARSE_KEY_INPUTS)
+    identity = dict.fromkeys(PARSE_KEY_INPUTS + ROUTE_PARSE_KEY_INPUTS.get(route, ()))
     identity.update(source_sha256=source_sha256, route=route, normalizer_version=versioning["normalizer_version"],
                     docling_core_version=installed_version("docling-core"))
     if route == "HWPX_DOCLING_ADAPTER":
@@ -182,7 +198,15 @@ def parse_identity(source_sha256, route, contract, converter_version=None):
                         paddlex_version=installed_version("paddlex"))
     if route == "HWP_PDF_DOCLING":
         identity["converter_version"] = converter_version
-    if sorted(identity) != sorted(versioning["parse_key_inputs"]):
+    if route == "IMAGE_OCR":
+        # 이미지 OCR은 Docling layout·표 engine을 쓰지 않으므로 그 identity는 넣지 않는다. 모델 hash는 OCR 두 모델만이다.
+        ocr_folders = {folder for _, folder in contract["routes"]["PDF"]["ocr"]["submodules"].values()}
+        identity.update(image_ocr_version=contract["image_ocr"]["image_ocr_version"],
+                        image_ocr_config_sha256=image_ocr_config_sha256(contract),
+                        model_artifacts_sha256=folder_artifacts_sha256(contract, ocr_folders),
+                        paddlepaddle_version=installed_version("paddlepaddle"), paddlex_version=installed_version("paddlex"))
+    expected = list(versioning["parse_key_inputs"]) + list(versioning.get("route_parse_key_inputs", {}).get(route, []))
+    if sorted(identity) != sorted(expected):
         raise PipelineError("parse_key_contract_drift")
     return identity
 
