@@ -24,6 +24,21 @@ class DocumentRoleTests(unittest.TestCase):
         self.assertEqual(document_role("DOCX", ["Application FORM.docx"]), "FORM")
         self.assertEqual(document_role("DOCX", ["신 청 서.docx"]), "FORM")
 
+    def test_submission_documents_cue_needs_a_qualifier(self):
+        # 2026-10-03 규칙 개정: "제출서류" 단독은 양식 단서가 아니다. 안내·기준은 본문, 목록·체크리스트는 목록이다.
+        self.assertEqual(document_role("HWP", ["【붙임1】 K-브랜드분쟁 대응전략 지원사업 선정심사 기준 및 제출 서류 안내.hwp"]), "BODY")
+        self.assertEqual(document_role("HWP", ["2026 수출입 애로 중소기업 바우처 지원사업 제출서류 체크리스트.hwp"]), "LIST")
+        self.assertEqual(document_role("PDF", ["0. 제출서류 목록(2026년 개정).pdf"]), "LIST")
+        self.assertEqual(document_role("HWPX", ["[붙임 2] 신청기업 제출서류.hwpx"]), "UNKNOWN")
+        # 다른 양식 단서가 함께 있으면 양식 우선순위는 그대로다.
+        self.assertEqual(document_role("HWP", ["(프로그램 2) 신청서 및 제출서류 서식_R&D 연계 신속화.hwp"]), "FORM")
+        # 새 양식 단서. 심사 기준이 담긴 평가표는 양식으로 보지 않는다.
+        for name in ("붙임 1. 결과(실적)보고서 양식_기업명.hwp", "수출 패키지 지원사업 사업결과보고서.hwpx",
+                     "2. (필수제출) 전시품목 상세서(워드).docx", "맞춤형 AllSET 컨설팅_만족도조사서.hwp",
+                     "[붙임3]기업현장애로+컨설팅+전문가+프로필.hwp"):
+            self.assertEqual(document_role("HWP", [name]), "FORM", name)
+        self.assertEqual(document_role("HWP", ["[별지 제2호] 평가표.hwp"]), "UNKNOWN")
+
     def test_format_defaults_and_disagreement(self):
         # 이미지는 포스터·공고 캡처라 단서가 없으면 본문으로 본다. 다른 형식은 단서가 없으면 미상이다.
         self.assertEqual(document_role("PNG", ["컨설팅_001.png"]), "BODY")
@@ -45,6 +60,7 @@ class DocumentRoleTests(unittest.TestCase):
         # 출처 종류 규칙을 바꿔도 해시되는 계약 부분(chunker·embedding)은 그대로다.
         changed = copy.deepcopy(contract)
         changed["document_role"]["filename_cues"]["FORM"].append("새단서")
+        changed["document_role"]["qualified_cues"].append({"cue": "새단서", "role": "BODY", "with_any": ["안내"]})
         self.assertEqual(changed["embedding"], contract["embedding"])
         self.assertIn("not used for search ranking", contract["document_role"]["ranking"])
 

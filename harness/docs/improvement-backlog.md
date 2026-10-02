@@ -14,7 +14,7 @@
 | 단계 | 항목 | 기준 |
 | --- | --- | --- |
 | V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
-| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025, IMP-026 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
+| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025, IMP-026, IMP-027, IMP-028 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
 | 운영/AWS 단계 | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017, IMP-021, IMP-022, IMP-023 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
 | 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
 
@@ -134,6 +134,8 @@
 - Decision(2026-10-02, 사용자): XLSX·DOC·XLS·PPT는 의도적으로 제외한다(단독·압축 안 모두). 근거: 내용이 빈 신청 양식·명단·참고표 위주이고, 이 형식만 가진 공고가 없어 미적재 공고를 구제하는 효과가 0이며, 검색 근거를 밀어낼 위험이 있다. 다시 볼 조건: 서류·양식 질문이 반복 실패할 때, 양식 중심 기능(신청서 작성 도우미 등)을 만들 때. 일반 ZIP 안에서는 `EXCLUDED intentionally_excluded_format`으로 상태만 남긴다(V2 미리보기 XLSX 23개).
 - Evidence(4단계 일반 ZIP, 2026-10-02): 펼치기 구현·미리보기(쓰기 없음). V2 범위 117압축 → 내부 639개 중 처리 대상 539(고유 510), 단독 첨부 중복 7, 제외 93, 압축 거부 0. ODT 1개 공고는 같은 제목 HWPX·HWP가 V2에 적재돼 있음(95 point). 기록 `2026-10-02-generic-zip-stage4.md`.
 - Evidence(4단계 승인 실행, 2026-10-02): V10 적용(dev·test, backend Flyway 11.7.2 validate 통과). 117압축 펼치기 → DB 639행·S3 새 object 510(미리보기와 같음). 표본 7 파싱(PARSED 5·OCR_REQUIRED 2, Qdrant 없음). document_role 확인: 무작위 FORM 15/15가 실제 양식, "제출서류" 단서 오판 3. 전체 범위 A(510)/B(FORM 제외 191) 결정 대기(`2026-10-02-generic-zip-stage4.md` §9).
+- Decision(2026-10-03, 사용자): 일반 ZIP 내부 파일은 범위 B로 적재한다. FORM(새 규칙 기준 323)은 S3 원본·DB 행으로 보관만 하고 파싱·적재하지 않는다. 다만 3단계 DOCX의 FORM 27 point는 이미 V2에 적재돼 있다. cases-v2에서 FORM 검색 제외 필터를 만들 때 그 27 point와 ZIP 내부 FORM 적재 여부를 함께 정한다. 같은 날 document_role 규칙도 개정했다("제출서류"는 안내·기준 → BODY, 목록·체크리스트 → LIST, 단독은 단서 아님 / FORM 단서 결과보고서·상세서·조사서·프로필 추가).
+- Evidence(4단계 전체 실행 B, 2026-10-03): FORM이 아닌 187원본 파싱(170 PARSED·17 OCR_REQUIRED, 실패 0) → 신규 11,891 point(기존 point 변경 0). V2 2,816문서·73,430 point. 대형 참고자료 비중 문제는 IMP-028(`2026-10-02-generic-zip-stage4.md` §10).
 - Status: OPEN
 
 ## IMP-010 Parser 품질 한계(OCR·읽기 순서·그림 해석)
@@ -314,4 +316,34 @@
 - Why deferred: 지금 고치면 그 자체가 hash 입력을 바꿔 적재된 7원본의 parse_key가 바뀐다. 사용자 결정으로 이번에는 기록만 한다.
 - Revisit trigger: Office 설정을 바꿀 때(결과에 영향을 주는 값만 hash하는 구역으로 분리 — 예: `office.identity`)
 - Side effect: 분리하는 순간 DOCX·PPTX parse_key가 한 번 바뀌므로 7원본 재파싱·재적재가 함께 필요하다. `image_ocr_config_sha256`도 `image_ocr` 구역 전체(설명 문구 engine·tiling·acceptance·value_basis 등 포함)를 hash하는 같은 구조라 IMAGE_OCR 105원본에도 같은 위험이 있다. 함께 정한다.
+- Status: OPEN
+
+## IMP-027 document_role BODY 단서 "지침"이 내부 운영 규정까지 본문으로 판정함
+
+- Area: 조각 출처 종류(document_role) 판정
+- Issue: BODY 단서 "지침"이 사업 지침(지원 대상·절차)뿐 아니라 신청자와 무관한 내부 운영 규정(예: 평가위원 수당지급 지침)도 BODY로 만든다.
+- Evidence: 4단계 일반 ZIP 판정 확인(2026-10-02) 무작위 BODY 5개 중 "첨부 3. 대구테크노파크 전문가 수당지급 지침.hwp"(회의수당 지급 기준표)가 BODY로 판정됐다. 기록 `2026-10-02-generic-zip-stage4.md` §9.
+- Why deferred: 한 건이고 내용이 짧아 검색 근거를 밀어낼 위험이 작다. 사용자 결정으로 기록만 한다.
+- Revisit trigger: cases-v2에서 document_role을 검색 필터·가중치에 쓰기로 정할 때
+- Side effect: "지침"을 빼면 실제 사업 지침 문서(관리지침·운영지침)가 UNKNOWN이 된다. 예외 단어(수당·위원·내부) 방식과 비교해야 한다.
+- Status: OPEN
+
+## IMP-028 ZIP 내부 대형 참고자료가 일부 공고의 검색 근거를 대부분 차지함
+
+- Area: V2 검색 근거(Qdrant V2 collection, 일반 ZIP 내부 파일)
+- Issue: 일반 ZIP 안의 참고 해설서·가이드북·매뉴얼은 공고 본문이 아니지만 쪽수가 많아 point가 매우 많다. 이 파일들은 FORM이 아니라 UNKNOWN으로 판정돼 범위 B에서도 적재됐다. 공고별 검색(DOCUMENT_QA·자격 판정 근거)은 후보 공고 안에서 상위 조각을 고르므로, 해당 공고에서는 본문 조각이 참고자료 조각에 밀릴 수 있다.
+- Evidence(2026-10-03):
+  - 새 point 11,891 중 9,449(79%)가 이름에 참고·해설서·가이드·매뉴얼·분류가 들어간 45원본에서 나왔다. point 500개를 넘는 원본 6개가 6,892 point다
+  - 예: 「한국표준산업분류 제11차 개정 해설서」 1,011쪽 3,458 point → PBLN_000000000125978 공고의 3,963 point 중 3,936(99%)이 ZIP 내부 파일
+  - 「국가과학기술표준분류체계 해설서」 407쪽 1,048 point(공고 2개)
+  - 새 문서가 생긴 58공고 중 34곳에서 새 point가 공고 point의 절반을 넘는다
+  - 기록 `2026-10-02-generic-zip-stage4.md` §10
+- Why deferred: 사용자 지시로 기존 point와 이번 적재 point를 바꾸거나 지우지 않았다. 처리 방식은 사용자 결정이 필요하다.
+- Revisit trigger: 지금(서비스가 V2를 읽음). 늦어도 cases-v2 작성 전
+- 선택지
+  - (a) 참고자료 원본의 point만 source_sha256으로 지우고 파싱 결과는 보관한다(언제든 다시 적재 가능)
+  - (b) 원본당 point 상한(예: 200)을 넘는 원본은 적재하지 않는다
+  - (c) document_role에 REFERENCE를 추가하거나 "참고·해설서·가이드·매뉴얼"을 단서로 써서 FORM과 같이 보관만 한다
+  - (d) 그대로 두고 cases-v2에서 공고별 근거 순위를 비교한 뒤 정한다
+- Side effect: (a)(b)는 이미 적재된 point 삭제라 사용자 승인이 필요하다. 참고자료에도 업종 코드 확인 같은 실제 답 근거가 있어 완전 제외는 일부 질문의 답을 잃는다.
 - Status: OPEN

@@ -20,6 +20,10 @@ def filename_role(detected_format, filename, spec):
     for role in PRIORITY:
         if any(normalize(cue) in text for cue in spec["filename_cues"][role]):
             return role
+        # WHY: "제출서류"는 양식 묶음과 제출 서류 안내문 이름에 모두 쓰인다. 함께 쓰인 단어로만 종류를 정한다.
+        if any(rule["role"] == role and normalize(rule["cue"]) in text and any(normalize(word) in text for word in rule["with_any"])
+               for rule in spec.get("qualified_cues", ())):
+            return role
     return spec["format_defaults"].get(detected_format, "UNKNOWN")
 
 

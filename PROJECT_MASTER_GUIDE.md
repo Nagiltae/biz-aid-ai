@@ -79,7 +79,7 @@
 | LangChain(LLM 호출 계층만) | 적용(V2-0) |
 | LangGraph(추천 흐름 단계·분기, State는 MySQL ai_workflows) | 적용(V2-3) |
 | LangSmith(AI 실행 추적, 선택적·개인정보 제외) | 적용(V2-6, 설정으로 켬) |
-| V2 서비스 범위 데이터(PDF·HWP·HWPX + PNG·JPEG + DOCX·PPTX) | 적재 완료·완전성 확인(2,646문서·61,539 point, 범위 1,372공고 전부 포함), FastAPI는 V2 collection 사용 |
+| V2 서비스 범위 데이터(PDF·HWP·HWPX + PNG·JPEG + DOCX·PPTX + 일반 ZIP 내부 파일) | 적재 완료·완전성 확인(2,816문서·73,430 point, 범위 1,372공고 전부 포함), FastAPI는 V2 collection 사용. 대형 참고자료 비중 문제는 IMP-028 |
 | V2 이미지 OCR추가 대상(PNG 58·JPEG 47, 고유 원본 105개) | 105 PARSED·105 INDEXED, 신규 146 point. 실패·OCR_REQUIRED 0 |
 
 V1 release 후보는 데이터 수집부터 React → Spring Boot → FastAPI 서비스와 고정 AI 기준선까지 포함한다.
@@ -91,6 +91,7 @@ V1 release 후보는 데이터 수집부터 React → Spring Boot → FastAPI �
 - **V2 PDF·HWP·HWPX 초기 적재 완료(2026-10-02)**: 서비스 범위 2,541문서 중 2,534문서 파싱 성공(PARSED), 7문서 제외(파싱 실패 2·실행 실패 3·OCR 필요 2). 2,534문서 전부 V2 collection `bizaid_v2_chunks_v1_228acdd12220`에 적재돼 61,335 point다. 적재 뒤 자동 검증(`final.ok=true`)과 별도 재집계에서 문서 수·point 수·공고 ID·출처 누락 0이 맞았다. V1 collection은 3,849 point 그대로다. 수치·분류는 `2026-10-02-v2-data-completeness.md`.
 - **이미지 OCR 전체 실행 완료(2026-10-02)**: 같은 기준일 서비스 범위 1,372공고에서 PNG·JPEG 105고유 원본(PNG 58·JPEG 47)을 선택했다. AWS 갱신 권한 문제로 두 차례 중단된 이력은 보존하고, 권한 승인 실행에서 같은 run-id로 완료했다. 최신 결과 **105 PARSED → 105 INDEXED → Qdrant 신규 source 105 / 신규 point 146**이 일치한다. 현재 parse_key MySQL metadata 105행, 실패·OCR_REQUIRED 0, 신규 point의 `document_role=BODY` 146/146, provenance 누락 0이다. V2 합계는 **2,639문서·61,481 point**이며 기존 V2 61,335 point와 V1 3,849 point의 ID·payload·vector hash는 변경·누락 0이다. 실행 결과는 `2026-10-02-image-ocr-stage2.md` §9, 저신뢰도 잡음 관찰은 IMP-010이다.
 - **DOCX·PPTX 전체 실행 완료(2026-10-02)**: 서비스 범위 단독 첨부 DOCX 6 + PPTX 1 = 7원본 → **7 PARSED → 7 INDEXED → 신규 point 58**(DOCX 57·PPTX 1)이 일치한다. 신규 point의 `document_role`은 BODY 19·FORM 27·UNKNOWN 12, 공고·provenance 누락 0이다. DOCX는 page 없이 문서 순서·제목 경로, PPTX는 슬라이드 번호와 pt 단위 위치를 남긴다. V2 합계는 **2,646문서·61,539 point**이며 기존 V2 61,481 point와 V1 3,849 point의 ID·payload·vector hash는 변경·누락 0이다. 결과는 `2026-10-02-office-stage3.md` §8.
+- **일반 ZIP 내부 파일 적재 완료(2026-10-03, 범위 B)**: 서비스 범위 일반 압축 117개를 깊이 1로 펼쳐 내부 파일 639개를 `document_archive_members`(V10)에 기록하고 처리 대상 고유 510개를 S3에 저장했다. 개정한 document_role 규칙으로 FORM 323개는 보관만 하고, FORM이 아닌 187개를 파싱했다(**170 PARSED·17 OCR_REQUIRED**, 실패 0, OCR_REQUIRED는 로고·간판 그림). 170원본 → **신규 point 11,891**(공고 relation은 압축에서 상속, 누락 0). 기존 V2 61,539·V1 3,849 point의 ID·payload·vector hash 변경 0. V2 합계 **2,816문서·73,430 point**. 단, 새 point의 79%(9,449)가 참고 해설서·가이드 45원본이고 공고 34곳에서 새 point가 절반을 넘는다(IMP-028, 결정 대기). 결과는 `2026-10-02-generic-zip-stage4.md` §10.
 - **현재 서비스**: 사용자 인수인계 기준 FastAPI는 V2 collection(`QDRANT_COLLECTION_NAMESPACE=v2`)을 읽는다. 서비스 범위 **1,372공고 전부**에 point가 있다(point 없는 공고 27 → 이미지 OCR 뒤 1 → DOCX 뒤 **0**, 마지막 `PBLN_000000000124107`은 DOCX 공고문으로 들어왔다).
 - **미검증**: 이미지 OCR 전체 의미 정확도(표본 외 별도 평가 없음), V2 전체 데이터 검색/추천 품질(cases-v2), 실제 전체 workflow의 LangSmith 추적, React 화면에서 Top 3 판정 → 추가 질문 → 재판정 → 최종 결과까지 한 번에 끝까지 진행한 E2E(V2-5는 시작·다음 단계 1회·복원까지 확인), 실제 LLM 결과로 만든 final_result(V2-4는 mock 판정 결과 테스트로 검증).
 - **다음 작업**: 사용자 검토 후 3단계 DOCX·PPTX(ODT는 LibreOffice→DOCX) 범위 결정 → React 화면에서 추천 흐름 끝까지 진행 + LangSmith 기록 확인 → cases-v2 평가. 이번 작업에서 다음 route를 활성화하거나 평가를 시작하지 않았다.
@@ -101,7 +102,7 @@ V1 release 후보는 데이터 수집부터 React → Spring Boot → FastAPI �
 
 | 이렇게 말하면 틀림 | 실제 의미 |
 | --- | --- |
-| "파싱 100/100 성공" = 전체 처리 완료 | V1 검증용 100문서. V2 PDF·HWP·HWPX 2,534개 + 이미지 105개 + DOCX·PPTX 7개가 적재돼 총 2,646문서·61,539 point. 일반 ZIP·XLSX·옛 오피스는 아직 미지원이고 품질 평가 완료도 아님 |
+| "파싱 100/100 성공" = 전체 처리 완료 | V1 검증용 100문서. V2 PDF·HWP·HWPX 2,534개 + 이미지 105개 + DOCX·PPTX 7개 + 일반 ZIP 내부 파일 170개가 적재돼 총 2,816문서·73,430 point. XLSX·옛 오피스는 아직 미지원(XLSX·DOC·XLS·PPT는 의도적 제외), ZIP 내부 양식(FORM)은 보관만, 품질 평가 완료도 아님 |
 | "V2 Qdrant 207 point" = V2 적재 완료 | 3문서 Smoke |
 | "V2 구현 완료" = V2 검증 완료 | 기능 흐름 구현. 전체 데이터 품질·끝까지 완주한 E2E·배포는 아님 |
 | "V1 기준선 7/10"을 V2-0 개선 뒤 9/10으로 고쳐 말함 | 기준선은 동결이다. 개선은 새 평가(cases-v2)로 따로 잰다 |
@@ -120,7 +121,7 @@ V1 release 후보는 데이터 수집부터 React → Spring Boot → FastAPI �
 | 흐름 관리 | 요청마다 독립 | LangGraph State를 Spring이 MySQL `ai_workflows`에 저장, 새로고침 후 복원 |
 | 결과 | 목록·답변·단일 판정 | 추천 가능·지원 불가·판단 불가(final_result, §12 V2-4) |
 | LLM 호출 | V1 당시 직접 만든 Ollama 호출 → V2-0부터 V1 경로도 LangChain 호출 계층 공유 | 같음 |
-| 문서 데이터 | V1 collection 100문서·3,849 조각(기준선 재현용 동결) | 기준일 서비스 범위의 PDF·HWP·HWPX 2,534문서 + 이미지 105문서 + DOCX·PPTX 7문서 = 2,646문서·61,539 point, FastAPI는 별도 V2 collection 사용 |
+| 문서 데이터 | V1 collection 100문서·3,849 조각(기준선 재현용 동결) | 기준일 서비스 범위의 PDF·HWP·HWPX 2,534문서 + 이미지 105문서 + DOCX·PPTX 7문서 + 일반 ZIP 내부 파일 170문서 = 2,816문서·73,430 point, FastAPI는 별도 V2 collection 사용 |
 | 관측 | 없음 | LangSmith 선택적 추적(V2-6) |
 | 품질 평가 | 고정 기준선 10건 중 7 PASS | 전체 데이터 기준 평가는 아직 없음(Smoke만) |
 

@@ -1,5 +1,11 @@
 # Harness 변경 이력
 
+## 2026-10-03 — 일반 ZIP 범위 B 전체 실행 + document_role 규칙 개정
+
+사용자 결정: 범위 B(FORM은 보관만). document_role 계약 개정: "제출서류"를 단독 FORM 단서에서 빼고 `qualified_cues`(+목록·체크리스트 → LIST, +안내·기준 → BODY) 추가, FORM 단서 결과보고서·상세서·조사서·프로필 추가(평가표 제외). 판정 코드·테스트 갱신. 식별값 입력 아님(267/267 동일). 기존 point payload는 고치지 않음.
+실행: FORM이 아닌 187원본 파싱(AWS 만료로 96에서 멈춘 뒤 같은 run-id로 재개, 170 PARSED·17 OCR_REQUIRED·실패 0) → V2에 신규 11,891 point. 기존 V2 61,539·V1 3,849 point hash 변경 0. V2 2,816문서·73,430 point.
+Backlog: IMP-009 결정·Evidence, IMP-027(지침 단서), IMP-028(대형 참고자료가 공고 근거를 차지, 결정 대기). Master Guide §1·README 갱신.
+
 ## 2026-10-02 — 일반 ZIP 승인 실행: V10 적용·내부 파일 S3 저장·표본 파싱
 
 V10을 공통 `migrations/`로 옮겨(보관 폴더 삭제) dev·test에 적용, COMMENT 검사 통과, Spring backend Flyway(11.7.2) validate 통과. Registry·계약·테스트 경로 갱신.
