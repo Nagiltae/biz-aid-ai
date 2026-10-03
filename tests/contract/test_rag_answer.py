@@ -92,22 +92,24 @@ class RagAnswerContractTests(unittest.TestCase):
 
 class LangChainProviderTests(unittest.TestCase):
     def test_ollama_provider_sends_schema_through_langchain_and_maps_errors_to_fixed_codes(self):
-        from langchain_core.messages import AIMessage
+        from langchain_core.messages import AIMessageChunk
         from biz_aid_pipeline.config.settings import PipelineError
         from biz_aid_pipeline.rag.llm import LlmRequest, OllamaLlmProvider
 
         class FakeChat:
+            """ChatOllama.stream 대역. 응답을 chunk 하나로 흘려보낸다(전체 기한 확인은 chunk 사이에서 한다)."""
+
             def __init__(self, result):
                 self.result, self.calls = result, []
 
-            def invoke(self, messages, **kwargs):
+            def stream(self, messages, **kwargs):
                 self.calls.append((messages, kwargs))
                 if isinstance(self.result, Exception):
                     raise self.result
-                return self.result
+                yield self.result
 
         schema = {"type": "object", "properties": {"answer": {"type": "string"}}}
-        chat = FakeChat(AIMessage(content='{"answer": "{x}"}', response_metadata={"model": "qwen", "eval_count": 3}))
+        chat = FakeChat(AIMessageChunk(content='{"answer": "{x}"}', response_metadata={"model": "qwen", "eval_count": 3}))
         provider = OllamaLlmProvider("http://127.0.0.1:11434", "qwen", 5, "1m", chat=chat)
         response = provider.generate(LlmRequest("규칙 {중괄호}", "질문", schema))
         messages, kwargs = chat.calls[0]
@@ -123,6 +125,53 @@ class LangChainProviderTests(unittest.TestCase):
         http_error.status_code = 500
         with self.assertRaisesRegex(PipelineError, "^llm_http_error:500$"):
             OllamaLlmProvider("u", "m", 5, "1m", chat=FakeChat(http_error)).generate(LlmRequest("s", "u", schema))
+
+    def test_total_deadline_closes_the_stream_and_limits_are_sent_in_options(self):
+        from langchain_core.messages import AIMessageChunk
+        from biz_aid_pipeline.config.settings import PipelineError
+        from biz_aid_pipeline.rag.llm import LlmRequest, OllamaLlmProvider, llm_call_limits, provider_from_settings
+
+        class EndlessChat:
+            """token을 끝없이 보내는 생성(반복 폭주). 연결을 닫았는지 기록한다."""
+
+            def __init__(self):
+                self.closed, self.kwargs = False, None
+
+            def stream(self, messages, **kwargs):
+                self.kwargs = kwargs
+                try:
+                    while True:
+                        yield AIMessageChunk(content='{"criterion":"같은 조건",')
+                except GeneratorExit:
+                    self.closed = True
+                    raise
+
+        chat = EndlessChat()
+        provider = OllamaLlmProvider("u", "m", 0.05, "1m", chat=chat, num_ctx=32768)
+        with self.assertRaisesRegex(PipelineError, "^llm_timeout$"):
+            provider.generate(LlmRequest("s", "u", {"type": "object"}, max_output_tokens=1024))
+        # 기한이 지나면 stream을 닫는다(실제 Ollama는 연결이 닫히면 생성을 멈춘다). 상한은 options로 같이 간다.
+        self.assertTrue(chat.closed)
+        self.assertEqual(chat.kwargs["options"], {"temperature": 0.0, "num_ctx": 32768, "num_predict": 1024})
+        # 읽기 대기 시간 초과 예외도 같은 고정 코드다.
+        class ReadTimeout(Exception):
+            pass
+        class SlowChat:
+            def stream(self, messages, **kwargs):
+                raise ReadTimeout("no first token")
+                yield
+        with self.assertRaisesRegex(PipelineError, "^llm_timeout$"):
+            OllamaLlmProvider("u", "m", 5, "1m", chat=SlowChat()).generate(LlmRequest("s", "u", {}))
+        # 설정은 기한을 줄일 수만 있고 Spring 응답 제한(90초)보다 짧은 계약값을 넘지 못한다.
+        deadline, context = llm_call_limits()
+        self.assertLess(deadline, 90)
+        self.assertEqual(context, 32768)
+        # 설정 파일 없이 process environment만으로 확인한다(.env.dev를 읽지 않도록 없는 root를 준다).
+        environ = {"OLLAMA_MODEL": "qwen", "OLLAMA_TIMEOUT_SECONDS": "300"}
+        self.assertEqual(provider_from_settings("dev", ROOT / "missing-root-for-env", environ).timeout_seconds, deadline)
+        self.assertEqual(provider_from_settings("dev", ROOT / "missing-root-for-env",
+                                                dict(environ, OLLAMA_TIMEOUT_SECONDS="30")).timeout_seconds, 30)
+        self.assertEqual(provider_from_settings("dev", ROOT / "missing-root-for-env", {"OLLAMA_MODEL": "qwen"}).num_ctx, context)
 
 
 if __name__ == "__main__":

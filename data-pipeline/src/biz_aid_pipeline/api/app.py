@@ -63,8 +63,11 @@ def status_for(code):
         return 409 if code.startswith("workflow_invalid_transition") else 422
     if code.startswith(("company_profile_", "company_search_profile_")):
         return 422
-    if code == "llm_unavailable" or code.startswith("llm_http_error"):
+    # 시간 초과(llm_timeout)도 일시적인 의존 서비스 문제다. Spring은 503을 "AI 서비스 일시 불가"로 보여 준다.
+    if code in ("llm_unavailable", "llm_timeout") or code.startswith("llm_http_error"):
         return 503
+    if code == "llm_empty_response":
+        return 502
     if code.startswith(MODEL_OUTPUT_ERRORS):
         return 502
     return 500

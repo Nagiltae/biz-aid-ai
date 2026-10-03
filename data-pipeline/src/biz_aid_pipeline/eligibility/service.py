@@ -62,9 +62,14 @@ def fact_ids(facts):
     return by_id, names, labels
 
 
-def output_schema(allowed_fields, allowed_evidence):
-    """요청마다 허용값을 넣은 출력 schema. 고를 수 있는 field ID·evidence 번호를 생성 단계에서 미리 제한한다(enum)."""
+def output_schema(allowed_fields, allowed_evidence, max_criteria=None):
+    """요청마다 허용값을 넣은 출력 schema. 고를 수 있는 field ID·evidence 번호를 생성 단계에서 미리 제한한다(enum).
+
+    max_criteria는 criteria 배열 최대 개수(maxItems)다. 같은 조건을 끝없이 반복 생성하는 폭주를 생성 단계에서 끊는다.
+    """
     schema = copy.deepcopy(OUTPUT_SCHEMA)
+    if max_criteria:
+        schema["properties"]["criteria"]["maxItems"] = max_criteria
     item = schema["properties"]["criteria"]["items"]["properties"]
     item["evidence_ids"]["items"]["enum"] = list(allowed_evidence)
     item["profile_fields"]["items"]["enum"] = list(allowed_fields)
@@ -152,11 +157,18 @@ class EligibilityService:
         legend = "".join(f"\n- {key}: {label}" for key, label in labels.items())
         user = (f"기준일: {as_of}\n\n공고 근거(evidence):\n{context}\n\n기업 정보(field ID: 값, null은 모름):\n"
                 f"{json.dumps(facts, ensure_ascii=False, indent=1)}" + (f"\n\n추가 사실 field ID 설명:{legend}" if legend else ""))
-        response = self.provider.generate(LlmRequest(SYSTEM_PROMPT, user, output_schema(facts, index)))
+        limits = self.contract["criterion_output"]
+        response = self.provider.generate(LlmRequest(SYSTEM_PROMPT, user, output_schema(facts, index, limits["max_criteria"]),
+                                                     max_output_tokens=limits["max_output_tokens"]))
+        # BOUNDARY: 출력 상한에 닿은 결과는 잘린 목록일 수 있다. 빠진 조건 때문에 ELIGIBLE이 되지 않게 판정하지 않고 실패로 남긴다.
+        if response.usage.get("done_reason") == "length":
+            raise PipelineError("eligibility_output_limit_reached")
         try:
             raw = json.loads(response.text)
         except ValueError:
             raise PipelineError("eligibility_output_not_json") from None
+        if isinstance(raw, dict) and isinstance(raw.get("criteria"), list) and len(raw["criteria"]) >= limits["max_criteria"]:
+            raise PipelineError("eligibility_output_limit_reached")
         criteria = validate(raw, index, facts, pblanc_id, names)
         status = overall_status(criteria)
         missing = sorted({field for item in criteria if item["result"] == "UNKNOWN" for field in item["missing_profile_fields"]})

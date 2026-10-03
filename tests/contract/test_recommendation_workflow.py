@@ -82,6 +82,18 @@ class RecommendationWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(PipelineError, "workflow_invalid_transition"):
             advance(self.graph, state, "continue")
 
+    def test_llm_timeout_fails_only_that_program_and_the_next_program_is_still_evaluated(self):
+        # 2026-10-03 장애: 2번째 공고 판정이 끝나지 않아 Spring 90초 제한에 걸렸다. 이제 FastAPI가 75초에 llm_timeout으로 끊는다.
+        fakes = Fakes({"status": "LISTED", "candidate_count": 3, "programs": [program(1, "P1"), program(2, "P2"), program(3, "P3")]},
+                      {"P1": eligibility("P1", "ELIGIBLE"), "P2": PipelineError("llm_timeout"), "P3": eligibility("P3", "ELIGIBLE")})
+        graph = build_graph(fakes.search, fakes.evaluate)
+        state = roundtrip(start(graph, "금융 지원사업", COMPANY, date(2026, 10, 3)))
+        for _ in range(3):
+            state = roundtrip(advance(graph, state, "continue"))
+        self.assertEqual([(e["evaluation_status"], e["error_code"]) for e in state["evaluations"]],
+                         [("COMPLETED", None), ("FAILED", "llm_timeout"), ("COMPLETED", None)])
+        self.assertEqual((state["status"], len(fakes.evaluations)), ("COMPLETED", 3))
+
     def test_missing_information_is_merged_answers_are_restricted_and_only_affected_programs_are_reevaluated(self):
         state = roundtrip(start(self.graph, "q", COMPANY, date(2026, 10, 1)))
         for _ in range(3):

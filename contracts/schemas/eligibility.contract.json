@@ -50,14 +50,19 @@
       "a required company fact that is missing gives UNKNOWN, never an inferred MET or NOT_MET",
       "every criterion cites at least one evidence id of this request and names the profile fields it compared"
     ],
-    "field_ids": "the model sees company facts keyed by stable field IDs (snapshot field names, business_age_months, extra_1..extra_N for additional_facts with a label legend); profile_fields and evidence_ids are restricted per request by JSON schema enum, then re-validated by the application and mapped back to the original names in the result"
+    "field_ids": "the model sees company facts keyed by stable field IDs (snapshot field names, business_age_months, extra_1..extra_N for additional_facts with a label legend); profile_fields and evidence_ids are restricted per request by JSON schema enum, then re-validated by the application and mapped back to the original names in the result",
+    "max_criteria": 12,
+    "max_output_tokens": 1024,
+    "limit_basis": "2026-10-03 diagnosis (recommend Top 3, local qwen3.5:9b, 18.7 output tokens/s): normal judgments had 2, 8 and 10 criteria (170-1,000 output tokens, 9-48s); the failing program looped over 13 distinct criteria (67 criteria, 54 exact duplicates, 37 about documents) and did not finish within 5,000 tokens; another listed 37 criteria (1,735 tokens, 97s). max_criteria 12 is 20% above the largest normal count and is enforced as JSON schema maxItems during generation; max_output_tokens 1,024 covers 12 criteria at 75 tokens each (about 55s)",
+    "limit_rule": "an output that reaches max_criteria or is cut by max_output_tokens is not judged: the evaluation fails with eligibility_output_limit_reached (fail closed) so a truncated criteria list can never become ELIGIBLE; prompt text, criterion rules and overall status rules are unchanged"
   },
   "validation": {
     "fail": [
       "schema mismatch or result outside MET/NOT_MET/UNKNOWN",
       "evidence id not in the request context",
       "evidence from another pblanc_id",
-      "profile field name not in the snapshot facts"
+      "profile field name not in the snapshot facts",
+      "output limit reached (criteria count at max_criteria or generation stopped by max_output_tokens): eligibility_output_limit_reached"
     ],
     "adjust": "a MET or NOT_MET criterion whose referenced profile fields are all missing becomes UNKNOWN (recorded in adjusted)"
   },

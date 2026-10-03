@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from biz_aid_pipeline.config.settings import ROOT, PipelineError, profile_values
+from biz_aid_pipeline.config.settings import ROOT, PipelineError, profile_values, read_json
 
 SETTING_NAMES = {"LLM_PROVIDER", "OLLAMA_BASE_URL", "OLLAMA_MODEL", "OLLAMA_TIMEOUT_SECONDS", "OLLAMA_KEEP_ALIVE"}
 
@@ -21,6 +21,8 @@ class LlmRequest:
     user: str
     output_schema: dict
     temperature: float = 0.0
+    # 생성 token 상한(num_predict). None이면 모델 기본값이다. 반복 생성 폭주를 막아야 하는 호출(자격 판정)이 정한다.
+    max_output_tokens: int | None = None
 
 
 @dataclass(frozen=True)
@@ -54,9 +56,9 @@ class OllamaLlmProvider:
 
     name = "ollama"
 
-    def __init__(self, base_url, model, timeout_seconds, keep_alive, chat=None):
+    def __init__(self, base_url, model, timeout_seconds, keep_alive, chat=None, num_ctx=None):
         self.base_url, self.model = base_url.rstrip("/"), model
-        self.timeout_seconds, self.keep_alive = timeout_seconds, keep_alive
+        self.timeout_seconds, self.keep_alive, self.num_ctx = timeout_seconds, keep_alive, num_ctx
         if chat is None:
             from langchain_ollama import ChatOllama
             # WHY: 추론 과정(thinking)은 답변 근거가 아니고 지연만 늘려 끈다(reasoning=False). temperature는 요청마다 넘긴다.
@@ -66,14 +68,35 @@ class OllamaLlmProvider:
 
     def generate(self, request):
         messages = self.prompt.format_messages(system=request.system, user=request.user)
+        # BOUNDARY: options를 넘기면 ChatOllama는 객체의 다른 생성 설정을 쓰지 않으므로 context·출력 상한도 여기에 함께 넣는다.
+        options = {"temperature": request.temperature}
+        if self.num_ctx:
+            options["num_ctx"] = self.num_ctx
+        if request.max_output_tokens:
+            options["num_predict"] = request.max_output_tokens
         started = time.monotonic()
+        deadline = started + self.timeout_seconds
+        message, stream = None, None
         try:
-            message = self.chat.invoke(messages, format=request.output_schema, options={"temperature": request.temperature})
+            # WHY: client timeout은 읽기 사이의 대기 시간이라 token이 계속 오면 끝나지 않는다(Spring이 포기한 뒤에도 생성이 이어짐).
+            # stream으로 받으며 전체 기한을 직접 확인하고, 넘으면 연결을 닫아 Ollama 생성도 멈추게 한다.
+            stream = self.chat.stream(messages, format=request.output_schema, options=options)
+            for chunk in stream:
+                message = chunk if message is None else message + chunk
+                if time.monotonic() > deadline:
+                    raise PipelineError("llm_timeout")
+        except PipelineError:
+            raise
         except Exception as error:
             raise PipelineError(error_code(error)) from None
+        finally:
+            if stream is not None and hasattr(stream, "close"):
+                stream.close()
+        if message is None:
+            raise PipelineError("llm_empty_response")
         elapsed = time.monotonic() - started
         metadata = getattr(message, "response_metadata", {}) or {}
-        usage = {key: metadata.get(key) for key in ("prompt_eval_count", "eval_count", "total_duration", "load_duration")}
+        usage = {key: metadata.get(key) for key in ("prompt_eval_count", "eval_count", "total_duration", "load_duration", "done_reason")}
         content = message.content if isinstance(message.content, str) else json.dumps(message.content, ensure_ascii=False)
         return LlmResponse(content, self.name, metadata.get("model", self.model), round(elapsed, 2), usage)
 
@@ -83,7 +106,16 @@ def error_code(error):
     status = getattr(error, "status_code", None)
     if isinstance(status, int) and status >= 400:
         return f"llm_http_error:{status}"
+    # 첫 token 전까지 응답이 없어 읽기 대기가 기한(timeout_seconds)을 넘은 경우도 시간 초과다.
+    if "timeout" in type(error).__name__.lower():
+        return "llm_timeout"
     return "llm_unavailable"
+
+
+def llm_call_limits(root=ROOT):
+    """내부 API 계약의 LLM 호출 상한(전체 기한 초, context token 수). Spring 응답 제한보다 짧아야 한다."""
+    spec = read_json(root / "contracts/schemas/internal-api.contract.json")["llm_call"]
+    return float(spec["deadline_seconds"]), int(spec["context_tokens"])
 
 
 def provider_from_settings(profile, root=ROOT, environ=None):
@@ -96,6 +128,9 @@ def provider_from_settings(profile, root=ROOT, environ=None):
         model = settings.get("OLLAMA_MODEL")
         if not model:
             raise PipelineError("ollama_model_required")
-        return OllamaLlmProvider(settings.get("OLLAMA_BASE_URL") or "http://127.0.0.1:11434", model,
-                                 float(settings.get("OLLAMA_TIMEOUT_SECONDS") or 300), settings.get("OLLAMA_KEEP_ALIVE") or "10m")
+        deadline, num_ctx = llm_call_limits()
+        # BOUNDARY: 설정(OLLAMA_TIMEOUT_SECONDS)은 기한을 줄일 수만 있다. Spring 응답 제한(90초)보다 길게 생성하지 않는다.
+        timeout = min(float(settings.get("OLLAMA_TIMEOUT_SECONDS") or deadline), deadline)
+        return OllamaLlmProvider(settings.get("OLLAMA_BASE_URL") or "http://127.0.0.1:11434", model, timeout,
+                                 settings.get("OLLAMA_KEEP_ALIVE") or "10m", num_ctx=num_ctx)
     raise PipelineError("llm_provider_unsupported:" + provider)

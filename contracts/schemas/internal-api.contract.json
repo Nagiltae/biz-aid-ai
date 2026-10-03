@@ -145,5 +145,12 @@
     "never_sent": "query, company profile, temporary facts and answer values, document text/chunks, prompts, model output, secrets, exception messages",
     "auto_tracing": "LangChain/LangGraph automatic tracing is disabled inside workflow calls",
     "failure": "tracing errors are swallowed; the AI flow continues"
+  },
+  "llm_call": {
+    "deadline_seconds": 75,
+    "deadline_rule": "every Ollama call has a total deadline (not a per-read timeout); the response is streamed and the HTTP connection is closed when the deadline passes, which makes Ollama stop generating; the call fails with llm_timeout. OLLAMA_TIMEOUT_SECONDS may lower it but never raise it above deadline_seconds",
+    "deadline_basis": "2026-10-03: Spring AI_RESPONSE_TIMEOUT is 90s; one request runs at most one judgment LLM call (IMP-020); 75s leaves time for retrieval and serialization. Before this the 300s client timeout applied per streamed read, so a generation abandoned by Spring kept running (20,905 tokens over 18+ minutes observed)",
+    "context_tokens": 32768,
+    "context_basis": "num_ctx is sent explicitly on every call and equals the context the local runner already uses (ollama ps 32768), so no reload happens; measured judgment input 2,315-3,252 tokens plus at most 1,024 output tokens fits without truncation or context shift"
   }
 }

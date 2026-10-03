@@ -1,5 +1,11 @@
 # Harness 변경 이력
 
+## 2026-10-03 — 맞춤 추천 판정 90초 시간 초과·과열 수정
+
+원인(실측): 2번째 공고(PBLN_000000000123260) 판정에서 모델이 같은 criteria 13개를 반복 생성했다. 5,000 token 동안 끝나지 않았고 상한이 없었다(num_predict 327,680). 또 client timeout(300초)이 stream 읽기 사이 대기라서, Spring이 90초에 포기한 뒤에도 FastAPI·Ollama가 18분 넘게 20,905 token을 생성했다(팬 과열).
+수정: LLM 호출에 전체 기한 75초를 둔다(계약 internal-api `llm_call`, stream으로 받다가 넘으면 연결을 닫아 Ollama도 멈춤, `llm_timeout`→503). num_ctx 32768을 명시했다(실행 중인 값과 같아 재적재 없음). 자격 판정에는 criteria maxItems 12·num_predict 1,024를 두고, 상한에 닿은 출력은 판정하지 않고 `eligibility_output_limit_reached`로 실패시킨다(계약 eligibility `criterion_output`). OLLAMA_TIMEOUT_SECONDS는 기한을 줄이기만 한다(.env.example 75).
+prompt·판정 규칙·Top 3 순위·식별값은 바꾸지 않았다. Backlog IMP-029(일부 공고 criteria 과다·반복) 신규.
+
 ## 2026-10-03 — AI 검색 화면: 대기 안내와 최근 질문 우선 표시
 
 사용자 요청: 검색 입력칸 아래에 "답변까지 시간이 걸릴 수 있다"는 안내를 추가했다. 대화 기록은 "질문 + 답변" 묶음 단위로 최근 묶음이 맨 위에 오게 바꿨다(묶음 안은 질문 → 답변). 진행 중 표시·오류·첫 응답도 기록 위에 둔다. `AiSearchPage.tsx`, `styles.css`, 테스트 1개 추가. 서버 API·저장 순서는 그대로다.

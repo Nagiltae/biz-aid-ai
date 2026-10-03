@@ -14,7 +14,7 @@
 | 단계 | 항목 | 기준 |
 | --- | --- | --- |
 | V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
-| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025, IMP-026, IMP-027, IMP-028 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
+| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025, IMP-026, IMP-027, IMP-028, IMP-029 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
 | 운영/AWS 단계 | IMP-005(RESOLVED), IMP-006, IMP-007, IMP-015, IMP-016, IMP-017(RESOLVED), IMP-021, IMP-022, IMP-023 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
 | 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
 
@@ -360,3 +360,19 @@
   - V2 64,041 point·2,776원본. 고른 이유는 Report §11 후속에 있다
 - Remaining: 재발 방지(REFERENCE 판정, 원본당 point 상한 등)는 미정이다. 다음 형식(XLSX 등)이나 ZIP 재적재 전에 정한다.
 - Status: OPEN(45원본 point 삭제로 현재 영향은 해소, 재발 방지 미정)
+
+## IMP-029 일부 공고에서 자격 판정 criteria를 지나치게 쪼개거나 반복 생성함
+
+- Area: 자격 판정(eligibility) LLM 출력
+- Issue: 지역산업위기대응 이차보전·인천 특별 경영안정자금 같은 공고에서 모델이 제출 서류·완화 규정까지 criterion으로 나열하거나 같은 조건을 반복한다. 2026-10-03부터는 출력 상한(criteria 12개·출력 1,024 token)에 닿으면 판정하지 않고 `eligibility_output_limit_reached`로 실패시키므로 시간 초과·과열은 막지만, 그 공고는 판정 결과가 없다.
+- Evidence(2026-10-03, qwen3.5:9b):
+  - PBLN_000000000123260: 5,000 token 동안 67개, 고유 13개(중복 54), 37개가 서류 관련
+  - PBLN_000000000117611: 37개 1,735 token 97초
+  - 정상 공고: 2·8·10개
+  - 수정 뒤 두 공고는 52.5초·31.4초에 `eligibility_output_limit_reached`
+  - 입력 근거 길이는 원인이 아니다(prompt 2,315~3,252 token, chunk 96~1,556자)
+  - 기록 `2026-10-03-recommend-timeout-diagnosis.md`
+- Why deferred: 고치려면 prompt 규칙·출력 schema(예: 중복 금지, 조건 묶기 예시)나 모델을 바꿔야 한다. 이번 작업은 판정 규칙·prompt를 바꾸지 않는 범위다.
+- Revisit trigger: cases-v2 작성 시(자격 판정 기대값으로 prompt·schema 조정 효과 비교)
+- Side effect: prompt를 바꾸면 기존 정상 공고의 criterion 수·결과도 달라질 수 있다. criteria 상한(12)도 함께 다시 정한다.
+- Status: OPEN

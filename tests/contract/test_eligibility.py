@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT / "data-pipeline/src"))
 
 from biz_aid_pipeline.config.settings import PipelineError
 from biz_aid_pipeline.eligibility.profile import CompanyProfileSnapshot
-from biz_aid_pipeline.eligibility.service import EligibilityService, eligibility_contract
+from biz_aid_pipeline.eligibility.service import SYSTEM_PROMPT, EligibilityService, eligibility_contract
 from biz_aid_pipeline.rag.llm import LlmResponse
 from test_rag_answer import result
 
@@ -31,6 +31,18 @@ class Retriever:
     def search(self, query, mode, top_k, pblanc_ids=None):
         self.calls.append((query, mode, top_k, tuple(pblanc_ids)))
         return self.results
+
+
+class LimitedProvider:
+    """출력 상한(num_predict)에 닿아 멈춘 응답을 흉내 낸다."""
+    name, model = "fake", "fake-model"
+
+    def __init__(self, text, done_reason):
+        self.text, self.done_reason, self.requests = text, done_reason, []
+
+    def generate(self, request):
+        self.requests.append(request)
+        return LlmResponse(self.text, self.name, self.model, 0.1, {"done_reason": self.done_reason})
 
 
 class Provider:
@@ -112,6 +124,26 @@ class EligibilityContractTests(unittest.TestCase):
         # 결과 의미는 그대로: 원래 field 이름으로 되돌려 응답한다.
         self.assertEqual(outcome["criteria"][0]["profile_fields"], ["additional_facts.최근 2개월 매출(원)"])
         self.assertEqual(outcome["status"], "ELIGIBLE")
+
+    def test_output_limits_stop_runaway_generation_and_never_judge_a_truncated_list(self):
+        limits = eligibility_contract()["criterion_output"]
+        provider = Provider([criterion("신용 요건", "MET", ["credit_score"])])
+        EligibilityService(Repository(), Retriever(EVIDENCE), provider).evaluate(TARGET, PROFILE, AS_OF)
+        request = provider.requests[0]
+        # 생성 단계 상한: criteria 최대 개수(maxItems)와 출력 token 수(num_predict)를 함께 보낸다. prompt 문구는 그대로다.
+        self.assertEqual(request.output_schema["properties"]["criteria"]["maxItems"], limits["max_criteria"])
+        self.assertEqual(request.max_output_tokens, limits["max_output_tokens"])
+        self.assertEqual(request.system, SYSTEM_PROMPT)
+        # 2026-10-03 진단의 반복 폭주처럼 상한까지 찬 목록은 잘렸을 수 있어 판정하지 않는다(ELIGIBLE 오판 방지).
+        full = [criterion(f"요건 {number}", "MET", ["credit_score"]) for number in range(limits["max_criteria"])]
+        with self.assertRaisesRegex(PipelineError, "^eligibility_output_limit_reached$"):
+            evaluate(full)
+        # 상한보다 하나 적으면 기존 규칙 그대로 판정한다.
+        self.assertEqual(evaluate(full[:-1])[0]["status"], "ELIGIBLE")
+        # num_predict에 닿아 JSON이 끝나지 않은 응답도 같은 고정 코드로 실패한다.
+        truncated = LimitedProvider('{"criteria":[{"criterion":"요건","result":"MET"', "length")
+        with self.assertRaisesRegex(PipelineError, "^eligibility_output_limit_reached$"):
+            EligibilityService(Repository(), Retriever(EVIDENCE), truncated).evaluate(TARGET, PROFILE, AS_OF)
 
     def test_field_names_outside_the_allowed_ids_are_still_rejected_by_the_application(self):
         # V1 baseline E01·E03 실패 형태: 모델이 사람이 읽는 이름을 바꿔 쓴 경우. provider가 schema를 어겨도 application이 거부한다.
