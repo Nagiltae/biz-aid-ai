@@ -74,6 +74,18 @@ public class RecommendationWorkflowService {
         return response(saved.getId(), view);
     }
 
+    /** 지난 맞춤 추천 목록(최근 20건). 각 흐름의 질문·상태·추천 수만 보여 주고 상세는 get으로 다시 연다. */
+    public List<AiDtos.WorkflowSummary> list(Long userId) {
+        List<AiWorkflow> recent = transaction.execute(status -> workflows.findTop20ByUserIdOrderByUpdatedAtDescIdDesc(userId));
+        return recent.stream().map(workflow -> {
+            JsonNode state = read(workflow.getStateJson());
+            JsonNode counts = state.path("final_result").path("counts");
+            return new AiDtos.WorkflowSummary(workflow.getId(), state.path("query").asText(""), workflow.getStatus(),
+                    workflow.getCurrentStep(), counts.isMissingNode() ? null : counts.path("recommended").asInt(0),
+                    workflow.getCreatedAt(), workflow.getUpdatedAt());
+        }).toList();
+    }
+
     public AiDtos.WorkflowResponse get(Long userId, Long workflowId) {
         AiWorkflow workflow = transaction.execute(status -> owned(userId, workflowId));
         return response(workflowId, view(read(workflow.getStateJson())));

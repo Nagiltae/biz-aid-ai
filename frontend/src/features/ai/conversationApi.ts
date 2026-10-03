@@ -22,4 +22,6 @@ export const conversationApi = {
   list: () => apiRequest<Conversation[]>("/api/conversations"),
   create: (title: string) => apiRequest<Conversation>("/api/conversations", { method: "POST", body: { title } }),
   messages: (id: number) => apiRequest<Message[]>(`/api/conversations/${id}/messages`),
+  /** 대화 삭제(본인 것만). 메시지도 함께 지워진다. */
+  remove: (id: number) => apiRequest<void>(`/api/conversations/${id}`, { method: "DELETE" }),
 };

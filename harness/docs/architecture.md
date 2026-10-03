@@ -10,9 +10,9 @@
 | 대상 | 설계상 책임 | 현재 상태 |
 | --- | --- | --- |
 | React | UI, 서버 상태 캐시(TanStack Query), 로그인 사용자 상태 | V1 화면과 V2 맞춤 추천(`/recommend`) 구현. 서버 `nextAction`만 따라 단계 진행·복원하며 Spring만 호출 |
-| Spring Boot | 인증·기업정보·대화·추천 State Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | JWT·기업정보·지원사업·대화·활동 기록과 `ai_workflows` JSON 저장·동시 진행 제어. `HttpAiGateway`로 FastAPI 연결(Compose 안에서는 `http://fastapi:8000`) |
+| Spring Boot | 인증·기업정보·대화·추천 State Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | JWT·기업정보·지원사업·대화·활동 기록과 `ai_workflows` JSON 저장·동시 진행 제어. 계정 관리(탈퇴·비밀번호 변경)·대화 삭제·로그인 시도 제한(계정·IP 5회/10분)·정리 스케줄러(토큰·workflow), dev 전용 Swagger(2026-10-04). `HttpAiGateway`로 FastAPI 연결(Compose 안에서는 `http://fastapi:8000`) |
 | FastAPI | 질문 구조화·검색·비교·답변·Citation 검증·추천 단계 실행 | 내부 API v1과 V2 개인화 검색·Top 3 판정·LangGraph workflow 구현. 회원·기업 State를 소유하지 않음 |
-| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | 공고·문서·parse(V1~V5), 회원·기업·대화·AI 결과·활동·workflow(V6~V9), 일반 ZIP 내부 파일(V10) 구현 |
+| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | 공고·문서·parse(V1~V5), 회원·기업·대화·AI 결과·활동·workflow(V6~V9), 일반 ZIP 내부 파일(V10), 기업 지역 표준명(V11), 로그인 시도 제한·활동 기록 COMMENT(V12) 구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | V1 기준선 collection 동결. V2 서비스 범위 별도 collection은 3문서 Smoke 후 전체 파싱·적재 진행 중 |
 | Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 저장·PDF/HWP/HWPX Parser(OCR·PP 표)·Chunking·dense/sparse Indexing 구현 |
 | Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe·5×20 API 품질 Batch·동일 표본의 제한된 문서 Download Gate |

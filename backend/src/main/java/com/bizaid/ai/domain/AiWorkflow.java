@@ -85,6 +85,16 @@ public class AiWorkflow {
         this.updatedAt = now;
     }
 
+    /** IMP-021: 중단된 실행이 남긴 오래된 점유만 푼다. 사용자 활동이 아니므로 updated_at은 바꾸지 않는다. */
+    public void clearStaleClaim() {
+        this.stepStartedAt = null;
+    }
+
+    /** IMP-021: 오래 방치된 진행 중 흐름을 만료(FAILED)로 끝낸다. State JSON의 상태와 column을 같게 맞춘다. */
+    public void expire(String stateJson, Instant now) {
+        applyState(stateJson, "FAILED", "FAILED", now);
+    }
+
     public boolean isOwnedBy(Long userId) {
         return this.userId.equals(userId);
     }
@@ -103,5 +113,17 @@ public class AiWorkflow {
 
     public Long getVersion() {
         return version;
+    }
+
+    public String getCurrentStep() {
+        return currentStep;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
     }
 }

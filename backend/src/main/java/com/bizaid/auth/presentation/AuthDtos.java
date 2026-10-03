@@ -37,4 +37,15 @@ public final class AuthDtos {
     public record TokenResponse(String accessToken, long expiresIn, UserResponse user) {
     }
 
+
+    /** 회원 탈퇴 요청. 현재 비밀번호를 다시 받는다. */
+    public record WithdrawRequest(@NotBlank(message = "비밀번호를 입력해 주세요.") String password) {
+    }
+
+    /** 비밀번호 변경 요청. 새 비밀번호 규칙은 가입과 같다(8~64자). */
+    public record PasswordChangeRequest(
+            @NotBlank(message = "현재 비밀번호를 입력해 주세요.") String currentPassword,
+            @NotBlank(message = "새 비밀번호를 입력해 주세요.") @Size(min = 8, max = 64, message = "비밀번호는 8~64자로 입력해 주세요.")
+            String newPassword) {
+    }
 }

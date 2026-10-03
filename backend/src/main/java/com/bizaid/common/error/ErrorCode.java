@@ -16,6 +16,11 @@ public enum ErrorCode {
     AUTH_INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "auth_invalid_credentials", "이메일 또는 비밀번호가 올바르지 않습니다."),
     AUTH_REFRESH_INVALID(HttpStatus.UNAUTHORIZED, "auth_refresh_invalid", "로그인이 만료되었습니다. 다시 로그인해 주세요."),
     AUTH_EMAIL_TAKEN(HttpStatus.CONFLICT, "auth_email_taken", "이미 가입된 이메일입니다."),
+    // 로그인 시도 제한(계정·접속 IP별 5회 연속 실패 → 10분). 잠긴 동안은 비밀번호를 확인하지 않는다.
+    AUTH_LOGIN_LOCKED(HttpStatus.TOO_MANY_REQUESTS, "auth_login_locked",
+            "로그인 실패가 반복되어 잠시 로그인할 수 없습니다. 10분 뒤에 다시 시도해 주세요."),
+    // 회원 탈퇴·비밀번호 변경의 비밀번호 재확인 실패. 401이면 화면이 토큰 재발급을 시도하므로 400으로 돌려준다.
+    AUTH_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "auth_password_mismatch", "현재 비밀번호가 올바르지 않습니다."),
     COMPANY_NOT_REGISTERED(HttpStatus.NOT_FOUND, "company_not_registered", "등록된 기업정보가 없습니다. 먼저 기업정보를 등록해 주세요."),
     COMPANY_ALREADY_REGISTERED(HttpStatus.CONFLICT, "company_already_registered", "이미 기업정보가 등록되어 있습니다. 수정 기능을 사용해 주세요."),
     PROGRAM_NOT_FOUND(HttpStatus.NOT_FOUND, "program_not_found", "지원사업을 찾을 수 없거나 더 이상 게시되지 않는 공고입니다."),

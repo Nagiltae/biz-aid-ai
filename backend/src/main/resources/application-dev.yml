@@ -16,3 +16,10 @@ bizaid:
 logging:
   level:
     com.bizaid: DEBUG
+
+# 개발용 API 문서: http://127.0.0.1:8080/swagger-ui/index.html (backend 직접 접속. nginx는 /api만 넘긴다)
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

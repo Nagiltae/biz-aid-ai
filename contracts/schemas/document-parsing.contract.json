@@ -934,7 +934,8 @@
     "deduplication": "a line belongs to the tile whose ownership band (overlap split in the middle) contains its vertical center; a remaining line with the same non-space text overlapping an earlier kept line by at least half is dropped",
     "document": "each tile is a DoclingDocument page whose size is the full original image, so item bbox (top-left origin) is in original image pixels; bizaid__ocr keeps source_sha256, page (tile), tile_y_px, bbox_px, unit px, confidence and engine identity",
     "acceptance": "the common document text gate with tiles as pages: average non-whitespace characters per tile at or below document_gate.pdf_ocr_required_max_chars_per_page is OCR_REQUIRED with OCR_TEXT_INSUFFICIENT and is not indexed; tiles at or below the threshold are listed in ocr.insufficient_pages",
-    "value_basis": "107 PNG/JPEG originals: width median 1,000 / max 4,961 px, height median 1,632 / max 7,016 px, pixels median 1.8 M / p95 15.6 M / max 34.8 M; text detection keeps its own max_side_limit 4000"
+    "value_basis": "107 PNG/JPEG originals: width median 1,000 / max 4,961 px, height median 1,632 / max 7,016 px, pixels median 1.8 M / p95 15.6 M / max 34.8 M; text detection keeps its own max_side_limit 4000",
+    "identity_snapshot": "image_ocr_v1"
   },
   "office": {
     "office_parser_version": 1,
@@ -944,7 +945,8 @@
     "location": "every item carries bizaid__office: source_sha256, format, order (document reading order), label, heading_path (from Docling title / section headers) and slide (PPTX); chunk provenance copies order, heading_path and slide",
     "acceptance": "the common document text gate without pages (same as HWPX): more than document_gate.empty_text_max_chars non-whitespace characters is PARSED, otherwise EMPTY_TEXT",
     "failure": "Docling partial conversion is PARSE_FAILED office_partial_conversion, a failed conversion office_conversion_failed, an exception office_conversion_error:<ExceptionClass>",
-    "scope": "standalone DOCX and PPTX attachments; DOCX / PPTX inside generic ZIP archives are handled in stage 4"
+    "scope": "standalone DOCX and PPTX attachments; DOCX / PPTX inside generic ZIP archives are handled in stage 4",
+    "identity_snapshot": "office_v1"
   },
   "generic_zip": {
     "extraction_version": 1,
@@ -1045,5 +1047,34 @@
     "parsing": "a STORED member SHA is a parsing source next to document_sources: verified_source_formats, verified_source, chunk program relations and V2 service scope read both; parse_key, chunk_set_key and embedding_key are the same functions of the member SHA as for a standalone attachment (no new parser)",
     "document_role": "decided from the member file name (last path component), not the archive name",
     "qdrant_payload": "no new payload field; the member provenance stays in MySQL and joins by source_sha256"
+  },
+  "config_identity_snapshots": {
+    "rule": "IMP-026 (2026-10-04): office_config_sha256 and image_ocr_config_sha256 hash these frozen snapshots, not the live office / image_ocr sections, so wording edits in the live sections never change parse_key. Each snapshot is a byte-for-byte copy of the section as it was hashed before; it must never be edited. A real setting change adds a new snapshot (office_v2 …) and points the section's identity_snapshot to it, which intentionally yields new keys. Tests require every non-text setting of the live section to equal its snapshot.",
+    "office_v1": {
+      "office_parser_version": 1,
+      "dependencies": "docling-slim[convert-core,format-pdf,models-local,format-docx,format-pptx]==2.130.0 adds python-docx==1.2.0, python-pptx==1.0.2 and xlsxwriter==3.2.9 (python-pptx dependency); no existing package version changes",
+      "converter": "Docling DocumentConverter with only DOCX and PPTX allowed; the Word and PowerPoint backends never call an external LibreOffice to render DrawingML shapes (Docling would otherwise use one when installed), so results do not depend on the host; text in text boxes and shapes is read from the XML",
+      "pages": "DOCX has no pages and no fake page is created; PPTX keeps Docling's slide pages (page = slide number) with the slide size and every bbox converted from EMU to points (1 pt = 12,700 EMU, top-left origin) so bbox_pt has the same unit as other formats",
+      "location": "every item carries bizaid__office: source_sha256, format, order (document reading order), label, heading_path (from Docling title / section headers) and slide (PPTX); chunk provenance copies order, heading_path and slide",
+      "acceptance": "the common document text gate without pages (same as HWPX): more than document_gate.empty_text_max_chars non-whitespace characters is PARSED, otherwise EMPTY_TEXT",
+      "failure": "Docling partial conversion is PARSE_FAILED office_partial_conversion, a failed conversion office_conversion_failed, an exception office_conversion_error:<ExceptionClass>",
+      "scope": "standalone DOCX and PPTX attachments; DOCX / PPTX inside generic ZIP archives are handled in stage 4"
+    },
+    "image_ocr_v1": {
+      "image_ocr_version": 1,
+      "engine": "the pinned PP-OCRv5 detection + Korean recognition models and module options of routes.PDF.ocr (no new model, no Docling layout or table engine, no VLM)",
+      "input": "PNG / JPEG decoded with EXIF orientation applied and transparency composited on white; the width is never reduced",
+      "tile_height_px": 2000,
+      "tile_overlap_ratio": 0.12,
+      "tiling": "vertical tiles of tile_height_px; consecutive tiles overlap by tile_overlap_ratio; the last tile is aligned to the bottom so every tile has the same height; an image not taller than one tile is a single tile",
+      "max_total_pixels": 40000000,
+      "pixel_rule": "width x height above max_total_pixels fails the whole document as PARSE_FAILED image_pixels_exceeded before decoding; nothing is downscaled or cropped",
+      "min_line_confidence": 0.0,
+      "confidence_rule": "same as the PDF OCR text layer (TextRecognition score_thresh 0.0): no OCR line is dropped for low confidence; every line keeps its confidence in bizaid__ocr",
+      "deduplication": "a line belongs to the tile whose ownership band (overlap split in the middle) contains its vertical center; a remaining line with the same non-space text overlapping an earlier kept line by at least half is dropped",
+      "document": "each tile is a DoclingDocument page whose size is the full original image, so item bbox (top-left origin) is in original image pixels; bizaid__ocr keeps source_sha256, page (tile), tile_y_px, bbox_px, unit px, confidence and engine identity",
+      "acceptance": "the common document text gate with tiles as pages: average non-whitespace characters per tile at or below document_gate.pdf_ocr_required_max_chars_per_page is OCR_REQUIRED with OCR_TEXT_INSUFFICIENT and is not indexed; tiles at or below the threshold are listed in ocr.insufficient_pages",
+      "value_basis": "107 PNG/JPEG originals: width median 1,000 / max 4,961 px, height median 1,632 / max 7,016 px, pixels median 1.8 M / p95 15.6 M / max 34.8 M; text detection keeps its own max_side_limit 4000"
+    }
   }
 }

@@ -41,7 +41,18 @@ class ServiceRuntime:
             return self._retriever
 
     def answer_query(self, query, as_of=None, manual_filter=None, selected_pblanc_id=None, company_region=None):
+        """AI 검색 1건. IMP-023: workflow와 같은 안전 형식(상태·개수·코드만)으로 최상위 실행과 단계(조건 분석·후보)를 추적한다."""
+        from biz_aid_pipeline.observability import tracing
+        mode = "selected" if selected_pblanc_id else "manual_filter" if manual_filter is not None else "natural"
+        with tracing.workflow_trace(getattr(self, "tracer", None), "ai_search.query", tags=("bizaid", "ai_search"), mode=mode,
+                                    company_region_set=company_region is not None) as span:
+            output = self._answer_query(query, as_of, manual_filter, selected_pblanc_id, company_region)
+            span.record(**tracing.query_summary(output))
+            return output
+
+    def _answer_query(self, query, as_of=None, manual_filter=None, selected_pblanc_id=None, company_region=None):
         """자연어(또는 수동 정형 필터) 질문 → MySQL 후보 → request_mode 분기(SEARCH_LIST·DOCUMENT_QA) 결과 dict."""
+        from biz_aid_pipeline.observability import tracing
         from biz_aid_pipeline.candidates.discovery import ProgramDiscoveryService
         from biz_aid_pipeline.candidates.natural import NaturalLanguageFilterService, filter_domain
         from biz_aid_pipeline.candidates.service import ProgramCandidateService
@@ -61,7 +72,8 @@ class ServiceRuntime:
         if selected_pblanc_id:
             candidate_filter = ProgramCandidateFilter()
         elif manual_filter is None:
-            extraction = NaturalLanguageFilterService(self.provider, filter_domain(self.repository)).extract(query, as_of, request_mode=mode)
+            natural = NaturalLanguageFilterService(self.provider, filter_domain(self.repository))
+            extraction = tracing.traced("natural_filter", natural.extract, tracing.natural_summary)(query, as_of, request_mode=mode)
             candidate_filter, request_mode = extraction.candidate_filter, mode or extraction.request_mode
         else:
             candidate_filter = manual_filter
@@ -70,7 +82,8 @@ class ServiceRuntime:
         named = request_mode == "DOCUMENT_QA" and bool(selected_pblanc_id or name_matches(query, metadata))
         # EXCEPTION: 특정 공고를 직접 묻는 사용자의 의도는 지역 필터로 숨기지 않는다. 지역 차이는 응답에 별도 기록한다.
         candidate_filter = replace(candidate_filter, company_region=None if named else region)
-        candidates = ProgramCandidateService(self.repository).find_candidates(candidate_filter)
+        candidates = tracing.traced("mysql_candidates", ProgramCandidateService(self.repository).find_candidates,
+                                    tracing.candidates_summary)(candidate_filter)
         scope = candidates.pblanc_ids
         if request_mode == "DOCUMENT_QA":
             # BOUNDARY: 사용자 선택은 현재 활성 공고만 허용하고 그 공고 하나로 근거를 격리한다.
@@ -100,6 +113,14 @@ class ServiceRuntime:
         return output
 
     def personalized_search(self, query, company_profile, as_of=None):
+        """V2 개인화 검색 단독 호출. IMP-023: 결과 상태·개수만 추적한다(기업정보 값·질문 원문 없음)."""
+        from biz_aid_pipeline.observability import tracing
+        with tracing.workflow_trace(getattr(self, "tracer", None), "ai_search.personalized", tags=("bizaid", "ai_search")) as span:
+            result = self._personalized_search(query, company_profile, as_of)
+            span.record(**tracing.search_summary(result))
+            return result
+
+    def _personalized_search(self, query, company_profile, as_of=None):
         """V2 개인화 검색: Spring이 보낸 기업정보 snapshot + 질문 → 후보 → 공고 단위 Top 3. V1 answer_query와 별개 경로다."""
         from datetime import datetime
         from zoneinfo import ZoneInfo

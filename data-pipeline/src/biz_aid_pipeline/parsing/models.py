@@ -175,9 +175,18 @@ def folder_artifacts_sha256(contract, folders):
     return artifacts_manifest_sha256(str(docling_artifacts_path(contract)), files)
 
 
+def config_identity(contract, section):
+    """설정 hash 입력: 살아 있는 계약 구역이 아니라 그 구역이 가리키는 고정 snapshot(IMP-026).
+
+    WHY: 계약 구역에는 설명 문구도 있어, 구역 전체를 hash하면 문구만 고쳐도 parse_key가 바뀐다. snapshot은 예전에 hash하던
+    구역을 그대로 복사해 둔 값이라 기존 key가 그대로이고, 이후 설명 수정은 key에 영향을 주지 않는다.
+    """
+    return contract["config_identity_snapshots"][contract[section]["identity_snapshot"]]
+
+
 def image_ocr_config_sha256(contract):
     """이미지 OCR 결과를 바꾸는 설정: 공유 OCR engine 설정(모델·검출·인식 옵션)과 이미지 OCR 설정(타일·겹침·픽셀 상한·신뢰도 기준)."""
-    return hashlib.sha256(json.dumps({"engine": contract["routes"]["PDF"]["ocr"], "image_ocr": contract["image_ocr"],
+    return hashlib.sha256(json.dumps({"engine": contract["routes"]["PDF"]["ocr"], "image_ocr": config_identity(contract, "image_ocr"),
                                       "document_gate": contract["document_gate"]["pdf_ocr_required_max_chars_per_page"]},
                                      sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
 
@@ -227,7 +236,7 @@ def parse_identity(source_sha256, route, contract, converter_version=None):
         # Docling Word·PowerPoint backend와 그 XML 라이브러리만 결과를 바꾼다. layout·표·OCR identity는 넣지 않는다.
         office = contract["office"]
         identity.update(docling_version=installed_version("docling-slim"), office_parser_version=office["office_parser_version"],
-                        office_config_sha256=hashlib.sha256(json.dumps({"office": office, "empty_text_max_chars":
+                        office_config_sha256=hashlib.sha256(json.dumps({"office": config_identity(contract, "office"), "empty_text_max_chars":
                                                                          contract["document_gate"]["empty_text_max_chars"]},
                                                                         sort_keys=True, separators=(",", ":"),
                                                                         ensure_ascii=False).encode()).hexdigest())

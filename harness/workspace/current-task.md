@@ -1,27 +1,27 @@
-# Current Task — 묶음2 지역·데이터 정리
+# Current Task — 묶음3 서비스 관리
 
 ## Goal / Context
 
-사용자 승인0~6. 묶음1 최종구현은1d6d726에 보존됐으며 고정10건/QA근거부족/서울후보0 관찰을 이어받는다. 제품 key·vector·V1은 불변,commit/push 없음.
-
-## Scope / Acceptance
-
-0 P3 조건별 MySQL조회,LLM반복없음.
-1 company-region 별칭/권역계약으로 제목지역+소관 필터,중앙표본20 및공동지역 사례확인.
-2 period normalizer 명시 날짜 보강,derived-only atomic refresh.
-3 기준일2026-10-04 이전확정마감 V2point만snapshot 검증 후승인삭제;MySQL/S3/V1유지.
-4 신규원본 admission,기존point재적재없음;수출바우처조회만.
-5 Backlog·Architecture·계약동기화.
-6 Spring기업지역 전달→FastAPI공통규칙→React안내. named QA타지역 유지+경고,회사없으면 전체지역.
-
-## Read First
-
-AGENTS→Codex→Backlog→AI경계/Source/DB→company-region/rag/indexing/internal-api 계약. [묶음1 Report](reports/development/2026-10-03-bundle1-quality.md),[지역 측정](reports/development/2026-10-03-region-filter-measurement.md).
-
-## Validation / Reports
-
-[Final Report](reports/development/2026-10-03-bundle2-region-data.md). Targeted Python/Spring/React와기존MySQL Integration,최종check-all1회,고정10질문script1회. 최종제품입력 확정후생성report/handoff만갱신. handoff는harness/workspace/handoff/bundle2-handoff.md.
+2026-10-04 사용자 요청(로컬 Claude CLI, 묶음1·2는 Codex): 서비스 관리 기능을 한 번에 끝까지 구현한다. 측정·비교 실험 없이 기능 완성이 목표다.
+사용자 승인: 새 Flyway migration은 `migrations/`에 추가하고 dev DB에 적용한다(기존 migration 수정 금지).
+범위: 1 회원 탈퇴 2 대화 삭제 3 로그인 시도 제한(계정·IP 5회/10분) 4 CI 초록 5 IMP-016·021·022·015·023·026 6 비밀번호 변경·지난 추천 목록·Swagger 7 문서·check-all·regression-set.
+commit·push·브랜치 변경, `.env.dev`·secret 열람, 식별 key·vector·V1 변경, 운영 DB 접근은 범위가 아니다. Ollama 호출은 75초 기한·순차.
 
 ## Next Steps
 
-구현 및 승인정리 완료: 날짜603→604(1행),V2 64041→60362(62공고3679point),V1 3849유지. 고정10질문1회 완료(S4건 LISTED,Q2건 ANSWERED/1건 INSUFFICIENT_EVIDENCE,P2건Top3판정/서울P3 NO_CANDIDATES). 최종check-all을 실제 실행하고 결과를 Report로확인한다. AGY independent review pending이며다음묶음자동시작금지.
+AGY 독립 검토 → 사용자 commit(Report의 묶음별 파일 목록) → GitHub CI(validate·backend·frontend) 확인 → 5 화면 완주·cases-v2.
+
+## Read First
+
+[AGENTS](../../AGENTS.md) → [DB 규칙](../rules/database-rules.md) → `migrations/V12__account_management.sql` → Spring `auth`(AccountService·LoginThrottleService)·`common/maintenance` → [Backlog](../docs/improvement-backlog.md)(IMP-015·016·021·022·023·026).
+
+## Scope / Acceptance
+
+1. 탈퇴 뒤 서비스 데이터가 없고 활동 기록은 익명이며 이전 토큰은 즉시 401이다. 남의 대화 삭제는 404다.
+2. 계정·IP 각각 5회 연속 실패 뒤 10분 동안 429 auth_login_locked, 성공 시 계정 횟수만 초기화. 이메일·IP 원문은 저장하지 않는다.
+3. 정리 작업은 진행 중 workflow를 지우지 않는다. IMP-026은 기존 parse_key를 바꾸지 않는다.
+AGY 독립 Review / 사용자 검토는 pending이다.
+
+## Validation / Reports
+
+[Final Report](reports/development/2026-10-04-bundle3-service.md). Spring·React·Python targeted tests, check-all 1회, regression-set 1회(bundle3-results.json). handoff는 harness/workspace/handoff/bundle3-handoff.md.

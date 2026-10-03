@@ -43,6 +43,11 @@ public class WorkflowController {
         return workflowService.start(user.id(), request.query());
     }
 
+    @GetMapping
+    public java.util.List<AiDtos.WorkflowSummary> list(@AuthenticationPrincipal AuthUser user) {
+        return workflowService.list(user.id());
+    }
+
     @GetMapping("/{workflowId}")
     public AiDtos.WorkflowResponse get(@AuthenticationPrincipal AuthUser user, @PathVariable Long workflowId) {
         return workflowService.get(user.id(), workflowId);

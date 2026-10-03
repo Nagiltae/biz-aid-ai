@@ -168,6 +168,11 @@ public final class AiDtos {
 
     /** workflow API 응답. 클라이언트는 nextAction만 보고 "다음 단계 진행" 또는 "답변 제출"을 요청한다. */
     // pendingPblancIds: State가 정한 남은 판정 순서(다음 continue가 맨 앞 공고를 판정). 화면은 진행 표시에만 쓰고 순서를 정하지 않는다.
+    /** 지난 맞춤 추천 목록 한 줄. recommendedCount는 판정이 끝난 흐름만 값이 있다(진행 중이면 null). */
+    public record WorkflowSummary(Long workflowId, String query, String status, String currentStep, Integer recommendedCount,
+                                  java.time.Instant createdAt, java.time.Instant updatedAt) {
+    }
+
     public record WorkflowResponse(Long workflowId, String status, String currentStep, String nextAction, WorkflowProgress progress,
                                    PersonalizedSearchResult search, List<WorkflowEvaluation> evaluations,
                                    List<MissingField> missingInformation, Map<String, Object> temporaryCompanyFacts,

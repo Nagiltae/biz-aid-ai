@@ -68,6 +68,15 @@ public class ConversationService {
     }
 
     /** 사용자 질문 저장. */
+    /** 대화 삭제. 본인 대화만 지운다(남의 대화·없는 대화는 같은 404라 존재 여부를 알려 주지 않는다). 메시지도 함께 지운다. */
+    @Transactional
+    public void delete(Long userId, Long conversationId) {
+        Conversation conversation = owned(userId, conversationId);
+        messages.deleteAllByConversation(conversation.getId());
+        conversations.delete(conversation);
+        activityLog.success(ActivityAction.CONVERSATION_DELETE, userId, "CONVERSATION", conversationId, null);
+    }
+
     @Transactional
     public ConversationDtos.MessageResponse addUserMessage(Long userId, Long conversationId, String content) {
         return append(owned(userId, conversationId), MessageRole.USER, content.strip(), null, null);

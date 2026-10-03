@@ -61,3 +61,35 @@ jobs:
         env:
           HF_HUB_OFFLINE: "1"
         run: ./scripts/check-all.sh
+  # 묶음3(2026-10-04): Spring·React는 check-all(Python Harness)에 들어 있지 않아 push마다 따로 검증한다.
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14"
+      # 테스트는 격리 H2와 테스트 전용 JWT 값만 쓰고, 저장소의 공통 계약(../contracts)을 읽는다.
+      - name: Spring tests
+        working-directory: backend
+        run: gradle test --no-daemon
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: React typecheck, tests and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build

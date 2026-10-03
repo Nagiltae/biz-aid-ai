@@ -27,6 +27,9 @@ export function Layout() {
                 <NavLink to="/company" className={({ isActive }) => (isActive ? "button small active" : "button small")}>
                   내 기업정보
                 </NavLink>
+                <NavLink to="/account" className={({ isActive }) => (isActive ? "button small active" : "button small")}>
+                  계정
+                </NavLink>
                 <button type="button" className="button small" onClick={() => logout().then(() => navigate("/login"))}>
                   로그아웃
                 </button>

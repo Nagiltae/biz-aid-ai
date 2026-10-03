@@ -1,13 +1,10 @@
 package com.bizaid.auth.presentation;
 
 import com.bizaid.auth.application.AuthService;
-import com.bizaid.auth.application.IssuedTokens;
 import com.bizaid.auth.domain.AuthUser;
-import com.bizaid.auth.infrastructure.AuthProperties;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.time.Duration;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -23,52 +20,40 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
-    private final AuthProperties properties;
+    private final RefreshCookies cookies;
 
-    public AuthController(AuthService authService, AuthProperties properties) {
+    public AuthController(AuthService authService, RefreshCookies cookies) {
         this.authService = authService;
-        this.properties = properties;
+        this.cookies = cookies;
     }
 
     @PostMapping("/signup")
     public ResponseEntity<AuthDtos.TokenResponse> signup(@Valid @RequestBody AuthDtos.SignupRequest request) {
-        return withRefreshCookie(authService.signup(request.email(), request.password(), request.displayName()));
+        return cookies.withRefreshCookie(authService.signup(request.email(), request.password(), request.displayName()));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthDtos.TokenResponse> login(@Valid @RequestBody AuthDtos.LoginRequest request) {
-        return withRefreshCookie(authService.login(request.email(), request.password()));
+    public ResponseEntity<AuthDtos.TokenResponse> login(@Valid @RequestBody AuthDtos.LoginRequest request,
+                                                        HttpServletRequest httpRequest) {
+        // 접속 IP는 Tomcat RemoteIpValve가 신뢰하는 내부 proxy(nginx)의 X-Forwarded-For로 정한 값이다.
+        return cookies.withRefreshCookie(authService.login(request.email(), request.password(), httpRequest.getRemoteAddr()));
     }
 
     /** 새로고침 등으로 메모리의 Access Token을 잃었거나 만료됐을 때 Cookie의 Refresh Token으로 다시 발급한다. */
     @PostMapping("/refresh")
     public ResponseEntity<AuthDtos.TokenResponse> refresh(@CookieValue(name = "${bizaid.refresh-cookie.name}", required = false)
                                                           String refreshToken) {
-        return withRefreshCookie(authService.refresh(refreshToken));
+        return cookies.withRefreshCookie(authService.refresh(refreshToken));
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@CookieValue(name = "${bizaid.refresh-cookie.name}", required = false) String refreshToken) {
         authService.logout(refreshToken);
-        return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, cookie("", Duration.ZERO).toString()).build();
+        return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, cookies.cleared()).build();
     }
 
     @GetMapping("/me")
     public AuthDtos.UserResponse me(@AuthenticationPrincipal AuthUser user) {
         return AuthDtos.UserResponse.from(authService.me(user.id()));
-    }
-
-    private ResponseEntity<AuthDtos.TokenResponse> withRefreshCookie(IssuedTokens tokens) {
-        ResponseCookie cookie = cookie(tokens.refreshToken(), properties.jwt().refreshTokenTtl());
-        AuthDtos.TokenResponse body = new AuthDtos.TokenResponse(tokens.accessToken(), tokens.expiresIn(),
-                AuthDtos.UserResponse.from(tokens.user()));
-        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, cookie.toString()).body(body);
-    }
-
-    // HttpOnly: JS(XSS)가 읽을 수 없다. SameSite=Strict + Path=/api/auth: 다른 사이트 요청과 일반 API 요청에는 실리지 않는다.
-    private ResponseCookie cookie(String value, Duration maxAge) {
-        AuthProperties.RefreshCookie settings = properties.refreshCookie();
-        return ResponseCookie.from(settings.name(), value).httpOnly(true).secure(settings.secure()).sameSite("Strict")
-                .path(settings.path()).maxAge(maxAge).build();
     }
 }

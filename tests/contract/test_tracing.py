@@ -150,6 +150,33 @@ class TracingTests(unittest.TestCase):
         for marker in ("platform", "revision_id", "runtime_version", "LANGSMITH_TRACING"):
             self.assertNotIn(marker, text)
 
+    def test_ai_search_paths_are_traced_with_counts_only_and_prod_never_traces(self):
+        # IMP-023: V1 AI 검색·V2 개인화 검색 단독 경로도 같은 안전 형식으로 추적한다.
+        session = Capture()
+        tracer = self.tracer(session)
+        service = ServiceRuntime.__new__(ServiceRuntime)
+        service.tracer = tracer
+        answer = {"request_mode": "DOCUMENT_QA", "status": "ANSWERED", "candidate_count": 3, "programs": [],
+                  "answer": REASON, "citations": [{"text": REASON}], "query": QUESTION}
+        searched = {"status": "LISTED", "candidate_count": 2, "programs": [program(1, "PBLN_A")], "query": QUESTION}
+        with mock.patch.object(ServiceRuntime, "_answer_query", lambda self, *args, **kwargs: answer), \
+                mock.patch.object(ServiceRuntime, "_personalized_search", lambda self, *args, **kwargs: searched):
+            self.assertIs(service.answer_query(QUESTION, company_region=REGION), answer)
+            self.assertIs(service.personalized_search(QUESTION, COMPANY), searched)
+        tracer.flush()
+        text = b"".join(session.bodies).decode("utf-8")
+        for marker in (QUESTION, REASON, REGION, COMPANY_NAME, API_KEY):
+            self.assertNotIn(marker, text)
+        names = [run["name"] for run in parts(session.bodies) if isinstance(run, dict) and "name" in run]
+        self.assertIn("ai_search.query", names)
+        self.assertIn("ai_search.personalized", names)
+        self.assertIn('"citation_count":1', text.replace(" ", ""))
+        # 운영 profile은 설정·키가 있어도 추적하지 않는다.
+        with tempfile.TemporaryDirectory() as root:
+            prod = tracing.TraceSettings.load(Path(root), "prod", environ={"BIZAID_TRACING_ENABLED": "true", "LANGSMITH_API_KEY": API_KEY})
+        self.assertFalse(prod.enabled)
+        self.assertIsNone(tracing.build_tracer(prod))
+
     def test_tracing_failure_never_breaks_the_flow(self):
         observed = []
         state = run_flow(runtime(self.tracer(Capture(fail=True)), observed))

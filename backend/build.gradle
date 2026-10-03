@@ -7,6 +7,10 @@ plugins {
 group = 'com.bizaid'
 version = '0.1.0'
 
+// IMP-015: Spring Boot 3.5.16이 관리하는 Flyway 11.7.2는 MySQL 8.4를 "검증되지 않은 버전"으로 경고한다.
+// 같은 11.x 계열에서 MySQL 8.4를 지원하는 11.20.3으로 올린다(공통 migrations/ history validate 통과 확인, 2026-10-04).
+ext['flyway.version'] = '11.20.3'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -22,6 +26,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+    // API 문서(Swagger UI). dev profile에서만 켠다(application.yml springdoc.*.enabled 기본 false).
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'

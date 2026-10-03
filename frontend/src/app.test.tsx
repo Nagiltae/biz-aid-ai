@@ -75,6 +75,93 @@ test("로그인하지 않은 사용자는 보호 화면 대신 로그인 화면�
   expect(screen.queryByText("내 기업정보")).not.toBeInTheDocument();
 });
 
+test("회원 탈퇴는 비밀번호 확인과 동의가 있어야 보내고, 성공하면 로그인 화면에 완료를 알린다", async () => {
+  const calls = mockFetch(loggedIn, hasCompany, (url, init) => {
+    if (url === "/api/account/withdraw" && init.method === "POST") {
+      const { password } = JSON.parse(String(init.body)) as { password: string };
+      return password === "password123" ? { status: 204 }
+        : { status: 400, body: { error: { code: "auth_password_mismatch", message: "현재 비밀번호가 올바르지 않습니다." } } };
+    }
+    return undefined;
+  });
+  renderAt("/account");
+  const form = await screen.findByRole("form", { name: "회원 탈퇴" });
+  const submit = within(form).getByRole("button", { name: "회원 탈퇴" });
+  await userEvent.type(within(form).getByLabelText("비밀번호 확인"), "wrong-pass");
+  // 동의 전에는 보낼 수 없다.
+  expect(submit).toBeDisabled();
+  await userEvent.click(within(form).getByRole("checkbox"));
+  await userEvent.click(submit);
+  expect(await within(form).findByRole("alert")).toHaveTextContent("현재 비밀번호가 올바르지 않습니다.");
+  await userEvent.clear(within(form).getByLabelText("비밀번호 확인"));
+  await userEvent.type(within(form).getByLabelText("비밀번호 확인"), "password123");
+  await userEvent.click(submit);
+  expect(await screen.findByText("회원 탈퇴가 완료되었습니다. 이용해 주셔서 감사합니다.")).toBeInTheDocument();
+  expect(calls.filter((call) => call.url === "/api/account/withdraw")).toHaveLength(2);
+  // 탈퇴 뒤에는 서버 로그아웃 요청을 따로 보내지 않는다(세션은 서버에서 이미 끝났다).
+  expect(calls.some((call) => call.url === "/api/auth/logout")).toBe(false);
+});
+
+test("비밀번호를 바꾸면 새 토큰을 받고 변경 완료를 보여 준다", async () => {
+  const calls = mockFetch(loggedIn, hasCompany, (url, init) =>
+    url === "/api/account/password" && init.method === "PUT" ? { status: 200, body: { ...TOKEN, accessToken: "access-2" } } : undefined);
+  renderAt("/account");
+  const form = await screen.findByRole("form", { name: "비밀번호 변경" });
+  await userEvent.type(within(form).getByLabelText("현재 비밀번호"), "password123");
+  await userEvent.type(within(form).getByLabelText(/^새 비밀번호/), "newpassword456");
+  await userEvent.click(within(form).getByRole("button", { name: "비밀번호 변경" }));
+  expect(await within(form).findByText("비밀번호를 바꿨습니다.")).toBeInTheDocument();
+  const put = calls.find((call) => call.url === "/api/account/password");
+  expect(JSON.parse(String(put?.init.body))).toEqual({ currentPassword: "password123", newPassword: "newpassword456" });
+});
+
+test("로그인이 잠기면 서버 안내 문구를 그대로 보여 준다", async () => {
+  mockFetch(loggedOut, (url) => (url === "/api/auth/login"
+    ? { status: 429, body: { error: { code: "auth_login_locked", message: "로그인 실패가 반복되어 잠시 로그인할 수 없습니다. 10분 뒤에 다시 시도해 주세요." } } }
+    : undefined));
+  renderAt("/login");
+  await userEvent.type(await screen.findByLabelText("이메일"), "lock@example.com");
+  await userEvent.type(screen.getByLabelText("비밀번호"), "password123");
+  await userEvent.click(screen.getByRole("button", { name: "로그인" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("10분 뒤에 다시 시도해 주세요.");
+});
+
+test("대화 목록에서 확인 후 대화를 삭제한다", async () => {
+  let deleted = false;
+  const calls = mockFetch(loggedIn, hasCompany, (url, init) => {
+    if (url === "/api/conversations" && (init.method ?? "GET") === "GET") {
+      return { status: 200, body: deleted ? [] : [{ id: 7, title: "지울 대화", createdAt: "", updatedAt: "" }] };
+    }
+    if (url === "/api/conversations/7" && init.method === "DELETE") {
+      deleted = true;
+      return { status: 204 };
+    }
+    return undefined;
+  });
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  renderAt("/ai");
+  await userEvent.click(await screen.findByRole("button", { name: "대화 삭제: 지울 대화" }));
+  expect(confirm).toHaveBeenCalled();
+  expect(await screen.findByText("아직 대화가 없습니다.")).toBeInTheDocument();
+  expect(calls.some((call) => call.url === "/api/conversations/7" && call.init.method === "DELETE")).toBe(true);
+  confirm.mockRestore();
+});
+
+test("맞춤 추천 첫 화면에 지난 추천을 최근 순으로 보여 주고 누르면 그 추천을 연다", async () => {
+  mockFetch(loggedIn, hasCompany, (url) => (url === "/api/ai/workflows" ? { status: 200, body: [
+    { workflowId: 12, query: "금융 지원사업 찾아줘", status: "COMPLETED", currentStep: "DONE", recommendedCount: 2,
+      createdAt: "2026-10-04T00:00:00Z", updatedAt: "2026-10-04T00:10:00Z" },
+    { workflowId: 9, query: "수출 지원사업", status: "WAITING_FOR_USER", currentStep: "AWAIT_ANSWERS", recommendedCount: null,
+      createdAt: "2026-10-03T00:00:00Z", updatedAt: "2026-10-03T00:10:00Z" }] } : undefined));
+  renderAt("/recommend");
+  const history = await screen.findByRole("region", { name: "지난 맞춤 추천" });
+  const links = within(history).getAllByRole("link");
+  expect(links.map((link) => link.textContent)).toEqual(["금융 지원사업 찾아줘", "수출 지원사업"]);
+  expect(links[0]).toHaveAttribute("href", "/recommend/12");
+  expect(history).toHaveTextContent("완료 · 추천 2건");
+  expect(history).toHaveTextContent("정보 입력 대기");
+});
+
 test("지원사업 목록을 API 결과로 그린다", async () => {
   mockFetch(loggedOut, (url) => {
     if (url === "/api/programs/filter-options") {

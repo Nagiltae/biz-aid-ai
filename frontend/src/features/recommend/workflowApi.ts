@@ -68,7 +68,19 @@ export interface WorkflowResponse {
 
 export type AnswerValue = string | number | boolean;
 
+/** 지난 맞춤 추천 목록 한 줄(최근 20건). recommendedCount는 판정이 끝난 흐름만 값이 있다. */
+export interface WorkflowSummary {
+  workflowId: number;
+  query: string;
+  status: WorkflowResponse["status"];
+  currentStep: string;
+  recommendedCount: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const workflowApi = {
+  list: () => apiRequest<WorkflowSummary[]>("/api/ai/workflows"),
   start: (query: string) => apiRequest<WorkflowResponse>("/api/ai/workflows", { method: "POST", body: { query } }),
   get: (id: number) => apiRequest<WorkflowResponse>(`/api/ai/workflows/${id}`),
   advance: (id: number) => apiRequest<WorkflowResponse>(`/api/ai/workflows/${id}/continue`, { method: "POST" }),

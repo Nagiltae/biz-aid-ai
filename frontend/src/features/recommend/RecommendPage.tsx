@@ -144,6 +144,8 @@ export function RecommendPage() {
         )}
       </div>
 
+      {workflowId === null && running === null && <RecentWorkflows />}
+
       {running === "start" && <Loading message="기업정보와 질문으로 공고를 고르고 있습니다." />}
       {error !== null && running === null && <StepError error={error} onCompany={() => navigate("/company")} />}
       {workflowId !== null && workflow.isPending && <Loading message="저장된 추천 진행 상태를 불러오는 중입니다." />}
@@ -222,4 +224,34 @@ function StepError({ error, onCompany }: { error: unknown; onCompany: () => void
     return <AiErrorNotice error={error} />;
   }
   return <ErrorMessage error={error} />;
+}
+
+const HISTORY_STATUS_TEXT: Record<string, string> = {
+  IN_PROGRESS: "판정 중",
+  WAITING_FOR_USER: "정보 입력 대기",
+  COMPLETED: "완료",
+  FAILED: "중단",
+};
+
+/** 지난 맞춤 추천 목록. 서버 저장 순서(최근 순) 그대로 보여 주고, 누르면 그 추천을 다시 연다. */
+function RecentWorkflows() {
+  const history = useQuery({ queryKey: ["workflows"], queryFn: workflowApi.list });
+  if (!history.data || history.data.length === 0) return null;
+  return (
+    <section className="card recent-workflows" aria-label="지난 맞춤 추천">
+      <h2>지난 맞춤 추천</h2>
+      <ul className="history-list">
+        {history.data.map((item) => (
+          <li key={item.workflowId}>
+            <Link to={`/recommend/${item.workflowId}`}>{item.query || "(질문 없음)"}</Link>
+            <span className="muted small">
+              {" "}· {HISTORY_STATUS_TEXT[item.status] ?? item.status}
+              {item.recommendedCount !== null && ` · 추천 ${item.recommendedCount}건`}
+              {" "}· {new Date(item.updatedAt).toLocaleString("ko-KR")}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }

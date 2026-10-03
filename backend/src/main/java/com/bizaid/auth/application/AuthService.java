@@ -41,9 +41,11 @@ public class AuthService {
     private final AuthProperties properties;
     private final Clock clock;
     private final ActivityLogService activityLog;
+    private final LoginThrottleService loginThrottle;
 
     public AuthService(UserRepository users, RefreshTokenRepository refreshTokens, PasswordEncoder passwordEncoder,
-                       JwtTokenProvider tokenProvider, AuthProperties properties, Clock clock, ActivityLogService activityLog) {
+                       JwtTokenProvider tokenProvider, AuthProperties properties, Clock clock, ActivityLogService activityLog,
+                       LoginThrottleService loginThrottle) {
         this.users = users;
         this.refreshTokens = refreshTokens;
         this.passwordEncoder = passwordEncoder;
@@ -51,6 +53,7 @@ public class AuthService {
         this.properties = properties;
         this.clock = clock;
         this.activityLog = activityLog;
+        this.loginThrottle = loginThrottle;
     }
 
     /** 가입 직후 바로 서비스를 쓰도록 로그인과 같은 토큰을 발급한다. */
@@ -68,15 +71,26 @@ public class AuthService {
     }
 
     @Transactional
-    public IssuedTokens login(String email, String password) {
+    public IssuedTokens login(String email, String password, String clientIp) {
+        String normalized = normalize(email);
+        // BOUNDARY: 계정 또는 접속 IP가 잠겨 있으면 비밀번호를 확인하지 않는다(잠긴 동안 대입 시도가 맞는지 알려 주지 않음).
+        try {
+            loginThrottle.checkAllowed(normalized, clientIp);
+        } catch (ApiException exception) {
+            activityLog.failure(ActivityAction.LOGIN, null, null, null, exception.errorCode().code(), Map.of("reason", "locked"));
+            throw exception;
+        }
         // 이메일 없음과 비밀번호 틀림을 같은 오류로 돌려 가입 여부를 추측할 수 없게 한다.
-        User found = users.findByEmail(normalize(email)).orElse(null);
+        User found = users.findByEmail(normalized).orElse(null);
         if (found == null || !passwordEncoder.matches(password, found.getPasswordHash())) {
-            // 활동 기록에는 입력한 이메일·비밀번호를 남기지 않는다(비밀번호를 이메일 칸에 잘못 넣는 경우도 있다).
+            boolean locked = loginThrottle.recordFailure(normalized, clientIp);
+            // 활동 기록에는 입력한 이메일·비밀번호·IP를 남기지 않는다(비밀번호를 이메일 칸에 잘못 넣는 경우도 있다).
             activityLog.failure(ActivityAction.LOGIN, found == null ? null : found.getId(), null, null,
-                    ErrorCode.AUTH_INVALID_CREDENTIALS.code(), Map.of("reason", found == null ? "unknown_account" : "wrong_password"));
+                    ErrorCode.AUTH_INVALID_CREDENTIALS.code(),
+                    Map.of("reason", found == null ? "unknown_account" : "wrong_password", "locked", locked));
             throw new ApiException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
+        loginThrottle.recordSuccess(normalized);
         IssuedTokens tokens = issue(found);
         activityLog.success(ActivityAction.LOGIN, found.getId(), "USER", found.getId(), null);
         return tokens;
@@ -122,6 +136,13 @@ public class AuthService {
         }
         return refreshTokens.findByTokenHash(hash(rawRefreshToken))
                 .orElseThrow(() -> new ApiException(ErrorCode.AUTH_REFRESH_INVALID));
+    }
+
+    /** 비밀번호를 바꾼 뒤 다른 기기 로그인을 모두 끊고 지금 사용자에게 새 토큰을 준다. */
+    @Transactional
+    public IssuedTokens reissueAfterPasswordChange(User user) {
+        refreshTokens.revokeAllActive(user.getId(), clock.instant());
+        return issue(user);
     }
 
     private IssuedTokens issue(User user) {

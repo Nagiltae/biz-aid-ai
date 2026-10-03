@@ -1,5 +1,14 @@
 # Harness 변경 이력
 
+## 2026-10-04 — 묶음3 서비스 관리(Claude)
+
+사용자 승인: 새 Flyway migration을 `migrations/`에 추가하고 dev DB에 적용.
+기능: 회원 탈퇴(POST /api/account/withdraw, 비밀번호 재확인, 서비스 데이터 즉시 삭제·활동 기록 익명화, 기존 Access·Refresh Token 즉시 무효), 대화 삭제(DELETE /api/conversations/{id}, 본인만), 로그인 시도 제한(계정·IP 각 5회 연속 실패 → 10분, 429 auth_login_locked, 성공 시 계정만 초기화), 비밀번호 변경(PUT /api/account/password, 다른 기기 로그아웃), 지난 맞춤 추천 목록(GET /api/ai/workflows), dev 전용 Swagger(springdoc 2.8.17).
+DB: V12(login_throttles, activity_logs COMMENT — IMP-022). nginx는 X-Forwarded-For를 실제 접속 주소로 덮어쓰고 Spring은 forward-headers-strategy native.
+정리: IMP-015(backend Flyway 11.20.3 고정), IMP-016·021(MaintenanceJob), IMP-023(AI 검색 경로 추적, prod 강제 off), IMP-026(config_identity_snapshots, 기존 key 278/278 동일).
+CI: ci.yml에 backend(gradle test)·frontend(npm ci/typecheck/test/build) job 추가(validate job·필수 명령 그대로).
+Harness: 사용자 지정 handoff `harness/workspace/handoff/bundle3-handoff.md`를 bundle1·2와 같이 non-gating 산출물로 등록(validate.py·.gitignore). 규칙 완화 없음.
+
 ## 2026-10-03 — 질문 지역 미반영 안내와 소관기관 대리 필터 측정
 
 사용자 결정(나): 질문 지역은 기존 Natural Filter의 unapplied 상태를 유지하며 별도 추출 없이 추천 화면의 강조 안내로 보여 준다. 기업 지역 기준·중앙부처/매핑 없는 소관기관 포함·기업정보 수정 링크를 명시했다. 기업 지역이 적용되지 않은 경우 적용했다고 쓰지 않는다. frontend 테스트 2건 추가.

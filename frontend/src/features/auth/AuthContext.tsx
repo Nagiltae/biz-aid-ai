@@ -10,6 +10,9 @@ interface AuthState {
   initializing: boolean;
   accept: (response: TokenResponse) => void;
   logout: () => Promise<void>;
+  /** 서버에서 이미 끝난 세션(회원 탈퇴 등)을 화면에서도 끝낸다. 서버 로그아웃 요청은 보내지 않는다. notice는 로그인 화면에 한 번 보인다. */
+  endSession: (notice?: string) => void;
+  notice: string | null;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -17,11 +20,13 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const [notice, setNotice] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const accept = useCallback((response: TokenResponse) => {
     setAccessToken(response.accessToken);
     setUser(response.user);
+    setNotice(null);
   }, []);
 
   useEffect(() => {
@@ -47,7 +52,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [queryClient]);
 
-  const value = useMemo(() => ({ user, initializing, accept, logout }), [user, initializing, accept, logout]);
+  // WHY: 안내를 주소 state로 넘기면 보호 routing의 로그인 이동이 먼저 일어나 state가 사라진다. 세션 상태와 함께 둔다.
+  const endSession = useCallback((message?: string) => {
+    setAccessToken(null);
+    setUser(null);
+    setNotice(message ?? null);
+    queryClient.clear();
+  }, [queryClient]);
+
+  const value = useMemo(() => ({ user, initializing, accept, logout, endSession, notice }),
+    [user, initializing, accept, logout, endSession, notice]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

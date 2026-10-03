@@ -39,6 +39,9 @@ class TraceSettings:
     def load(cls, root=ROOT, profile="dev", environ=None):
         values = profile_values(root, profile, SETTING_NAMES, environ)
         enabled = values.get("BIZAID_TRACING_ENABLED", "").strip().lower() == "true"
+        if profile == "prod":
+            # BOUNDARY(IMP-023): 운영 profile은 설정과 관계없이 외부 추적을 보내지 않는다(실사용자 요청의 외부 전송 결정 전).
+            enabled = False
         key = values.get("LANGSMITH_API_KEY", "").strip()
         if enabled and not key:
             # 켜져 있어도 키가 없으면 AI 기능은 그대로 두고 추적만 끈다.
@@ -156,8 +159,8 @@ def _run(tracer, run, outputs_on_exit=True):
 
 
 @contextmanager
-def workflow_trace(tracer, name, trace_key=None, **inputs):
-    """workflow 요청 1개의 최상위 실행. 안에서 LangChain/LangGraph 자동 추적은 항상 끈다(환경변수로 켜져 있어도)."""
+def workflow_trace(tracer, name, trace_key=None, tags=("bizaid", "workflow"), **inputs):
+    """요청 1개의 최상위 실행(workflow·AI 검색). 안에서 LangChain/LangGraph 자동 추적은 항상 끈다(환경변수로 켜져 있어도)."""
     from langsmith import tracing_context
     # BOUNDARY: 자동 추적을 끄는 범위다. 이 안의 ChatOllama·LangGraph 호출은 질문·prompt·State를 외부로 보내지 않는다.
     with tracing_context(enabled=False):
@@ -167,7 +170,7 @@ def workflow_trace(tracer, name, trace_key=None, **inputs):
         from langsmith import RunTree
         metadata = {"thread_id": trace_key, "workflow_trace_key": trace_key} if trace_key else {}
         run = tracer.guard(RunTree, name=name, run_type="chain", inputs=sanitize(inputs), project_name=tracer.project,
-                           ls_client=tracer.client, extra={"metadata": sanitize(metadata)}, tags=["bizaid", "workflow"])
+                           ls_client=tracer.client, extra={"metadata": sanitize(metadata)}, tags=list(tags))
         if run is None:
             yield NULL_SPAN
             return
@@ -228,6 +231,13 @@ def eligibility_summary(result):
     return {"pblanc_id": result.get("pblanc_id"), "status": result.get("status"), "criteria_count": len(criteria),
             "citation_count": sum(len(item.get("citations") or []) for item in criteria),
             "missing_count": len(result.get("missing_information") or []), "llm_seconds": result.get("llm_seconds")}
+
+
+def query_summary(result):
+    """AI 검색(V1 질문) 결과 요약: 질문 유형·상태·개수만(질문·답변 문장·공고명 없음)."""
+    return {"request_mode": result.get("request_mode"), "status": result.get("status"), "candidate_count": result.get("candidate_count"),
+            "program_count": len(result.get("programs") or []), "citation_count": len(result.get("citations") or []),
+            "has_answer": bool(result.get("answer"))}
 
 
 def state_summary(state):

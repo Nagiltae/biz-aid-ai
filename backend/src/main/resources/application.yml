@@ -29,11 +29,25 @@ spring:
 
 server:
   port: ${BACKEND_PORT:8080}
+  # 접속 IP(로그인 시도 제한)를 nginx가 넣은 X-Forwarded-For로 정한다. Tomcat은 내부망 proxy(127/8·10/8·172.16/12·192.168/16)만 믿는다.
+  forward-headers-strategy: native
   error:
     include-stacktrace: never
     include-message: never
 
 bizaid:
+  # 로그인 시도 제한(2026-10-04 사용자 결정): 계정·접속 IP 각각 5회 연속 실패 → 10분 잠금.
+  login-throttle:
+    max-failures: 5
+    lock-duration: 10m
+  # 정리 작업(IMP-016·021). 시각은 서비스 시간대(Asia/Seoul) cron이다.
+  maintenance:
+    cron: "0 30 4 * * *"
+    stale-step-cron: "0 */5 * * * *"
+    refresh-token-retention: 30d
+    login-throttle-retention: 1d
+    workflow-inactive-expiry: 14d
+    finished-workflow-retention: 90d
   # 공통 계약 폴더(기업 지역 표준명 등). IntelliJ(working dir backend/)는 ../contracts, Compose는 /contracts mount.
   contracts-path: ${BIZAID_CONTRACTS_PATH:../contracts}
   jwt:
@@ -50,3 +64,10 @@ bizaid:
     response-timeout: ${AI_RESPONSE_TIMEOUT:90s}
     # 서비스 간 인증 공유 키. FastAPI와 같은 값을 환경변수로만 받는다.
     api-key: ${INTERNAL_AI_API_KEY:}
+
+# API 문서는 기본으로 끈다. dev profile만 켠다(운영에 내부 API 구조를 공개하지 않음).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AiSearchPage } from "./features/ai/AiSearchPage";
+import { AccountPage } from "./features/auth/AccountPage";
 import { LoginPage } from "./features/auth/LoginPage";
 import { RequireAuth } from "./features/auth/RequireAuth";
 import { CompanyPage } from "./features/company/CompanyPage";
@@ -29,6 +30,7 @@ export function App() {
         <Route path="/programs" element={<ProgramListPage />} />
         <Route path="/programs/:pblancId" element={<ProgramDetailPage />} />
         <Route path="/company" element={<RequireAuth><CompanyPage /></RequireAuth>} />
+        <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/ai" replace />} />
       </Route>
     </Routes>

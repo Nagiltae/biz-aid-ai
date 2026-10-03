@@ -14,8 +14,8 @@
 | 단계 | 항목 | 기준 |
 | --- | --- | --- |
 | V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
-| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025, IMP-026, IMP-027, IMP-028, IMP-029, IMP-030, IMP-031, IMP-032 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
-| 운영/AWS 단계 | IMP-005(RESOLVED), IMP-006, IMP-007, IMP-015, IMP-016, IMP-017(RESOLVED), IMP-021, IMP-022, IMP-023 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
+| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025, IMP-026(RESOLVED), IMP-027, IMP-028, IMP-029, IMP-030, IMP-031, IMP-032 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
+| 운영/AWS 단계 | IMP-005(RESOLVED), IMP-006, IMP-007, IMP-015(RESOLVED), IMP-016(RESOLVED), IMP-017(RESOLVED), IMP-021(RESOLVED), IMP-022(RESOLVED), IMP-023(RESOLVED) | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
 | 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
 
 ## IMP-001 chunk에 문서 제목·사업명 context 없음
@@ -210,7 +210,8 @@
 - Why deferred: 동작 실패는 없고, Flyway 버전을 따로 올리면 Spring Boot가 관리하는 호환 조합을 벗어난다. V1 기능을 막지 않는다.
 - Revisit trigger: AWS RDS 이전, Spring Boot 업그레이드, 또는 새 migration에서 Flyway 오류가 났을 때
 - Side effect: Flyway 버전을 올리면 공통 flyway 컨테이너와 같은 history를 읽는지(checksum·validate) 함께 확인해야 한다.
-- Status: OPEN
+- Resolution(2026-10-04, 묶음3): backend Flyway를 `ext['flyway.version']='11.20.3'`으로 고정했다(공통 flyway 컨테이너 redgate/flyway:11과 같은 11.20.3). 같은 history validate 통과, 11.7.2에서만 나던 MySQL 8.4 경고가 사라졌다(backend 시작 log 확인). 기록 `2026-10-04-bundle3-service.md`.
+- Status: RESOLVED
 
 ## IMP-016 refresh_tokens의 폐기·만료 row 정리 정책 없음
 
@@ -220,7 +221,8 @@
 - Why deferred: 폐기 기록은 재사용된 토큰(탈취 신호)을 알아보는 근거라 바로 지우면 안 된다. V1 사용 규모에서는 문제가 없다.
 - Revisit trigger: 운영 배포 전, 또는 refresh_tokens 크기가 조회 성능에 영향을 줄 때
 - Side effect: 정리 주기는 Refresh Token 수명(14일)보다 길게 잡아야 재사용 탐지가 유지된다.
-- Status: OPEN
+- Resolution(2026-10-04, 묶음3): `MaintenanceJob`이 매일 04:30(Asia/Seoul) 만료·폐기된 지 30일이 지난 refresh_tokens를 지운다. 보관 기간이 토큰 수명(14일)보다 짧으면 시작을 거부한다(재사용 탐지 유지). 기록 `2026-10-04-bundle3-service.md`.
+- Status: RESOLVED
 
 ## IMP-017 FastAPI가 Compose app profile에 포함되지 않음
 
@@ -281,7 +283,8 @@
 - Why deferred: V2 데모 규모에서는 문제가 없고, 보관 기간은 운영 정책(개인정보·감사)과 함께 정해야 한다.
 - Revisit trigger: 운영 배포 전 또는 ai_workflows 크기가 커질 때
 - Side effect: 정리할 때 진행 중(IN_PROGRESS·WAITING_FOR_USER) 흐름은 지우면 안 된다.
-- Status: OPEN
+- Resolution(2026-10-04, 묶음3): 5분마다 오래된 단계 점유(step_started_at 5분 초과)를 풀고, 매일 14일 동안 바뀌지 않은 진행 중 흐름은 지우지 않고 FAILED(`workflow_expired`, State JSON도 같은 상태)로 만료, 끝난 흐름(COMPLETED·FAILED)은 90일 뒤 삭제한다. 기록 `2026-10-04-bundle3-service.md`.
+- Status: RESOLVED
 
 ## IMP-022 activity_logs.target_type COMMENT에 WORKFLOW 누락
 
@@ -291,7 +294,8 @@
 - Why deferred: 동작에는 영향이 없고 이번 범위(최종 결과 계약)가 아니다.
 - Revisit trigger: 다음 Spring migration을 추가할 때 함께 처리
 - Side effect: 없음(COMMENT만)
-- Status: OPEN
+- Resolution(2026-10-04, 묶음3): V12 migration이 activity_logs.target_type COMMENT에 WORKFLOW를 넣고 action·user_id COMMENT도 새 활동(ACCOUNT_DELETE·PASSWORD_CHANGE·CONVERSATION_DELETE)과 탈퇴 익명화에 맞췄다(dev·test 적용, COMMENT 검사 통과). 기록 `2026-10-04-bundle3-service.md`.
+- Status: RESOLVED
 
 ## IMP-023 실행 추적 범위가 V2 workflow 경로뿐
 
@@ -301,7 +305,8 @@
 - Why deferred: 사용자 흐름은 V2 workflow로 옮겨 가고 있고, 같은 `traced` 감싸기로 필요할 때 추가할 수 있다.
 - Revisit trigger: V1 화면 사용량이 많거나 V1 경로 성능 분석이 필요할 때
 - Side effect: 추가할 때도 같은 형식 검사·자동 추적 off 범위를 지켜야 한다.
-- Status: OPEN
+- Resolution(2026-10-04, 묶음3): V1 AI 검색(`ai_search.query`, 자식 natural_filter·mysql_candidates)과 V2 개인화 검색 단독 호출(`ai_search.personalized`)을 같은 안전 형식(상태·개수·코드만)으로 추적한다. prod profile은 설정과 관계없이 추적을 끈다. 기록 `2026-10-04-bundle3-service.md`.
+- Status: RESOLVED
 
 ## IMP-024 질문 유형(request_mode)이 LLM 판단만으로 정해짐
 
@@ -335,7 +340,8 @@
 - Why deferred: 지금 고치면 그 자체가 hash 입력을 바꿔 적재된 7원본의 parse_key가 바뀐다. 사용자 결정으로 이번에는 기록만 한다.
 - Revisit trigger: Office 설정을 바꿀 때(결과에 영향을 주는 값만 hash하는 구역으로 분리 — 예: `office.identity`)
 - Side effect: 분리하는 순간 DOCX·PPTX parse_key가 한 번 바뀌므로 7원본 재파싱·재적재가 함께 필요하다. `image_ocr_config_sha256`도 `image_ocr` 구역 전체(설명 문구 engine·tiling·acceptance·value_basis 등 포함)를 hash하는 같은 구조라 IMAGE_OCR 105원본에도 같은 위험이 있다. 함께 정한다.
-- Status: OPEN
+- Resolution(2026-10-04, 묶음3): 계약 `config_identity_snapshots`(office_v1·image_ocr_v1)에 예전 hash 입력을 그대로 고정하고 설정 hash는 snapshot으로 계산한다. hash·parse_key가 이전과 같고(실제 point 278/278 동일), 살아 있는 구역의 설명 수정은 key를 바꾸지 않는다. 문자열이 아닌 설정 값은 snapshot과 같아야 한다는 테스트를 둔다. 기록 `2026-10-04-bundle3-service.md`.
+- Status: RESOLVED
 
 ## IMP-027 document_role BODY 단서 "지침"이 내부 운영 규정까지 본문으로 판정함
 

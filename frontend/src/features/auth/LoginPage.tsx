@@ -11,11 +11,12 @@ import { useAuth } from "./AuthContext";
 type Mode = "login" | "signup";
 
 export function LoginPage() {
-  const { user, accept } = useAuth();
+  const { user, accept, notice } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? "/ai";
+
   const [mode, setMode] = useState<Mode>("login");
   const [form, setForm] = useState({ email: "", password: "", displayName: "" });
 
@@ -64,6 +65,7 @@ export function LoginPage() {
       <section className="card auth-card">
         <h1 className="auth-title">BizAid</h1>
         <p className="muted">기업정보와 공고문 근거로 우리 회사에 맞는 지원사업을 찾습니다.</p>
+        {notice && <p className="alert info" role="status">{notice}</p>}
         <div className="tabs" role="tablist">
           <button type="button" role="tab" aria-selected={mode === "login"} className={mode === "login" ? "tab active" : "tab"} onClick={() => switchMode("login")}>
             로그인

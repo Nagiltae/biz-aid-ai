@@ -20,9 +20,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String PREFIX = "Bearer ";
     private final JwtTokenProvider tokenProvider;
+    private final UserRepository users;
 
-    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider) {
+    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider, UserRepository users) {
         this.tokenProvider = tokenProvider;
+        this.users = users;
     }
 
     @Override
@@ -30,7 +32,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith(PREFIX)) {
-            tokenProvider.parse(header.substring(PREFIX.length())).ifPresent(user ->
+            // BOUNDARY: 서명이 맞아도 탈퇴한 사용자의 토큰은 인증하지 않는다(Access Token은 서버에 저장하지 않아 사용자 행으로 확인).
+            tokenProvider.parse(header.substring(PREFIX.length())).filter(user -> users.existsById(user.id())).ifPresent(user ->
                     SecurityContextHolder.getContext().setAuthentication(
                             new UsernamePasswordAuthenticationToken(user, null, List.of())));
         }

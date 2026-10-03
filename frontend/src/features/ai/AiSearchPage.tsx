@@ -66,6 +66,18 @@ export function AiSearchPage() {
     ask.mutate({ question });
     setText("");
   };
+  const remove = useMutation({
+    mutationFn: (id: number) => conversationApi.remove(id),
+    onSuccess: (_, id) => {
+      // 보고 있던 대화를 지웠으면 새 대화 상태로 돌아간다.
+      if (id === conversationId) open(null);
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.removeQueries({ queryKey: ["messages", id] });
+    },
+  });
+  const confirmRemove = (id: number, title: string) => {
+    if (window.confirm(`"${title}" 대화를 삭제할까요? 질문과 답변이 모두 지워지고 되돌릴 수 없습니다.`)) remove.mutate(id);
+  };
   const open = (id: number | null) => {
     setConversationId(id);
     ask.reset();
@@ -141,12 +153,17 @@ export function AiSearchPage() {
           <button type="button" className="button small" disabled={locked} onClick={() => open(null)}>새 대화</button>
         </div>
         {conversations.isError && <ErrorMessage error={conversations.error} />}
+        {remove.isError && <ErrorMessage error={remove.error} />}
         {conversations.data?.length === 0 && <p className="muted small">아직 대화가 없습니다.</p>}
         <ul className="conversation-list">
           {conversations.data?.map((conversation) => (
-            <li key={conversation.id}>
+            <li key={conversation.id} className="conversation-row">
               <button type="button" className={conversation.id === conversationId ? "conversation active" : "conversation"} onClick={() => open(conversation.id)}>
                 {conversation.title}
+              </button>
+              <button type="button" className="conversation-delete" aria-label={`대화 삭제: ${conversation.title}`}
+                      disabled={remove.isPending} onClick={() => confirmRemove(conversation.id, conversation.title)}>
+                삭제
               </button>
             </li>
           ))}

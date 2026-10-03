@@ -26,7 +26,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtTokenProvider tokenProvider, ObjectMapper objectMapper)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtTokenProvider tokenProvider, UserRepository users,
+                                                   ObjectMapper objectMapper)
             throws Exception {
         http.csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.disable())
@@ -40,6 +41,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/programs", "/api/programs/filter-options",
                                 "/api/programs/{pblancId}").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // 개발용 API 문서(dev profile에서만 켜짐). 문서를 꺼 둔 profile에서는 이 경로가 없다.
+                        .requestMatchers(HttpMethod.GET, "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling.authenticationEntryPoint((request, response, exception) -> {
                     response.setStatus(ErrorCode.AUTH_REQUIRED.status().value());
@@ -47,7 +50,7 @@ public class SecurityConfig {
                     response.setCharacterEncoding("UTF-8");
                     objectMapper.writeValue(response.getWriter(), ErrorResponse.of(ErrorCode.AUTH_REQUIRED));
                 }))
-                .addFilterBefore(new JwtAuthenticationFilter(tokenProvider), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtAuthenticationFilter(tokenProvider, users), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
