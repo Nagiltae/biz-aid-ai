@@ -346,4 +346,15 @@
   - (c) document_role에 REFERENCE를 추가하거나 "참고·해설서·가이드·매뉴얼"을 단서로 써서 FORM과 같이 보관만 한다
   - (d) 그대로 두고 cases-v2에서 공고별 근거 순위를 비교한 뒤 정한다
 - Side effect: (a)(b)는 이미 적재된 point 삭제라 사용자 승인이 필요하다. 참고자료에도 업종 코드 확인 같은 실제 답 근거가 있어 완전 제외는 일부 질문의 답을 잃는다.
-- Status: OPEN
+- Decision(2026-10-03, 사용자): 선택지 a. 참고자료 45원본(9,449 point)의 V2 point만 source_sha256 필터로 삭제했다. 파싱 결과(MySQL)·S3 artifact는 보관한다. REFERENCE 판정(c)은 하지 않는다
+  - 삭제 목록: `data/parsed/v2-zip-member-scope/2026-10-03/imp028-deleted-sources.txt`, 상세 `harness/workspace/artifacts/development/generic-zip-stage4/imp028-targets.json`
+  - 되돌리기: `run_corpus_indexing.py --profile dev --run-id <새 run-id> --sources-file <해당 SHA 목록> --collection-namespace v2 --parsed-only`(재파싱 없이 보관된 artifact로 재적재)
+  - 다시 적재할 때는 `index-sources-after-imp028.txt`를 쓴다(처음 125, 복원 뒤 130)
+  - 결과: V2 63,981 point·2,771원본, 나머지 point·V1 변경 0, point 없는 공고 0. 기록 `2026-10-02-generic-zip-stage4.md` §11
+- Follow-up(2026-10-03, 사용자): 삭제한 45원본 중 공고 본문 성격의 짧은 안내문 5원본(60 point)을 보관된 파싱 결과로 다시 적재했다
+  - 복원: 기술료 납부 안내문, 연구개발과제 접수 전 필수 이행 사항, 직무발명보상 인센티브 활용안내, 제3자 부당개입 주의 안내문, 일터혁신 지원분야 세부내용
+  - 삭제 전과 같은 point ID·hash 60/60
+  - 지금도 제외: 40원본(`imp028-still-excluded-sources.txt`). 재적재 목록은 `index-sources-after-imp028.txt`(130)
+  - V2 64,041 point·2,776원본. 고른 이유는 Report §11 후속에 있다
+- Remaining: 재발 방지(REFERENCE 판정, 원본당 point 상한 등)는 미정이다. 다음 형식(XLSX 등)이나 ZIP 재적재 전에 정한다.
+- Status: OPEN(45원본 point 삭제로 현재 영향은 해소, 재발 방지 미정)
