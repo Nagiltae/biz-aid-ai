@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import { AuthProvider } from "./features/auth/AuthContext";
 import { setAccessToken } from "./shared/api/client";
+import { SearchSummary } from "./features/recommend/WorkflowViews";
+import type { WorkflowResponse } from "./features/recommend/workflowApi";
 
 // 화면 핵심 흐름만 확인한다. 네트워크는 fetch를 대체해 Spring 응답 형태(성공 본문·공통 오류 본문)를 흉내 낸다.
 type Handler = (url: string, init: RequestInit) => { status: number; body?: unknown } | undefined;
@@ -25,7 +27,12 @@ const noCompany: Handler = (url, init) =>
   url === "/api/company" && (init.method ?? "GET") === "GET"
     ? { status: 404, body: { error: { code: "company_not_registered", message: "등록된 기업정보가 없습니다." } } } : undefined;
 
-function mockFetch(...handlers: Handler[]) {
+// 지역 선택지는 서버가 공통 계약(company-region)에서 읽어 준다. 테스트 서버는 그 일부만 흉내 낸다.
+const REGIONS = ["서울특별시", "부산광역시", "경기도", "전남광주통합특별시"];
+const regions: Handler = (url) => (url === "/api/company/regions" ? { status: 200, body: { regions: REGIONS } } : undefined);
+
+function mockFetch(...requestHandlers: Handler[]) {
+  const handlers = [...requestHandlers, regions];
   const calls: { url: string; init: RequestInit }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit = {}) => {
     calls.push({ url, init });
@@ -167,6 +174,41 @@ test("AI 검색은 시간이 걸릴 수 있다고 안내하고, 이전 대화는
   for (let index = 1; index < order.length; index += 1) {
     expect(order[index - 1].compareDocumentPosition(order[index]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   }
+});
+
+test("기업정보 지역은 서버가 준 광역 지자체 목록에서 고르고, 예전 자유 입력 값은 다시 고르라고 안내한다", async () => {
+  const legacy = { ...COMPANY, region: "경기도 광명시" };
+  const calls = mockFetch(loggedIn, (url, init) => {
+    if (url === "/api/company" && (init.method ?? "GET") === "GET") return { status: 200, body: legacy };
+    if (url === "/api/company" && init.method === "PUT") return { status: 200, body: { ...legacy, ...JSON.parse(String(init.body)) } };
+    return undefined;
+  });
+  renderAt("/company");
+  expect(await screen.findByText(/선택지에 없는 예전 값입니다/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "수정" }));
+  const region = await screen.findByLabelText("사업장 소재지(광역 지자체)");
+  await within(region).findByRole("option", { name: "전남광주통합특별시" });
+  // 목록은 서버 값 그대로다(광주·전남은 통합 이름 하나).
+  expect(within(region).getAllByRole("option").map((option) => option.textContent)).toEqual(["모름", ...REGIONS]);
+  expect(screen.getByText(/예전에 입력한 "경기도 광명시"는 선택지에 없습니다/)).toBeInTheDocument();
+  await userEvent.selectOptions(region, "경기도");
+  await userEvent.click(screen.getByRole("button", { name: "저장" }));
+  await screen.findByText("저장했습니다.");
+  const put = calls.find((call) => call.init.method === "PUT" && call.url === "/api/company");
+  expect(JSON.parse(String(put?.init.body)).region).toBe("경기도");
+});
+
+test("맞춤 추천은 지역 충돌을 기업정보 수정 안내와 함께 보여 주고, 적용한 기업 지역을 알려 준다", () => {
+  const base = { search: { status: "CONDITION_CONFLICT", candidateCount: 0, programs: [], unappliedConditions: [],
+    conflict: { kind: "region", company_region: "경기도", query_jurisdictions: ["서울특별시"] } } } as unknown as WorkflowResponse;
+  const { unmount } = render(<MemoryRouter><SearchSummary response={base} /></MemoryRouter>);
+  expect(screen.getByText(/질문의 지역\(서울특별시\)과 기업정보의 지역\(경기도\)이 달라/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "기업정보의 지역" })).toHaveAttribute("href", "/company");
+  unmount();
+  const listed = { search: { status: "LISTED", candidateCount: 43, programs: [], unappliedConditions: [],
+    appliedConditions: { company: { region: "경기도", excludedJurisdictions: ["서울특별시"] } } } } as unknown as WorkflowResponse;
+  render(<MemoryRouter><SearchSummary response={listed} /></MemoryRouter>);
+  expect(screen.getByText(/기업 지역\(경기도\) 기준으로 다른 광역 지자체가 담당하는 공고는 제외했습니다/)).toBeInTheDocument();
 });
 
 test("DOCUMENT_QA 답변과 공고문 근거(공고명·페이지·문단)를 보여 준다", async () => {

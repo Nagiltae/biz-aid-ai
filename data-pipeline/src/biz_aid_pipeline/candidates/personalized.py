@@ -2,11 +2,13 @@
 
 BOUNDARY: 기업정보는 Spring이 소유하고 요청 때 snapshot으로 받는다. 여기서 users·companies 테이블을 읽지 않는다.
 저장된 기업정보의 확실한 사실만 일반 코드로 검색조건이 된다. LLM은 기업정보를 해석하지 않는다(질문 조건 추출만 한다).
-의미가 확실하지 않은 값(지역 → 소관기관, 업력, 휴업 등)은 Hard Filter로 추측하지 않고 unapplied로 드러낸다.
+의미가 확실하지 않은 값(업력, 휴업 등)은 Hard Filter로 추측하지 않고 unapplied로 드러낸다.
+지역은 2026-10-03 사용자 결정으로 "다른 광역 지자체 소관 공고만 제외"한다(매핑은 company-region 계약, candidates/region.py).
 """
 from dataclasses import dataclass, fields
 from datetime import date
 
+from biz_aid_pipeline.candidates.region import excluded_jurisdictions
 from biz_aid_pipeline.candidates.service import ProgramCandidateFilter
 from biz_aid_pipeline.config.settings import PipelineError
 
@@ -50,6 +52,8 @@ class CompanyConditions:
     targets: tuple | None  # None = 기업정보로 정한 지원대상 조건 없음
     closed_company: bool
     unapplied: list
+    region: str | None = None               # 적용한 기업 지역(표준명). None = 지역 조건 없음
+    excluded_jurisdictions: tuple = ()      # 기업 지역과 다른 광역 소관기관(후보에서 제외)
 
 
 def company_conditions(profile):
@@ -66,10 +70,17 @@ def company_conditions(profile):
         # 업력 기준(창업 3년·7년 등)은 공고문마다 달라 정형 필드로 거를 수 없다.
         unapplied.append({"source": "company", "field": "business_start_date", "value": str(profile.business_start_date),
                           "reason": "age_rule_differs_by_program"})
+    region, excluded = None, ()
     if profile.region:
-        # BOUNDARY: 지역과 소관기관(jurisdiction_name)은 같은 의미가 아니다(중앙부처 공고는 전국 대상). Hard Filter로 쓰지 않는다.
-        unapplied.append({"source": "company", "field": "region", "value": profile.region, "reason": "region_is_not_jurisdiction"})
-    return CompanyConditions(targets, profile.business_status == "폐업", unapplied)
+        # BOUNDARY: 다른 광역 지자체 소관 공고만 뺀다. 중앙부처·매핑에 없는 소관기관은 전국 대상일 수 있어 남긴다(fail-open).
+        excluded = excluded_jurisdictions(profile.region)
+        if excluded is None:
+            # 표준명이 아닌 예전 자유 입력 값은 어느 광역인지 추측하지 않는다(기업정보에서 다시 고르면 적용된다).
+            unapplied.append({"source": "company", "field": "region", "value": profile.region, "reason": "region_not_standard"})
+            excluded = ()
+        else:
+            region = profile.region
+    return CompanyConditions(targets, profile.business_status == "폐업", unapplied, region, excluded)
 
 
 def combine(company, extraction, as_of):
@@ -78,15 +89,22 @@ def combine(company, extraction, as_of):
     질문이 말한 지원대상과 기업규모로 가능한 지원대상이 겹치지 않으면 조건을 몰래 완화하지 않고 충돌로 돌려준다.
     """
     query_filter = extraction.candidate_filter
+    jurisdictions = query_filter.jurisdictions
+    if company.excluded_jurisdictions and jurisdictions:
+        # 질문이 말한 소관기관 중 기업 지역에서 허용되는 것만 남긴다. 하나도 없으면 완화하지 않고 충돌로 돌려준다.
+        jurisdictions = tuple(value for value in jurisdictions if value not in company.excluded_jurisdictions)
+        if not jurisdictions:
+            return None, {"kind": "region", "company_region": company.region, "query_jurisdictions": list(query_filter.jurisdictions)}
     targets = query_filter.targets
     if company.targets is not None:
         if targets:
             targets = tuple(value for value in targets if value in company.targets)
             if not targets:
-                return None, {"company_targets": list(company.targets), "query_targets": list(query_filter.targets)}
+                return None, {"kind": "target", "company_targets": list(company.targets), "query_targets": list(query_filter.targets)}
         else:
             targets = company.targets
-    return ProgramCandidateFilter(categories=query_filter.categories, targets=targets, jurisdictions=query_filter.jurisdictions,
+    return ProgramCandidateFilter(categories=query_filter.categories, targets=targets, jurisdictions=jurisdictions,
+                                  exclude_jurisdictions=company.excluded_jurisdictions,
                                   not_closed_on=query_filter.not_closed_on, exclude_closed_on=as_of), None
 
 
@@ -104,7 +122,9 @@ class PersonalizedSearchService:
         # 질문 조건 추출은 V1·V2 공통 Natural Filter를 그대로 쓴다(LLM 1회, 허용값 enum + 질문 근거 검사).
         extraction = self.natural_filter.extract(query, as_of)
         base = {"top_k": TOP_K, "as_of": str(as_of), "natural_filter": extraction.to_dict(),
-                "applied_conditions": {"company": {"targets": list(company.targets) if company.targets else []},
+                "applied_conditions": {"company": {"targets": list(company.targets) if company.targets else [],
+                                                   "region": company.region,
+                                                   "excluded_jurisdictions": list(company.excluded_jurisdictions)},
                                        "query": {"categories": list(extraction.candidate_filter.categories),
                                                  "targets": list(extraction.candidate_filter.targets),
                                                  "currently_open": extraction.candidate_filter.not_closed_on is not None},

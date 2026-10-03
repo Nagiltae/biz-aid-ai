@@ -198,7 +198,7 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
                  "programs":[{"rank":1,"pblanc_id":"PBLN_000000000000003","name":"C"},{"rank":2,"pblanc_id":"PBLN_000000000000001","name":"A"}],
                  "applied_conditions":{"company":{"targets":["소상공인","중소기업"]},"query":{"categories":["금융"],"targets":[],"currently_open":false},
                                        "exclude_closed_on":"2026-10-01"},
-                 "unapplied_conditions":[{"source":"company","field":"region","value":"경기도","reason":"region_is_not_jurisdiction"}],
+                 "unapplied_conditions":[{"source":"company","field":"region","value":"경기도","reason":"region_not_standard"}],
                  "natural_filter":{"applied":{"categories":["금융"]}}}""", 0);
         mvc.perform(post("/api/ai/personalized-search").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"query\":\"우리 회사가 신청할 수 있는 금융 지원사업\"}"))
@@ -206,7 +206,7 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.status").value("LISTED"))
                 .andExpect(jsonPath("$.programs[0].pblancId").value("PBLN_000000000000003"))
                 .andExpect(jsonPath("$.appliedConditions.company.targets[1]").value("중소기업"))
-                .andExpect(jsonPath("$.unappliedConditions[0].reason").value("region_is_not_jurisdiction"));
+                .andExpect(jsonPath("$.unappliedConditions[0].reason").value("region_not_standard"));
         Received sent = RECEIVED.get(RECEIVED.size() - 1);
         assertThat(sent.path()).isEqualTo("/internal/v2/personalized-search");
         // 검색에 필요한 기업정보 4개만 보낸다(연 매출·회사명 등은 보내지 않는다). FastAPI는 회사 DB를 읽지 않는다.

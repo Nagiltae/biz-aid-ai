@@ -1,26 +1,26 @@
-# Current Task — 맞춤 추천 판정 90초 시간 초과·과열 진단·수정
+# Current Task — 맞춤 추천 기업 지역 조건(IMP-019 지역 부분)
 
 ## Goal / Context
 
-2026-10-03 사용자 요청: /recommend에서 Top 3 중 2번째 공고 판정이 Spring AI_RESPONSE_TIMEOUT(90초)으로 실패하고, 실패 뒤에도 맥북 팬이 계속 돈다. 재현 질문 "우리 회사가 신청할 수 있는 금융 지원사업 찾아줘".
-1단계로 실패 공고를 단독 재현해 원인(출력 폭주 / 입력 과다 / 모델 재적재 / 기타)을 숫자로 판정한다. 2단계로 최소 범위로 수정한다: LLM 출력 상한(num_predict·criteria maxItems·num_ctx), FastAPI LLM 기한 < Spring 응답 제한, 시간 초과 공고만 FAILED, 고아 생성 제거.
-판정 규칙·prompt 문구·Top 3 순위·identity key 변경, chunk 길이 상한(근거 입력이 원인이면 Backlog 후보만), commit/push는 범위가 아니다.
+2026-10-03 사용자 결정(규칙 변경 승인): A안 — 기업 지역과 다른 광역 지자체가 소관기관인 공고만 후보에서 제외하고 중앙부처·공공기관·소관기관 없음·전국 공고는 유지한다. 가안 — 기업 지역을 광역 지자체 선택(표준명)으로 바꾼다.
+1단계 결정: 선택지는 데이터 기준 16개(광주·전남 대신 전남광주통합특별시), 질문 지역과 기업 지역이 다르면 충돌로 돌려준다(겹치는 지역만 남김, 중앙부처를 말한 질문은 충돌 아님), 변환할 수 없는 기존 값은 NULL.
+판정 prompt·판정 규칙·Top 3 순위 계산·식별 key·근거 검색 변경, commit/push는 범위가 아니다. migration은 승인 전까지 `data-pipeline/pending-migrations/`에 둔다.
 
 ## Next Steps
 
-검토 → 5 화면 완주 + cases-v2 기준점(IMP-024·025·029 포함) → 6 XLSX → 7 옛 오피스.
+질문 지역 충돌 처리 방식 결정 → V11 적용 승인 → 화면 확인 → IMP-029 → cases-v2.
 
 ## Read First
 
-[AGENTS](../../AGENTS.md) → `data-pipeline/src/biz_aid_pipeline/rag/llm.py` → `eligibility/service.py` → `contracts/schemas/eligibility.contract.json`(criterion_output) → `contracts/schemas/internal-api.contract.json`(llm_call) → [Backlog](../docs/improvement-backlog.md)(IMP-020·029).
+[AGENTS](../../AGENTS.md) → [AI 경계](../rules/ai-boundary-rules.md) → `contracts/schemas/company-region.contract.json` → `candidates/region.py`·`personalized.py` → [Backlog](../docs/improvement-backlog.md)(IMP-019·030).
 
 ## Scope / Acceptance
 
-1. 원인을 측정값(prompt·출력 token, 시간, criteria 수·중복, chunk 길이, ollama ps)으로 판정한다.
-2. 한 판정 요청이 Spring 90초 안에 끝나고, 시간 초과·상한 도달은 그 공고만 고정 코드로 FAILED가 되며 workflow는 다음 공고로 간다.
-3. 실패 뒤 Ollama 생성이 남지 않는다(slot 확인).
+1. 매핑·표준명은 계약 파일 하나에만 있고 Spring·React·FastAPI가 그 파일을 쓴다.
+2. 경기도 기업에서 서울·부산 소관 공고는 빠지고 중앙부처·매핑 없는 소관기관 공고는 남는다. 적용 조건이 결과에 기록된다.
+3. 기업정보 지역은 표준명만 저장된다. 기존 값 변환 migration은 pending에 둔다.
 AGY 독립 Review / 사용자 검토는 pending이다.
 
 ## Validation / Reports
 
-[Final Report](reports/development/2026-10-03-recommend-timeout-diagnosis.md). 마지막에 `./scripts/check-all.sh`를 1회 실행한다.
+[Final Report](reports/development/2026-10-03-company-region-filter.md). 마지막에 `./scripts/check-all.sh`를 1회 실행한다.

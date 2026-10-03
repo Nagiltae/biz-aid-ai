@@ -1,5 +1,13 @@
 # Harness 변경 이력
 
+## 2026-10-03 — 맞춤 추천 기업 지역 조건(IMP-019 지역 부분)
+
+**규칙 변경(사용자 결정)**: `ai-boundary-rules.md`의 "지역을 소관기관 Hard Filter로 쓰지 않는다"에 예외를 둔다. 저장된 기업 지역이 광역 표준명이면 다른 광역 지자체 소관 공고만 후보에서 뺀다(중앙부처·매핑 없는 소관기관 유지, fail-open). 질문 속 지역은 계속 unapplied다.
+계약: 새 `contracts/schemas/company-region.contract.json`(광역 16개 표준명 — 전남광주통합특별시 하나, 별칭, 소관기관 매핑, 중앙부처 26개, fail-open·충돌 규칙). Spring·React·FastAPI가 이 파일 하나를 쓴다.
+코드: FastAPI `candidates/region.py`, 후보 필터 `exclude_jurisdictions`, 적용 조건 기록, 정형 소관기관 조건과의 충돌(kind=region). Spring `RegionCatalog`(계약 읽기)·`@CompanyRegion` 검증·`GET /api/company/regions`. React 지역 선택·예전 값 안내·추천 화면 지역 충돌·적용 안내. compose backend에 `./contracts:/contracts:ro`, validator 갱신.
+DB: V11(기존 지역 값 → 표준명, 맞지 않으면 NULL, COMMENT 변경)은 승인 전이라 `data-pipeline/pending-migrations/`에 둔다. 미리보기: 2건 변환, NULL 0건.
+Backlog: IMP-019 부분 해결(질문 지역 충돌 처리·순위 반영은 남음), IMP-030 신규(여러 지역 대상 공고).
+
 ## 2026-10-03 — 맞춤 추천 판정 90초 시간 초과·과열 수정
 
 원인(실측): 2번째 공고(PBLN_000000000123260) 판정에서 모델이 같은 criteria 13개를 반복 생성했다. 5,000 token 동안 끝나지 않았고 상한이 없었다(num_predict 327,680). 또 client timeout(300초)이 stream 읽기 사이 대기라서, Spring이 90초에 포기한 뒤에도 FastAPI·Ollama가 18분 넘게 20,905 token을 생성했다(팬 과열).

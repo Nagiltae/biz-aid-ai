@@ -36,5 +36,6 @@ Flyway는 기본값 `filesystem:../migrations`(공통 migration)를 읽는다. �
 테스트(H2 격리 DB, 로컬 Gradle 없이):
 
 ```bash
-docker run --rm -v "$PWD":/app -v bizaid-gradle-cache:/home/gradle/.gradle -w /app gradle:8.14-jdk21 gradle test
+# 저장소 루트에서 실행한다. 테스트가 공통 계약(../contracts, 기업 지역 표준명)을 읽기 때문이다.
+docker run --rm -v "$PWD":/repo -v bizaid-gradle-cache:/home/gradle/.gradle -w /repo/backend gradle:8.14-jdk21 gradle test
 ```

@@ -16,6 +16,8 @@ spring:
     enabled: false
 
 bizaid:
+  # 테스트는 backend/에서 실행하므로 저장소의 공통 계약을 그대로 읽는다(복사본 없음).
+  contracts-path: ../contracts
   jwt:
     secret: test-only-secret-key-that-is-long-enough-for-hs256-0123456789
     access-token-ttl: 15m

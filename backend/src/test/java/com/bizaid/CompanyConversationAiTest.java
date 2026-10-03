@@ -35,6 +35,16 @@ class CompanyConversationAiTest extends ApiTestSupport {
         mvc.perform(post("/api/company").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"companyName\":\"비즈에이드\",\"companySize\":\"대기업\"}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.fieldErrors[0].field").value("companySize"));
+        // 지역은 공통 계약의 광역 지자체 표준명만 받는다. 자유 입력·통합 전 이름은 거부한다(2026-10-03, IMP-019).
+        for (String region : new String[] {"경기도 광명시", "광주광역시", "서울"}) {
+            mvc.perform(post("/api/company").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"companyName\":\"비즈에이드\",\"region\":\"" + region + "\"}"))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.fieldErrors[0].field").value("region"));
+        }
+        mvc.perform(get("/api/company/regions").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.regions.length()").value(16))
+                .andExpect(jsonPath("$.regions[0]").value("서울특별시"))
+                .andExpect(jsonPath("$.regions[?(@ == '전남광주통합특별시')]").exists());
         mvc.perform(post("/api/company").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"companyName\":\"비즈에이드\",\"businessEntityType\":\"법인\",\"region\":\"경기도\","
                                 + "\"businessStartDate\":\"2023-03-02\",\"employeeCount\":5}"))

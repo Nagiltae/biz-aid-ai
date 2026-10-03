@@ -213,9 +213,13 @@ def compose():
                     or ports[0]["target"] != target):
                 raise ValueError(f"service V1 {name} local boundary drift")
         backend = result["services"]["backend"]
-        mounts = backend.get("volumes", [])
-        if (backend["environment"].get("MYSQL_HOST") != "mysql" or len(mounts) != 1 or not mounts[0].get("read_only")
-                or Path(mounts[0]["source"]).resolve() != ROOT / "migrations"
+        mounts = {item["target"]: item for item in backend.get("volumes", [])}
+        # BOUNDARY: Spring은 공통 migration과 공통 계약(기업 지역 표준명)만 읽기 전용으로 붙인다.
+        if (backend["environment"].get("MYSQL_HOST") != "mysql" or set(mounts) != {"/migrations", "/contracts"}
+                or not all(item.get("read_only") for item in mounts.values())
+                or Path(mounts["/migrations"]["source"]).resolve() != ROOT / "migrations"
+                or Path(mounts["/contracts"]["source"]).resolve() != ROOT / "contracts"
+                or backend["environment"].get("BIZAID_CONTRACTS_PATH") != "/contracts"
                 or backend["environment"].get("FLYWAY_LOCATIONS") != "filesystem:/migrations"):
             raise ValueError("service V1 backend must use common Flyway migrations and the compose MySQL")
         # BOUNDARY(IMP-017): FastAPI 컨테이너는 질문 처리 전용이다. 코드·계약·모델을 읽기 전용으로만 붙이고, 데이터는 compose의

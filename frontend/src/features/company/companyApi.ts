@@ -32,6 +32,8 @@ export const companyApi = {
       if (error instanceof ApiError && error.code === "company_not_registered") return null;
       throw error;
     }),
+  /** 지역 선택지(광역 지자체 표준명). 서버가 공통 계약(company-region)에서 읽어 준다. 화면에 목록을 따로 적지 않는다. */
+  regions: () => apiRequest<{ regions: string[] }>("/api/company/regions"),
   create: (body: CompanyInput) => apiRequest<Company>("/api/company", { method: "POST", body }),
   update: (body: CompanyInput) => apiRequest<Company>("/api/company", { method: "PUT", body }),
 };

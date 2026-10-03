@@ -76,7 +76,8 @@ public final class AiDtos {
     public record PersonalizedSearchCommand(String query, CompanySearchSnapshot companyProfile) {
     }
 
-    public record CompanyConditions(List<String> targets, String businessStatus) {
+    /** 기업정보로 적용한 조건. region은 적용한 광역 표준명, excludedJurisdictions는 후보에서 뺀 다른 광역 소관기관이다. */
+    public record CompanyConditions(List<String> targets, String businessStatus, String region, List<String> excludedJurisdictions) {
     }
 
     public record QueryConditions(List<String> categories, List<String> targets, Boolean currentlyOpen) {
@@ -86,7 +87,7 @@ public final class AiDtos {
     public record AppliedConditions(CompanyConditions company, QueryConditions query, LocalDate excludeClosedOn) {
     }
 
-    /** 적용하지 못한 조건과 이유(예: region → region_is_not_jurisdiction). */
+    /** 적용하지 못한 조건과 이유(예: 표준명이 아닌 예전 지역 값 → region_not_standard). */
     public record UnappliedCondition(String source, String field, String value, String reason) {
     }
 

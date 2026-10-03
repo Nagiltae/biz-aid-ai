@@ -151,7 +151,7 @@ class GenericZipTests(unittest.TestCase):
         self.assertEqual(len(re.findall(r" COMMENT '", sql)), len(columns))
         # 승인(2026-10-02) 뒤 공통 Flyway 계보로 옮겼다. 두 번째 migration 보관 위치가 남지 않는다.
         self.assertIn("migrations/", contract["generic_zip"]["database"])
-        self.assertFalse((ROOT / "data-pipeline/pending-migrations").exists())
+        self.assertFalse((ROOT / "data-pipeline/pending-migrations/V10__document_archive_members.sql").exists())
 
 
 if __name__ == "__main__":

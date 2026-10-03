@@ -54,6 +54,9 @@ export interface WorkflowResponse {
     candidateCount: number | null;
     programs: AiProgramItem[] | null;
     unappliedConditions: { source: string; field: string; value: string; reason: string }[] | null;
+    appliedConditions?: { company?: { region?: string | null; excludedJurisdictions?: string[] | null } | null } | null;
+    /** CONDITION_CONFLICT일 때 FastAPI가 준 충돌 내용 그대로(kind: target | region). */
+    conflict?: { kind?: string; company_region?: string; query_jurisdictions?: string[] } | null;
   } | null;
   evaluations: WorkflowEvaluation[];
   missingInformation: MissingField[];

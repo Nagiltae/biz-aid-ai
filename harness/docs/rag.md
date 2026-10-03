@@ -13,7 +13,7 @@ citation(chunk_id·pblanc_id·page·source·provenance)은 application이 이번
 CLI는 먼저 `candidates.ProgramCandidateService`로 MySQL 후보 pblanc_id(활성 공고 + 선택 필터 category·target·jurisdiction·not_closed_on)를 정하고,
 `RagService.answer(query, candidate_pblanc_ids=...)`가 Retriever에 scope를 넘긴다(Qdrant MatchAny). 후보가 없으면 검색·LLM 없이 NO_CANDIDATES다.
 `--natural-filter`는 `candidates.natural.NaturalLanguageFilterService`가 같은 LlmProvider로 category·target·현재 모집 요청·unapplied 조건을 뽑고,
-활성 공고의 실제 값으로 검증한 뒤 ProgramCandidateFilter를 만든다. 지역·소관기관은 자연어로 적용하지 않고 unapplied로 남기며, 검색 질의는 원문 그대로다.
+활성 공고의 실제 값으로 검증한 뒤 ProgramCandidateFilter를 만든다. 질문 속 지역·소관기관은 자연어로 적용하지 않고 unapplied로 남기며, 검색 질의는 원문 그대로다. V2 맞춤 추천은 저장된 기업 지역(광역 표준명)으로 다른 광역 지자체 소관 공고만 뺀다(company-region 계약, 2026-10-03).
 같은 추출 호출이 request_mode(SEARCH_LIST·DOCUMENT_QA)를 낸다. SEARCH_LIST는 `candidates/discovery.py`가 `Retriever.search_programs`로 의미·단어 검색마다 공고별 최고 조각 하나(Qdrant group 검색)를 받아
 공고 순위를 기존 RRF(k=60)로 합치고 상위 5개 공고의 MySQL 정형 정보를 돌려준다(답변 생성 LLM 없음, IMP-014). DOCUMENT_QA는 기존 RagService 그대로다. hard filter는 질문 근거가 있을 때만 적용한다.
 

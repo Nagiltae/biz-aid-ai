@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "purpose": "company region (광역 지자체) for the company form and the personalized candidate filter; one source for Spring (validation and the /api/company/regions list), React (select options) and FastAPI (candidate filter)",
+  "decision": "2026-10-03 user decision (IMP-019 region part, rule change): plan A excludes only programs whose jurisdiction_name is a different 광역 지자체 than the company region; central ministries, public bodies, unmapped jurisdictions and nationwide programs stay. Plan 가: the company region is one of the 16 standard names below (data has one merged 전남광주통합특별시 instead of 광주광역시 and 전라남도)",
+  "regions": [
+    "서울특별시",
+    "부산광역시",
+    "대구광역시",
+    "인천광역시",
+    "대전광역시",
+    "울산광역시",
+    "세종특별자치시",
+    "경기도",
+    "강원특별자치도",
+    "충청북도",
+    "충청남도",
+    "전북특별자치도",
+    "전남광주통합특별시",
+    "경상북도",
+    "경상남도",
+    "제주특별자치도"
+  ],
+  "aliases": {
+    "서울특별시": [
+      "서울특별시",
+      "서울시",
+      "서울"
+    ],
+    "부산광역시": [
+      "부산광역시",
+      "부산시",
+      "부산"
+    ],
+    "대구광역시": [
+      "대구광역시",
+      "대구시",
+      "대구"
+    ],
+    "인천광역시": [
+      "인천광역시",
+      "인천시",
+      "인천"
+    ],
+    "대전광역시": [
+      "대전광역시",
+      "대전시",
+      "대전"
+    ],
+    "울산광역시": [
+      "울산광역시",
+      "울산시",
+      "울산"
+    ],
+    "세종특별자치시": [
+      "세종특별자치시",
+      "세종시",
+      "세종"
+    ],
+    "경기도": [
+      "경기도",
+      "경기"
+    ],
+    "강원특별자치도": [
+      "강원특별자치도",
+      "강원도",
+      "강원"
+    ],
+    "충청북도": [
+      "충청북도",
+      "충북"
+    ],
+    "충청남도": [
+      "충청남도",
+      "충남"
+    ],
+    "전북특별자치도": [
+      "전북특별자치도",
+      "전라북도",
+      "전북"
+    ],
+    "전남광주통합특별시": [
+      "전남광주통합특별시",
+      "광주광역시",
+      "광주",
+      "전라남도",
+      "전남"
+    ],
+    "경상북도": [
+      "경상북도",
+      "경북"
+    ],
+    "경상남도": [
+      "경상남도",
+      "경남"
+    ],
+    "제주특별자치도": [
+      "제주특별자치도",
+      "제주도",
+      "제주"
+    ]
+  },
+  "alias_rule": "legacy free-text values are converted once (migration V11) when the value, with whitespace removed, starts with an alias; the longest matching alias wins; a value matching no alias becomes NULL and is counted",
+  "jurisdiction_regions": {
+    "서울특별시": "서울특별시",
+    "부산광역시": "부산광역시",
+    "대구광역시": "대구광역시",
+    "인천광역시": "인천광역시",
+    "대전광역시": "대전광역시",
+    "울산광역시": "울산광역시",
+    "세종특별자치시": "세종특별자치시",
+    "경기도": "경기도",
+    "강원특별자치도": "강원특별자치도",
+    "충청북도": "충청북도",
+    "충청남도": "충청남도",
+    "전북특별자치도": "전북특별자치도",
+    "전남광주통합특별시": "전남광주통합특별시",
+    "경상북도": "경상북도",
+    "경상남도": "경상남도",
+    "제주특별자치도": "제주특별자치도"
+  },
+  "jurisdiction_rule": "jurisdiction_name values mapped here are local governments; a city / county / district jurisdiction is added here with its upper 광역 region (none exist in the 2026-10-03 data: 42 distinct values = 16 광역 + 26 central)",
+  "national_jurisdictions": [
+    "중소벤처기업부",
+    "산업통상부",
+    "고용노동부",
+    "과학기술정보통신부",
+    "기후에너지환경부",
+    "농림축산식품부",
+    "지식재산처",
+    "보건복지부",
+    "해양수산부",
+    "문화체육관광부",
+    "방위사업청",
+    "조달청",
+    "방송미디어통신위원회",
+    "소방청",
+    "교육부",
+    "성평등가족부",
+    "행정안전부",
+    "산림청",
+    "금융위원회",
+    "통일부",
+    "기상청",
+    "국토교통부",
+    "개인정보보호위원회",
+    "식품의약품안전처",
+    "탄소중립녹색성장위원회",
+    "국세청"
+  ],
+  "national_rule": "central ministries and public bodies are kept for every company region (nationwide target); listed for audit only, the filter never needs them",
+  "unmapped_rule": "fail open: a jurisdiction_name that is neither in jurisdiction_regions nor in national_jurisdictions is kept, because excluding an unknown owner could hide a valid nationwide program; new values are reviewed and added here",
+  "filter_rule": "with a standard company region the candidate filter excludes jurisdiction_name IN (jurisdiction_regions keys whose region differs); the applied conditions record the region and the excluded jurisdictions; a company region outside regions (legacy free text) is unapplied with reason region_not_standard",
+  "query_rule": "query jurisdictions (Natural Filter) are intersected with the allowed set (company region jurisdictions + national + unmapped); if nothing remains the result is CONDITION_CONFLICT with conflict.kind region (company_region, query_jurisdictions) and no candidates; a query naming only central ministries is never a conflict",
+  "known_gaps": [
+    "a program for several regions owned by one 광역 is excluded for companies of the other regions (2026-10-03: 1 program, [부산ㆍ울산ㆍ경남] 동남 정보보호클러스터, owned by 경상남도; Backlog IMP-030)",
+    "central-ministry programs whose title names one region are kept (2026-10-03: 63 of 384 not-closed central programs; IMP-019 follow-up)"
+  ]
+}

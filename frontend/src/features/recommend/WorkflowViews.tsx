@@ -31,9 +31,21 @@ export function SearchSummary({ response }: { response: WorkflowResponse }) {
   const search = response.search;
   if (!search) return null;
   const unapplied = search.unappliedConditions ?? [];
+  const regionConflict = search.status === "CONDITION_CONFLICT" && search.conflict?.kind === "region" ? search.conflict : null;
+  const appliedRegion = search.appliedConditions?.company?.region;
   return (
     <div className="search-summary">
-      {search.status !== "LISTED" && <div className="alert info">{SEARCH_STATUS_TEXT[search.status] ?? `검색 결과: ${search.status}`}</div>}
+      {regionConflict ? (
+        <div className="alert info">
+          질문의 지역({(regionConflict.query_jurisdictions ?? []).join(", ")})과 기업정보의 지역({regionConflict.company_region})이 달라 공고를 고를 수 없습니다.
+          다른 지역 공고를 찾으려면 <Link to="/company">기업정보의 지역</Link>을 바꿔 주세요.
+        </div>
+      ) : (
+        search.status !== "LISTED" && <div className="alert info">{SEARCH_STATUS_TEXT[search.status] ?? `검색 결과: ${search.status}`}</div>
+      )}
+      {appliedRegion && (
+        <p className="muted small">기업 지역({appliedRegion}) 기준으로 다른 광역 지자체가 담당하는 공고는 제외했습니다. 중앙부처 공고는 포함합니다.</p>
+      )}
       {search.status === "LISTED" && (
         <p className="muted small">조건에 맞는 공고 {search.candidateCount ?? "-"}건 중 질문과 관련도가 높은 상위 {search.programs?.length ?? 0}건을 판정합니다.</p>
       )}

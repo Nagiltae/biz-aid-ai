@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../shared/api/client";
 import { ErrorMessage, FieldMessage, Loading, fieldMessage } from "../../shared/components/StateViews";
 import { COMPANY_SIZES, companyApi, type Company, type CompanyInput } from "./companyApi";
@@ -99,7 +99,14 @@ export function CompanyPage() {
   );
 }
 
+/** 지역 선택지. 바뀌지 않는 공통 계약 값이라 화면을 쓰는 동안 다시 받지 않는다. */
+function useRegions() {
+  return useQuery({ queryKey: ["company-regions"], queryFn: companyApi.regions, staleTime: Infinity });
+}
+
 function CompanyView({ company }: { company: Company }) {
+  const regions = useRegions();
+  const legacyRegion = company.region && regions.data && !regions.data.regions.includes(company.region) ? company.region : null;
   const show = (value: unknown, suffix = "") => {
     if (value === null || value === undefined || value === "") return <span className="muted">입력 안 함</span>;
     if (value === true) return "예";
@@ -117,7 +124,11 @@ function CompanyView({ company }: { company: Company }) {
           {show(company.companySize)}
           {!isSizeOption(company.companySize) && <span className="muted small"> (선택지에 없는 예전 값입니다. 수정할 때 다시 골라 주세요)</span>}
         </dd>
-        <dt>사업장 소재지</dt><dd>{show(company.region)}</dd>
+        <dt>사업장 소재지</dt>
+        <dd>
+          {show(company.region)}
+          {legacyRegion && <span className="muted small"> (선택지에 없는 예전 값입니다. 수정할 때 광역 지자체를 다시 골라 주세요)</span>}
+        </dd>
         <dt>업종</dt><dd>{show(company.industry)}</dd>
         <dt>개업일</dt><dd>{show(company.businessStartDate)}</dd>
         <dt>영업 상태</dt><dd>{show(company.businessStatus)}</dd>
@@ -133,6 +144,8 @@ function CompanyView({ company }: { company: Company }) {
 
 function CompanyForm({ company, onSaved, onCancel }: { company: Company | null; onSaved: () => void; onCancel?: () => void }) {
   const queryClient = useQueryClient();
+  const regions = useRegions();
+  const regionOptions = regions.data?.regions ?? [];
   const [form, setForm] = useState<FormState>(company ? toForm(company) : EMPTY);
   useEffect(() => {
     setForm(company ? toForm(company) : EMPTY);
@@ -151,7 +164,10 @@ function CompanyForm({ company, onSaved, onCancel }: { company: Company | null; 
     setForm((current) => ({ ...current, [name]: event.target.value }));
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    mutation.mutate(toInput(form));
+    const input = toInput(form);
+    // 선택지 밖의 예전 지역 값은 서버가 받지 않으므로, 다시 고르지 않았으면 "모름"(null)으로 저장한다.
+    if (input.region && !regionOptions.includes(input.region)) input.region = null;
+    mutation.mutate(input);
   };
   const input = (name: keyof FormState, label: string, props: Record<string, string> = {}) => (
     <label className="field">
@@ -173,6 +189,7 @@ function CompanyForm({ company, onSaved, onCancel }: { company: Company | null; 
     </label>
   );
   const legacySize = company && !isSizeOption(company.companySize) ? company.companySize : null;
+  const legacyRegion = company?.region && regions.data && !regionOptions.includes(company.region) ? company.region : null;
 
   return (
     <form className="card form-grid" onSubmit={submit} noValidate aria-label={company ? "기업정보 수정" : "기업정보 등록"}>
@@ -182,7 +199,11 @@ function CompanyForm({ company, onSaved, onCancel }: { company: Company | null; 
         {select("companySize", "기업 규모", COMPANY_SIZES.map((size) => [size, size]), "모름·해당 없음")}
         {legacySize && <small className="muted">예전에 입력한 "{legacySize}"는 선택지에 없습니다. 다시 골라 주세요.</small>}
       </div>
-      {input("region", "사업장 소재지", { placeholder: "예: 경기도 광명시" })}
+      <div>
+        {select("region", "사업장 소재지(광역 지자체)", regionOptions.map((region) => [region, region]), "모름")}
+        {legacyRegion && <small className="muted">예전에 입력한 "{legacyRegion}"는 선택지에 없습니다. 광역 지자체를 다시 골라 주세요.</small>}
+        <small className="muted">맞춤 추천은 이 지역과 다른 광역 지자체가 담당하는 공고를 빼고 찾습니다. 중앙부처 공고는 그대로 포함합니다.</small>
+      </div>
       {input("industry", "업종", { placeholder: "예: 식료품 제조업" })}
       {input("businessStartDate", "개업일", { type: "date" })}
       {select("businessStatus", "영업 상태", [["영업중", "영업중"], ["휴업", "휴업"], ["폐업", "폐업"]])}

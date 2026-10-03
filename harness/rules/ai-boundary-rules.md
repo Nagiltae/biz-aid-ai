@@ -20,8 +20,9 @@ AI POST 요청(검색·자격 판정)은 자동 재시도하지 않는다(LLM �
 기업 사실이 없으면 LLM이 추론하지 않고 UNKNOWN / NEEDS_MORE_INFO로 둔다(값 없는 필드로 낸 MET·NOT_MET은 application이 UNKNOWN으로 되돌린다).
 최종 자격 상태는 검증된 criterion 결과로 application이 계산하며 모델이 덮어쓸 수 없다.
 LLM이 추출한 정형 조건은 SQL 실행 전에 application의 허용 canonical 값(활성 공고의 실제 DB 값)으로 검증한다. 허용 값 밖은 적용하지 않고 unapplied로 드러낸다.
-처리할 수 없거나 모호한 hard 조건(예: 지역)을 다른 정형 field(예: 소관기관 jurisdiction_name)로 바꿔 적용하지 않는다. 질문 조건과 저장된 기업정보 모두 같다.
-저장된 기업정보는 LLM이 해석하지 않는다. 의미가 확실하고 사용자가 승인한 매핑(`candidates/personalized.py`)만 일반 코드로 검색조건이 되고, 나머지(지역·업력·휴업 등)는 unapplied로 드러낸다. 질문 조건과 겹치지 않으면 완화하지 않고 충돌 상태로 돌려준다.
+처리할 수 없거나 모호한 hard 조건(예: 질문 속 지역)을 다른 정형 field(예: 소관기관 jurisdiction_name)로 바꿔 적용하지 않는다(질문 속 지역은 unapplied).
+예외(2026-10-03 사용자 결정, IMP-019): 저장된 기업정보의 지역이 광역 지자체 표준명이면 기업 지역과 다른 광역 지자체가 소관기관인 공고만 후보에서 뺀다. 중앙부처·공공기관·매핑에 없는 소관기관은 남긴다(fail-open). 표준명·소관기관 매핑은 `contracts/schemas/company-region.contract.json`에만 둔다.
+저장된 기업정보는 LLM이 해석하지 않는다. 의미가 확실하고 사용자가 승인한 매핑(`candidates/personalized.py`, `candidates/region.py`)만 일반 코드로 검색조건이 되고, 나머지(업력·휴업·표준명이 아닌 예전 지역 값 등)는 unapplied로 드러낸다. 질문 조건과 겹치지 않으면 완화하지 않고 충돌 상태로 돌려준다(지원대상 kind=target, 정형 소관기관 조건과 기업 지역 kind=region).
 "현재·지금" 같은 상대 시간은 LLM이 만든 날짜가 아니라 application 시간(Asia/Seoul 날짜 또는 명시한 as_of)으로 해석한다.
 LLM이 제안한 hard filter는 질문 원문에 근거가 있고 application이 검증한 경우에만 후보 선택에 영향을 준다. 근거 없는 제안은 진단(discarded)으로만 남긴다.
 지원사업 찾기·목록 요청(SEARCH_LIST)은 문서 QA 생성을 강제하지 않고 MySQL의 공고 정형 정보를 목록으로 돌려준다(답변 생성 LLM 미사용).
