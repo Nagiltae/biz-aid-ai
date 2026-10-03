@@ -3,6 +3,7 @@ package com.bizaid.ai.application;
 import com.bizaid.activity.application.ActivityLogService;
 import com.bizaid.activity.domain.ActivityAction;
 import com.bizaid.common.error.ApiException;
+import com.bizaid.company.application.CompanyService;
 import com.bizaid.conversation.application.ConversationDtos;
 import com.bizaid.conversation.application.ConversationService;
 import java.util.LinkedHashMap;
@@ -21,11 +22,13 @@ public class AiQueryService {
     private final AiGateway aiGateway;
     private final ConversationService conversationService;
     private final ActivityLogService activityLog;
+    private final CompanyService companyService;
 
-    public AiQueryService(AiGateway aiGateway, ConversationService conversationService, ActivityLogService activityLog) {
+    public AiQueryService(AiGateway aiGateway, ConversationService conversationService, ActivityLogService activityLog, CompanyService companyService) {
         this.aiGateway = aiGateway;
         this.conversationService = conversationService;
         this.activityLog = activityLog;
+        this.companyService = companyService;
     }
 
     public AiDtos.AiQueryResponse query(Long userId, String query, Long requestedConversationId) {
@@ -37,7 +40,7 @@ public class AiQueryService {
         Long conversationId = started.conversationId();
         AiDtos.AiQueryResult result;
         try {
-            result = aiGateway.query(query.strip(), selectedPblancId);
+            result = aiGateway.query(query.strip(), selectedPblancId, companyService.optionalRegion(userId));
         } catch (ApiException exception) {
             // 실패하면 ASSISTANT 메시지는 저장하지 않는다(질문만 남는다). 활동 기록에도 질문 본문은 넣지 않는다.
             activityLog.failure(ActivityAction.AI_QUERY, userId, "CONVERSATION", conversationId, exception.errorCode().code(), null);

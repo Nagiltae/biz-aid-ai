@@ -76,7 +76,7 @@ export function CompanyPage() {
       {company === null ? (
         <>
           <p className={state?.needCompany ? "alert warn" : "alert info"} role="status">
-            기업정보를 먼저 등록해야 AI 검색과 맞춤 추천을 쓸 수 있습니다. 회사명만 넣어도 등록되며, 모르는 항목은 비워 두세요.
+            기업정보를 등록하면 지역 기반 AI 검색과 맞춤 추천을 쓸 수 있습니다. 회사명만 넣어도 등록되며, 모르는 항목은 비워 두세요.
           </p>
           <CompanyForm
             company={null}

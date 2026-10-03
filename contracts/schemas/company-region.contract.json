@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "purpose": "company region (광역 지자체) for the company form and the personalized candidate filter; one source for Spring (validation and the /api/company/regions list), React (select options) and FastAPI (candidate filter)",
-  "decision": "2026-10-03 user decision (IMP-019 region part, rule change): plan A excludes only programs whose jurisdiction_name is a different 광역 지자체 than the company region; central ministries, public bodies, unmapped jurisdictions and nationwide programs stay. Plan 가: the company region is one of the 16 standard names below (data has one merged 전남광주통합특별시 instead of 광주광역시 and 전라남도); 2026-10-03 follow-up: retain the current jurisdiction candidate filter (distinct from question-region unapplied decision 나); V11 application approved with ASCII-space-only and ambiguous 광주시 prefix risks accepted, current dev affected values absent, prod company data absent per user, Spring accepts standard values only",
+  "purpose": "company region (광역 지자체) for the company form, personalized search and optional company-region AI search; one source for Spring, React and FastAPI",
+  "decision": "2026-10-03 user decision (IMP-019 region part, rule change): plan A excludes only programs whose jurisdiction_name is a different 광역 지자체 than the company region; central ministries, public bodies, unmapped jurisdictions and nationwide programs stay. Plan 가: the company region is one of the 16 standard names below (data has one merged 전남광주통합특별시 instead of 광주광역시 and 전라남도); 2026-10-03 follow-up: retain the current jurisdiction candidate filter (distinct from question-region unapplied decision 나); V11 application approved with ASCII-space-only and ambiguous 광주시 prefix risks accepted, current dev affected values absent, prod company data absent per user, Spring accepts standard values only; Bundle2 supersedes the central-ministry blanket retention: retain company-region or nationwide programs using title_region_rule; mapped multi-region titles override jurisdiction, mapped central-ministry title regions restrict candidates, unknown title mappings remain fail-open. Explicit named DOCUMENT_QA may read other regions with a warning; missing/nonstandard company region applies no region filter.",
   "regions": [
     "서울특별시",
     "부산광역시",
@@ -147,12 +147,74 @@
     "탄소중립녹색성장위원회",
     "국세청"
   ],
-  "national_rule": "central ministries and public bodies are kept for every company region as candidate-filter policy, not as proof of nationwide eligibility; listed for audit only, the filter never needs them",
+  "national_rule": "central owners with a mapped leading regional title follow title regions; other central/unmapped owners remain, not proof of nationwide eligibility",
   "unmapped_rule": "fail open: a jurisdiction_name that is neither in jurisdiction_regions nor in national_jurisdictions is kept, because excluding an unknown owner could hide a valid nationwide program; new values are reviewed and added here",
-  "filter_rule": "with a standard company region the candidate filter excludes jurisdiction_name IN (jurisdiction_regions keys whose region differs); the applied conditions record the region and the excluded jurisdictions; a company region outside regions (legacy free text) is unapplied with reason region_not_standard",
+  "filter_rule": "standard company_region: mapped multi-region title first, otherwise local jurisdiction, otherwise mapped leading title; unknown title/owner fail-open. Applied result records JURISDICTION / TITLE_REGION / NATIONWIDE_OR_UNMAPPED counts.",
   "query_rule": "query jurisdictions (Natural Filter) are intersected with the allowed set (company region jurisdictions + national + unmapped); if nothing remains the result is CONDITION_CONFLICT with conflict.kind region (company_region, query_jurisdictions) and no candidates; a query naming only central ministries is never a conflict",
   "known_gaps": [
-    "a program for several regions owned by one 광역 is excluded for companies of the other regions (2026-10-03: 1 program, [부산ㆍ울산ㆍ경남] 동남 정보보호클러스터, owned by 경상남도; Backlog IMP-030)",
-    "central-ministry programs whose title names one region are kept (2026-10-03: 63 of 384 not-closed central programs; IMP-019 follow-up)"
-  ]
+    "Title area is a proxy: central sample5/20 had no actual business-location restriction. Relocation, buyer/supplier roles and source metadata errors remain IMP-031/032."
+  ],
+  "title_region_rule": {
+    "prefix": "leading square bracket only",
+    "separators": [
+      "ㆍ",
+      "·",
+      ",",
+      "/",
+      "&",
+      "및"
+    ],
+    "unknown_token": "fail-open, do not claim nationwide eligibility",
+    "precedence": "mapped multiple title regions override local jurisdiction; single title region restricts central/unmapped owners; single local title retains jurisdiction rule",
+    "area_aliases": {
+      "충청": [
+        "대전광역시",
+        "세종특별자치시",
+        "충청북도",
+        "충청남도"
+      ],
+      "충청권": [
+        "대전광역시",
+        "세종특별자치시",
+        "충청북도",
+        "충청남도"
+      ],
+      "호남권": [
+        "전남광주통합특별시",
+        "전북특별자치도"
+      ],
+      "호남": [
+        "전남광주통합특별시",
+        "전북특별자치도"
+      ],
+      "수도권": [
+        "서울특별시",
+        "경기도",
+        "인천광역시"
+      ],
+      "비수도권": [
+        "부산광역시",
+        "대구광역시",
+        "대전광역시",
+        "울산광역시",
+        "세종특별자치시",
+        "강원특별자치도",
+        "충청북도",
+        "충청남도",
+        "전북특별자치도",
+        "전남광주통합특별시",
+        "경상북도",
+        "경상남도",
+        "제주특별자치도"
+      ],
+      "영남권": [
+        "부산광역시",
+        "울산광역시",
+        "경상남도",
+        "경상북도",
+        "대구광역시"
+      ]
+    },
+    "basis": "2026-10-04 bundle2 user approval: company-region plus nationwide; title proxy is not actual eligibility, prior central sample5/20 had no region condition"
+  }
 }

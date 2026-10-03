@@ -3,7 +3,7 @@
 BOUNDARY: 기업정보는 Spring이 소유하고 요청 때 snapshot으로 받는다. 여기서 users·companies 테이블을 읽지 않는다.
 저장된 기업정보의 확실한 사실만 일반 코드로 검색조건이 된다. LLM은 기업정보를 해석하지 않는다(질문 조건 추출만 한다).
 의미가 확실하지 않은 값(업력, 휴업 등)은 Hard Filter로 추측하지 않고 unapplied로 드러낸다.
-지역은 2026-10-03 사용자 결정으로 "다른 광역 지자체 소관 공고만 제외"한다(매핑은 company-region 계약, candidates/region.py).
+지역은 기업 지역과 전국 공고를 남긴다. 제목의 복수 지역 표시·중앙부처 제목 지역은 company-region 계약을 따른다.
 """
 from dataclasses import dataclass, fields
 from datetime import date
@@ -73,7 +73,7 @@ def company_conditions(profile):
                           "reason": "age_rule_differs_by_program"})
     region, excluded = None, ()
     if profile.region:
-        # BOUNDARY: 다른 광역 지자체 소관 공고만 뺀다. 중앙부처·매핑에 없는 소관기관은 전국 대상일 수 있어 남긴다(fail-open).
+        # BOUNDARY: 표준 기업 지역을 공통 후보 필터에 전달한다. 제목 지역·소관기관 우선순위는 region.py가 소유한다.
         excluded = excluded_jurisdictions(profile.region)
         if excluded is None:
             # 표준명이 아닌 예전 자유 입력 값은 어느 광역인지 추측하지 않는다(기업정보에서 다시 고르면 적용된다).
@@ -104,7 +104,7 @@ def combine(company, extraction, as_of):
                 return None, {"kind": "target", "company_targets": list(company.targets), "query_targets": list(query_filter.targets)}
         else:
             targets = company.targets
-    return ProgramCandidateFilter(categories=query_filter.categories, targets=targets, jurisdictions=jurisdictions,
+    return ProgramCandidateFilter(company_region=company.region, categories=query_filter.categories, targets=targets, jurisdictions=jurisdictions,
                                   exclude_jurisdictions=company.excluded_jurisdictions,
                                   not_closed_on=query_filter.not_closed_on, exclude_closed_on=as_of), None
 
@@ -151,7 +151,10 @@ class PersonalizedSearchService:
         candidate_filter, conflict = combine(company, extraction, as_of)
         if conflict is not None:
             return dict(base, status="CONDITION_CONFLICT", candidate_count=0, programs=[], conflict=conflict)
-        candidates = self.candidate_service.find_candidates(candidate_filter).pblanc_ids
+        found = self.candidate_service.find_candidates(candidate_filter)
+        candidates = found.pblanc_ids
+        base["applied_conditions"]["company"]["region_basis"] = found.region_basis
+        base["applied_conditions"]["company"]["region_rule"] = "소관기관 기준 / 제목 지역 표시 기준" if company.region else None
         if not candidates:
             return dict(base, status="NO_CANDIDATES", candidate_count=0, programs=[])
         ranking = rag_contract()["personalized_ranking"]

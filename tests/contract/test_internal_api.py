@@ -20,7 +20,9 @@ class FakeRuntime:
         self.query_result = {"request_mode": "SEARCH_LIST", "status": "LISTED", "candidate_count": 2,
                              "programs": [{"rank": 1, "pblanc_id": "PBLN_000000000000001"}], "natural_filter": {"applied": {}}}
 
-    def answer_query(self, query, as_of=None, selected_pblanc_id=None):
+    def answer_query(self, query, as_of=None, selected_pblanc_id=None, company_region=None):
+        if company_region is not None:
+            self.calls.append(("company_region", company_region))
         if selected_pblanc_id:
             self.calls.append(("selected", selected_pblanc_id))
         self.calls.append(("query", query, as_of))
@@ -68,6 +70,12 @@ class InternalApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertIn(("selected", "PBLN_000000000119801"), self.runtime.calls)
             self.assertEqual(client.post("/internal/v1/query", json={"query": "질문", "selected_pblanc_id": "bad"}).status_code, 422)
+
+    def test_company_region_is_forwarded_without_other_company_data(self):
+        with TestClient(self.app, headers={"X-Internal-Api-Key": "test-internal-key"}) as client:
+            response = client.post("/internal/v1/query", json={"query": "사업 찾아줘", "company_region": "서울특별시"})
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(("company_region", "서울특별시"), self.runtime.calls)
 
     def test_query_serializes_search_list_and_document_qa_service_results(self):
         with TestClient(self.app, headers={"X-Internal-Api-Key": "test-internal-key"}) as client:

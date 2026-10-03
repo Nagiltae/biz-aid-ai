@@ -30,9 +30,9 @@ const EXAMPLES = ["소상공인이 받을 수 있는 금융 지원사업 찾아�
  */
 export function AiSearchPage() {
   const queryClient = useQueryClient();
-  // 기업정보가 있어야 AI 검색을 쓴다. 화면에는 들어올 수 있지만 등록 전에는 입력·버튼을 잠그고 등록을 안내한다(서버도 막는다).
+  // 기업정보가 없으면 전체 범위로 검색한다. 조회 오류일 때만 확인되지 않은 정보를 사용하지 않도록 막는다.
   const company = useMyCompany();
-  const locked = company.data == null;
+  const locked = company.isError;
   const [text, setText] = useState("");
   const [lastQuestion, setLastQuestion] = useState("");
   const [conversationId, setConversationId] = useState<number | null>(null);
@@ -86,8 +86,8 @@ export function AiSearchPage() {
           <h1>기업에 맞는 지원사업을 찾아보세요</h1>
           <p className="muted">찾고 싶은 지원사업이나 궁금한 공고를 문장으로 적으면, 공고 조건과 공고문 근거로 답합니다.</p>
           {company.data === null && (
-            <div className="alert warn company-required-inline" role="status" aria-label="기업정보 입력 필요">
-              <span>기업정보를 먼저 입력해야 AI 검색을 쓸 수 있습니다.</span>
+            <div className="alert warn company-required-inline" role="status" aria-label="기업 지역 미적용">
+              <span>기업정보가 없어 전체 지역에서 검색합니다. 등록하면 기업 지역 기준으로 찾습니다.</span>
               <Link className="button small primary" to="/company" state={{ from: "/ai", needCompany: true }}>기업정보 입력하기</Link>
             </div>
           )}

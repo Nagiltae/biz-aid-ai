@@ -85,14 +85,13 @@ class CompanyConversationAiTest extends ApiTestSupport {
         String token = signup("ai@example.com");
         mvc.perform(post("/api/ai/query").contentType(MediaType.APPLICATION_JSON).content("{\"query\":\"금융 지원\"}"))
                 .andExpect(status().isUnauthorized());
-        // 기업정보가 없으면 AI 검색·대화는 서버에서도 막힌다(화면을 거치지 않은 직접 호출 포함). 질문도 저장하지 않는다.
+        // BOUNDARY: 기업정보 없는 AI 검색은 전체 범위로 호출한다. AI 서버 오류는 성공 결과로 숨기지 않는다.
         mvc.perform(post("/api/ai/query").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"query\":\"소상공인 금융 지원사업 찾아줘\"}"))
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("company_not_registered"));
-        mvc.perform(get("/api/conversations").header(HttpHeaders.AUTHORIZATION, token))
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("company_not_registered"));
+                .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.error.code").value("ai_service_unavailable"));
+        mvc.perform(get("/api/conversations").header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isOk());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM conversations c JOIN users u ON u.id = c.user_id "
-                + "WHERE u.email = 'ai@example.com'", Integer.class)).isZero();
+                + "WHERE u.email = 'ai@example.com'", Integer.class)).isOne();
 
         jdbc.update("INSERT INTO support_programs (id, pblanc_id, name, source_active, source_deleted) VALUES (900, 'PBLN_900', '판정 대상', true, false)");
         String path = "/api/programs/PBLN_900/eligibility";

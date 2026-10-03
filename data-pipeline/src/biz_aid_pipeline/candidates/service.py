@@ -1,8 +1,8 @@
 """MySQL 정형 조건으로 검색 대상 공고(pblanc_id)를 정한다. RAG·Retriever보다 먼저 적용하는 authoritative 후보 집합이다.
 
-실제 schema에서 값이 고정된 정형 column만 hard filter로 쓴다. 자유 텍스트(지역 hashtag·신청기간 원문)는 해석하지 않는다.
+실제 schema에서 값이 고정된 정형 column만 hard filter로 쓴다. 자유 hashtag는 해석하지 않는다. 승인된 제목 지역 표시와 명시 신청기간 파생은 계약 규칙만 사용한다.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
 from sqlalchemy import MetaData, Table, and_, create_engine, func, not_, or_, select
@@ -15,6 +15,7 @@ from biz_aid_pipeline.config.settings import PipelineError
 class ProgramCandidateFilter:
     """값이 여러 개면 OR, 필드끼리는 AND. 빈 필드는 조건 없음이다."""
 
+    company_region: str | None = None
     categories: tuple = ()        # support_programs.category (지원분야 대분류, 예: 금융·기술)
     targets: tuple = ()           # support_programs.target (지원대상 구분, 예: 소상공인)
     jurisdictions: tuple = ()     # support_programs.jurisdiction_name (소관기관, 예: 경기도·중소벤처기업부)
@@ -29,6 +30,7 @@ class ProgramCandidateFilter:
 class CandidateSet:
     pblanc_ids: tuple
     period_unknown: int  # not_closed_on을 줬을 때 파생 신청기간이 없어 제외하지 않고 남긴 공고 수
+    region_basis: dict = field(default_factory=dict)
 
 
 class ProgramCandidateRepository:
@@ -59,7 +61,7 @@ class ProgramCandidateRepository:
                                (table.jurisdiction_name, candidate_filter.jurisdictions)):
             if values:
                 conditions.append(column.in_(values))
-        if candidate_filter.exclude_jurisdictions:
+        if candidate_filter.exclude_jurisdictions and not candidate_filter.company_region:
             conditions.append(table.jurisdiction_name.not_in(candidate_filter.exclude_jurisdictions))
         if candidate_filter.exclude_closed_on is not None:
             closed_on = candidate_filter.exclude_closed_on
@@ -74,7 +76,24 @@ class ProgramCandidateRepository:
         with self.engine.connect() as connection:
             ids = connection.execute(select(table.pblanc_id).where(*conditions).distinct().order_by(table.pblanc_id)).scalars().all()
             undated = connection.execute(select(func.count()).select_from(self.programs).where(*conditions, unknown)).scalar_one() if unknown is not None else 0
-        return CandidateSet(tuple(ids), undated)
+        basis = {}
+        if candidate_filter.company_region:
+            from biz_aid_pipeline.candidates.region import program_regions, standard_regions
+            if candidate_filter.company_region in standard_regions():
+                # BOUNDARY: SQL 범위 안에서 제목/소관 규칙을 적용한다. 복수지역 공고를 NOT IN으로 먼저 잃지 않는다.
+                with self.engine.connect() as connection:
+                    rows = connection.execute(select(table.pblanc_id, table.name, table.jurisdiction_name,
+                        table.application_start_date, table.application_end_date).where(table.pblanc_id.in_(ids))).mappings().all()
+                kept, undated = [], 0
+                for row in rows:
+                    regions, kind = program_regions(row["name"], row["jurisdiction_name"])
+                    if not regions or candidate_filter.company_region in regions:
+                        kept.append(row["pblanc_id"])
+                        basis[kind] = basis.get(kind, 0) + 1
+                        undated += (candidate_filter.not_closed_on is not None and row["application_start_date"] is None
+                                    and row["application_end_date"] is None)
+                ids = sorted(kept)
+        return CandidateSet(tuple(ids), period_unknown=undated, region_basis=basis)
 
     def program_metadata(self, pblanc_ids):
         """목록 응답용 공고 정형 정보. MySQL 값을 그대로 돌려주며 원문에서 새 정보를 추론하지 않는다."""

@@ -74,7 +74,12 @@ public class HttpAiGateway implements AiGateway {
 
     @Override
     public AiDtos.AiQueryResult query(String query, String selectedPblancId) {
-        AiDtos.AiQueryResult result = post("/internal/v1/query", new QueryPayload(query, selectedPblancId), AiDtos.AiQueryResult.class);
+        return query(query, selectedPblancId, null);
+    }
+
+    @Override
+    public AiDtos.AiQueryResult query(String query, String selectedPblancId, String companyRegion) {
+        AiDtos.AiQueryResult result = post("/internal/v1/query", new QueryPayload(query, selectedPblancId, companyRegion), AiDtos.AiQueryResult.class);
         if (result == null || !REQUEST_MODES.contains(result.requestMode()) || result.status() == null) {
             throw invalid("query: unknown request_mode or missing status");
         }
@@ -284,7 +289,7 @@ public class HttpAiGateway implements AiGateway {
     }
 
     /** FastAPI 요청 본문(/internal/v1/query, /internal/v1/eligibility). HTTP 전송 형식이라 이 구현 안에만 둔다. */
-    private record QueryPayload(String query, String selectedPblancId) {
+    private record QueryPayload(String query, String selectedPblancId, String companyRegion) {
     }
 
     private record EligibilityPayload(String pblancId, AiDtos.CompanyProfileSnapshot companyProfile) {

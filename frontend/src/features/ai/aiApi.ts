@@ -33,6 +33,10 @@ export interface AiProgramItem {
 }
 
 export interface AiQueryResult {
+  appliedRegion?: string | null;
+  regionFilterApplied?: boolean;
+  regionFilterBasis?: Record<string, number>;
+  regionWarning?: string | null;
   requestMode: "SEARCH_LIST" | "DOCUMENT_QA";
   status: string;
   candidateCount: number | null;

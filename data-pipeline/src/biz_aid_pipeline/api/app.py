@@ -21,6 +21,7 @@ MODEL_OUTPUT_ERRORS = ("filter_extraction_", "eligibility_output_", "eligibility
 
 
 class QueryRequest(BaseModel):
+    company_region: str | None = Field(default=None, max_length=80)
     selected_pblanc_id: str | None = Field(default=None, pattern=r"^PBLN_[0-9]{12,20}$")
     query: str = Field(min_length=1, max_length=2000)
     as_of: date | None = None
@@ -139,9 +140,12 @@ def create_app(runtime_factory=None, api_key=None):
 
     @app.post("/internal/v1/query", dependencies=[Depends(require_internal_key)])
     def query(body: QueryRequest, request: Request):
+        options = {}
         if body.selected_pblanc_id is not None:
-            return request.app.state.runtime.answer_query(body.query, body.as_of, selected_pblanc_id=body.selected_pblanc_id)
-        return request.app.state.runtime.answer_query(body.query, body.as_of)
+            options["selected_pblanc_id"] = body.selected_pblanc_id
+        if body.company_region is not None:
+            options["company_region"] = body.company_region
+        return request.app.state.runtime.answer_query(body.query, body.as_of, **options)
 
     @app.post("/internal/v1/eligibility", dependencies=[Depends(require_internal_key)])
     def eligibility(body: EligibilityRequest, request: Request):

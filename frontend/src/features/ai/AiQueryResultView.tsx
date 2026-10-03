@@ -21,6 +21,15 @@ function AppliedFilter({ result }: { result: AiQueryResult }) {
   );
 }
 
+function RegionNotice({ result }: { result: AiQueryResult }) {
+  if (!result.appliedRegion) return null;
+  return <p className="alert warn" role="status">
+    {result.regionWarning ?? (result.regionFilterApplied
+      ? `${result.appliedRegion} 기준으로 다른 지역 공고를 제외했습니다`
+      : `${result.appliedRegion} 기업 지역과 별개로 직접 질문한 공고를 확인합니다`)}
+  </p>;
+}
+
 /**
  * AI 검색 결과: 공고 목록(SEARCH_LIST) 또는 근거 기반 답변(DOCUMENT_QA).
  * 목록은 FastAPI 순위 그대로 보여 준다(화면에서 다시 정렬하지 않는다).
@@ -29,6 +38,7 @@ export function AiQueryResultView({ result, onSelect }: { result: AiQueryResult;
   if (result.status === "SELECTION_REQUIRED") {
     return (
       <section className="ai-result" aria-label="공고 선택">
+        <RegionNotice result={result} />
         <p>이름이 비슷한 공고가 여러 개 있습니다. 질문할 공고를 선택해 주세요.</p>
         <ul>{result.selectionCandidates?.map((item) => (
           <li key={item.pblancId}>
@@ -44,7 +54,8 @@ export function AiQueryResultView({ result, onSelect }: { result: AiQueryResult;
     const programs = result.programs ?? [];
     return (
       <section className="ai-result" aria-label="AI 검색 결과">
-        <AppliedFilter result={result} />
+        <RegionNotice result={result} />
+      <AppliedFilter result={result} />
         {programs.length === 0 ? (
           <p className="muted">{EMPTY_STATUS[result.status] ?? "조건에 맞는 지원사업이 없습니다."}</p>
         ) : (
@@ -75,6 +86,7 @@ export function AiQueryResultView({ result, onSelect }: { result: AiQueryResult;
   }
   return (
     <section className="ai-result" aria-label="AI 답변">
+      <RegionNotice result={result} />
       <AppliedFilter result={result} />
       {result.status !== "ANSWERED" && <span className="badge status-undated">근거 부족</span>}
       <p className="prewrap">{result.answer ?? EMPTY_STATUS[result.status] ?? "답변이 없습니다."}</p>

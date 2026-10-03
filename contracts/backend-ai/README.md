@@ -31,3 +31,7 @@ NO_CANDIDATES·NO_INDEXED_PROGRAMS·INSUFFICIENT_EVIDENCE·NEEDS_MORE_INFO·INEL
 - V2 Top 3 자격 판정: Spring `POST /api/ai/personalized-eligibility {query}` → 판정용 기업정보 snapshot(V1 단일 판정과 같은 매핑, 저장된 값만) → FastAPI `POST /internal/v2/personalized-eligibility`. FastAPI가 검색 Top 3 → 공고별 기존 판정을 순서대로 조합하고, Spring은 판정 순서·공고별 상태(COMPLETED/FAILED)·공고별 근거 범위를 검증만 한다. 현재 전체 응답이 Spring 응답 제한시간(90s)을 넘을 수 있다(IMP-020).
 - V2-3 추천 흐름(LangGraph): Spring `POST /api/ai/workflows`(시작) · `GET /api/ai/workflows/{id}`(조회, FastAPI 호출 없음) · `POST /api/ai/workflows/{id}/continue`(다음 단계) · `POST /api/ai/workflows/{id}/answers`(부족 정보). Spring이 State JSON을 MySQL `ai_workflows`에 저장·복원하고, FastAPI `/internal/v2/workflows/{start,advance}`는 받은 State로 한 단계만 실행한다(판정 최대 1건). 동시 진행은 단계 점유 + version으로 막는다.
 - V2-4 최종 결과: COMPLETED State의 `final_result`는 FastAPI가 기존 판정 결과로 조립한다(새 LLM 호출 없음, 검색 순위 유지, 공고별 Citation 재사용). Spring은 묶음별 허용 상태·순위 순서·판정한 공고 전체 포함·개수·근거 격리·이유가 가리키는 근거 존재만 검증하고 고치지 않는다(어기면 502 ai_response_invalid, State 저장 안 함).
+
+## 묶음2 기업 지역
+
+`AiQueryService → CompanyService.optionalRegion → AiGateway.query`는 로그인 사용자 기업 지역만 `company_region`으로 전달한다. 회원/기업 DB 소유는 Spring에 남는다. 회사 없는 AI 검색·대화는 로그인과 소유권 검증 후 가능하며 개인화 추천/판정의 등록 요구는 유지한다. FastAPI는 company-region 계약의 소관/제목 규칙을 양 경로에서 재사용한다. 직접 질문한 타지역 공고는 제외하지 않고 region_warning을 보낸다.

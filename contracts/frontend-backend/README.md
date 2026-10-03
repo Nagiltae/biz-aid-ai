@@ -19,9 +19,9 @@ React는 Spring Boot `/api`만 호출하며 DB와 FastAPI에 직접 접근하지
 | GET | /api/programs/filter-options | 없음 | 필터 선택지(활성 공고의 실제 값) |
 | GET | /api/programs/{pblancId} | 없음 | 지원사업 상세 |
 | GET · POST · PUT | /api/company | 필요 | 내 기업정보 조회·등록·수정. 미등록이면 GET 404 `company_not_registered`. `companySize`는 `소상공인`·`중소기업`·`중견기업` 또는 null만(그 밖 400) |
-| POST · GET | /api/conversations | 필요 + 기업정보 | 대화 생성·목록. 기업정보 미등록이면 404 `company_not_registered` |
-| GET · POST | /api/conversations/{id}/messages | 필요 + 기업정보 | 메시지 조회·사용자 메시지 저장 |
-| POST | /api/ai/query | 필요 + 기업정보 | AI 검색·질문(기업정보 미등록이면 404 `company_not_registered`, 질문 저장 안 함) `{query, conversationId?}` → `{conversationId, userMessage, assistantMessage, result}` |
+| POST · GET | /api/conversations | 필요 | 대화 생성·목록. 사용자 소유권 유지, 기업정보는 필수 아님 |
+| GET · POST | /api/conversations/{id}/messages | 필요 | 메시지 조회·사용자 메시지 저장(본인 대화만) |
+| POST | /api/ai/query | 필요 | AI 검색·질문(기업정보 미등록이면 지역 필터 없는 검색) `{query, conversationId?, selectedPblancId?}` → `{conversationId, userMessage, assistantMessage, result}` |
 | POST | /api/ai/personalized-search | 필요 | V2 기업정보 기반 개인화 검색 `{query}` → `{status, candidateCount, programs(≤3), appliedConditions, unappliedConditions, ...}`(기업정보 미등록 시 404 company_not_registered) |
 | POST | /api/ai/personalized-eligibility | 필요 | V2 Top 3 자격 판정 `{query}` → `{search, evaluations[{rank, pblancId, program, evaluationStatus(COMPLETED/FAILED), eligibility, errorCode}]}` |
 | POST · GET | /api/ai/workflows · /api/ai/workflows/{workflowId} | 필요 | V2-3 추천 흐름 시작(검색·Top 3) · 현재 상태 조회. 응답 `{workflowId, status, currentStep, nextAction, progress, search, evaluations, missingInformation, temporaryCompanyFacts, failureCode, finalResult, pendingPblancIds}`. pendingPblancIds는 State가 정한 남은 판정 순서(진행 표시용, V2-5). finalResult는 COMPLETED일 때만 `{recommended, excluded, unresolved, counts, disclaimer}`(항목: rank·pblancId·program·eligibilityStatus·reasonCode·errorCode·reasons·missingInformation·citations, 검색 순위 순). 추천 0건도 정상이며 V2-3 때 완료된 State는 null |
@@ -35,3 +35,7 @@ React는 Spring Boot `/api`만 호출하며 DB와 FastAPI에 직접 접근하지
 대표 code: validation_failed(400), auth_required·auth_invalid_credentials·auth_refresh_invalid(401), company_not_registered·program_not_found·conversation_not_found(404), company_already_registered·auth_email_taken(409), ai_service_unavailable(503)·ai_service_timeout(504)·ai_service_auth_failed·ai_response_invalid·ai_service_error(502).
 AI 결과(`result`)는 FastAPI 값을 camelCase로 옮긴 것이다. SEARCH_LIST는 `programs`(FastAPI 순위 그대로), DOCUMENT_QA는 `answer`·`citations`다. 메시지 조회의 ASSISTANT 메시지는 `resultType`·`result`로 같은 화면을 복원한다.
 날짜만 의미하는 값(신청기간·개업일)은 `YYYY-MM-DD`, 시각(createdAt·updatedAt)은 UTC ISO-8601(`Z`)이다. 모집 상태는 Asia/Seoul 오늘 날짜로 계산한다.
+
+## 묶음2 기업 지역 경계
+
+Spring이 로그인 사용자 기업의 region만 내부 요청 company_region으로 보낸다. 응답 appliedRegion/regionFilterApplied/regionFilterBasis/regionWarning을 React가 그대로 표시한다. 특정 공고명 DOCUMENT_QA는 다른 지역이어도 답하고 경고한다. 맞춤 추천·자격 판정은 여전히 기업정보 등록이 필요하다.

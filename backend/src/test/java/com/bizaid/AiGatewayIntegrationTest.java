@@ -3,6 +3,7 @@ package com.bizaid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -96,6 +97,29 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
         return read(mvc.perform(post("/api/ai/query").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(java.util.Map.of("query", query))))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+    }
+
+    @Test
+    void optionalRegionComesFromSpringCompanyAndRegionNoticeIsPassedThrough() throws Exception {
+        String token = signupWithCompany("region-query@example.com");
+        mvc.perform(put("/api/company").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"companyName\":\"지역기업\",\"region\":\"서울특별시\"}")).andExpect(status().isOk());
+        reply = new Reply(200, """
+                {"request_mode":"SEARCH_LIST","status":"LISTED","candidate_count":1,"programs":[],
+                 "applied_region":"서울특별시","region_filter_applied":true,"region_filter_basis":{"TITLE_REGION":1}}
+                """, 0);
+        JsonNode body = ask(token, "사업 찾아줘");
+        assertThat(body.path("result").path("appliedRegion").asText()).isEqualTo("서울특별시");
+        assertThat(body.path("result").path("regionFilterApplied").asBoolean()).isTrue();
+        assertThat(read(RECEIVED.get(RECEIVED.size() - 1).body()).path("company_region").asText()).isEqualTo("서울특별시");
+        String bare = signup("region-none@example.com");
+        ask(bare, "사업 찾아줘");
+        assertThat(read(RECEIVED.get(RECEIVED.size() - 1).body()).path("company_region").isNull()).isTrue();
+        reply = new Reply(200, """
+                {"request_mode":"DOCUMENT_QA","status":"INSUFFICIENT_EVIDENCE","answer":"근거 부족","citations":[],
+                 "applied_region":"서울특별시","region_filter_applied":false,"region_warning":"기업 지역과 다른 지역 공고입니다"}
+                """, 0);
+        assertThat(ask(token, "인천 공고 요건").path("result").path("regionWarning").asText()).isEqualTo("기업 지역과 다른 지역 공고입니다");
     }
 
     @Test

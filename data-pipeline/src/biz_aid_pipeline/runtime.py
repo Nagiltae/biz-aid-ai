@@ -40,7 +40,7 @@ class ServiceRuntime:
                                             namespace=self.collection_namespace)
             return self._retriever
 
-    def answer_query(self, query, as_of=None, manual_filter=None, selected_pblanc_id=None):
+    def answer_query(self, query, as_of=None, manual_filter=None, selected_pblanc_id=None, company_region=None):
         """자연어(또는 수동 정형 필터) 질문 → MySQL 후보 → request_mode 분기(SEARCH_LIST·DOCUMENT_QA) 결과 dict."""
         from biz_aid_pipeline.candidates.discovery import ProgramDiscoveryService
         from biz_aid_pipeline.candidates.natural import NaturalLanguageFilterService, filter_domain
@@ -50,6 +50,9 @@ class ServiceRuntime:
         from biz_aid_pipeline.candidates.question import deterministic_mode, choose_program
         from biz_aid_pipeline.candidates.natural import service_today
         from biz_aid_pipeline.candidates.service import ProgramCandidateFilter
+        from biz_aid_pipeline.candidates.region import standard_regions, region_allowed
+        from dataclasses import replace
+        from biz_aid_pipeline.candidates.question import name_matches
         as_of = as_of or service_today()
         extraction, request_mode = None, "DOCUMENT_QA"
         active = self.repository.find(ProgramCandidateFilter()).pblanc_ids
@@ -63,6 +66,10 @@ class ServiceRuntime:
         else:
             candidate_filter = manual_filter
         # BOUNDARY: 정형 조건(활성 공고 포함)은 항상 MySQL에서 먼저 적용한다. 후보가 없으면 BGE-M3·Qdrant를 쓰지 않는다.
+        region = company_region if company_region in standard_regions() else None
+        named = request_mode == "DOCUMENT_QA" and bool(selected_pblanc_id or name_matches(query, metadata))
+        # EXCEPTION: 특정 공고를 직접 묻는 사용자의 의도는 지역 필터로 숨기지 않는다. 지역 차이는 응답에 별도 기록한다.
+        candidate_filter = replace(candidate_filter, company_region=None if named else region)
         candidates = ProgramCandidateService(self.repository).find_candidates(candidate_filter)
         scope = candidates.pblanc_ids
         if request_mode == "DOCUMENT_QA":
@@ -72,11 +79,18 @@ class ServiceRuntime:
             if choices:
                 return {"request_mode": request_mode, "status": "SELECTION_REQUIRED", "query": query,
                         "selection_candidates": choices, "candidate_count": len(choices),
-                        "answer": None, "citations": [], "programs": []}
+                        "answer": None, "citations": [], "programs": [],
+                        "applied_region": region, "region_filter_basis": candidates.region_basis,
+                        "region_filter_applied": bool(region and not named), "region_warning": None}
         retriever = self.retriever() if scope else None
         rag_service = RagService(retriever, self.provider)
         discovery = ProgramDiscoveryService(self.repository, retriever, rag_service.contract)
         output = handle_request(query, request_mode, scope, rag_service, discovery)
+        output["applied_region"] = region
+        output["region_filter_basis"] = candidates.region_basis
+        output["region_filter_applied"] = bool(region and not named)
+        output["region_warning"] = "기업 지역과 다른 지역 공고입니다" if (region and named and scope and any(
+            not region_allowed(region, metadata[pid].get("name"), metadata[pid].get("jurisdiction_name")) for pid in scope)) else None
         output["query"] = query
         output["selected_pblanc_id"] = scope[0] if request_mode == "DOCUMENT_QA" and len(scope) == 1 else None
         output["mode_basis"] = "rule" if mode else "llm"

@@ -104,7 +104,7 @@ test("기업정보가 없으면 등록 form을 보여 주고 저장하면 POST�
     return undefined;
   });
   renderAt("/company");
-  expect(await screen.findByText(/기업정보를 먼저 등록해야/)).toBeInTheDocument();
+  expect(await screen.findByText(/기업정보를 등록하면 지역 기반/)).toBeInTheDocument();
   await userEvent.type(screen.getByLabelText("회사명 *"), "비즈에이드");
   await userEvent.selectOptions(screen.getByLabelText("사업자 형태"), "법인");
   await userEvent.click(screen.getByRole("button", { name: "등록" }));
@@ -208,7 +208,7 @@ test("맞춤 추천은 지역 충돌을 기업정보 수정 안내와 함께 보
   const listed = { search: { status: "LISTED", candidateCount: 43, programs: [], unappliedConditions: [],
     appliedConditions: { company: { region: "경기도", excludedJurisdictions: ["서울특별시"] } } } } as unknown as WorkflowResponse;
   render(<MemoryRouter><SearchSummary response={listed} /></MemoryRouter>);
-  expect(screen.getByText(/기업 지역\(경기도\) 기준으로 다른 광역 지자체가 담당하는 공고는 제외했습니다/)).toBeInTheDocument();
+  expect(screen.getByText(/기업 지역\(경기도\) 기준으로 소관기관과 제목 지역 표시를 확인해 다른 지역 공고는 제외했습니다/)).toBeInTheDocument();
 });
 
 test("질문 지역 미반영은 서버 조건 그대로 눈에 띄게 알리고 기업정보 수정 링크를 보여 준다", () => {
@@ -219,7 +219,7 @@ test("질문 지역 미반영은 서버 조건 그대로 눈에 띄게 알리고
   const notice = screen.getByRole("note", { name: "질문 조건 미반영 안내" });
   expect(notice).toHaveClass("alert", "warn");
   expect(notice).toHaveTextContent("질문의 '서울'은 검색 조건으로 반영하지 못했습니다.");
-  expect(notice).toHaveTextContent("기업 지역(경기도)과 중앙부처 공고 기준으로 찾았습니다.");
+  expect(notice).toHaveTextContent("기업 지역(경기도)과 전국 공고 기준으로 찾았습니다(소관기관 / 제목 지역 표시 기준).");
   expect(within(notice).getByRole("link", { name: "기업정보 수정" })).toHaveAttribute("href", "/company");
   expect(screen.queryByText(/달라 공고를 고를 수 없습니다/)).not.toBeInTheDocument();
 });
@@ -453,15 +453,15 @@ test("가입 직후 기업정보가 없으면 등록 화면으로 가고, 등록
   expect(screen.getByRole("link", { name: "맞춤 추천" })).toBeInTheDocument();
 });
 
-test("기업정보가 없으면 AI 검색은 입력·버튼을 잠근 채 입력을 안내하고, 맞춤 추천은 안내 화면을 보여 준다", async () => {
+test("기업정보 없는 AI 검색은 전체 지역 입력을 허용하고, 맞춤 추천은 등록이 필요하다", async () => {
   const calls = mockFetch(loggedIn, noCompany);
   renderAt("/ai");
   // AI 검색 화면에는 들어가지만 검색칸·버튼·예시는 비활성이고 입력 안내가 나온다. 대화 목록도 요청하지 않는다.
-  const inline = await screen.findByRole("status", { name: "기업정보 입력 필요" });
-  expect(inline).toHaveTextContent("기업정보를 먼저 입력해야 AI 검색을 쓸 수 있습니다.");
-  expect(screen.getByLabelText("지원사업 질문")).toBeDisabled();
+  const inline = await screen.findByRole("status", { name: "기업 지역 미적용" });
+  expect(inline).toHaveTextContent("기업정보가 없어 전체 지역에서 검색합니다.");
+  expect(screen.getByLabelText("지원사업 질문")).toBeEnabled();
   expect(screen.getByRole("button", { name: "찾기" })).toBeDisabled();
-  expect(calls.some((call) => call.url.startsWith("/api/conversations") || call.url.startsWith("/api/ai/"))).toBe(false);
+  expect(calls.some((call) => call.url.startsWith("/api/ai/"))).toBe(false);
   await userEvent.click(within(inline).getByRole("link", { name: "기업정보 입력하기" }));
   expect(await screen.findByRole("form", { name: "기업정보 등록" })).toBeInTheDocument();
 
@@ -524,4 +524,24 @@ test("비슷한 이름 공고를 고르면 원래 질문과 선택 ID를 Spring�
   expect(await screen.findByText("선택한 공고 근거 답변")).toBeInTheDocument();
   const body = JSON.parse(calls.filter((call) => call.url === "/api/ai/query").at(-1)!.init.body as string);
   expect(body).toMatchObject({ query: "비슷한 사업 지원요건", selectedPblancId: "PBLN_000000000119801" });
+});
+
+
+test("AI 검색의 기업 지역 적용 및 타지역 공고 안내를 서버 결과 그대로 표시한다", async () => {
+  mockFetch(loggedIn, hasCompany, aiServer({ requestMode: "DOCUMENT_QA", status: "INSUFFICIENT_EVIDENCE", candidateCount: 1,
+    programs: [], answer: "근거 부족", citations: [], naturalFilter: null, appliedRegion: "서울특별시", regionFilterApplied: false,
+    regionWarning: "기업 지역과 다른 지역 공고입니다" }));
+  renderAt("/ai");
+  await userEvent.type(await screen.findByLabelText("지원사업 질문"), "인천 공고 요건");
+  await userEvent.click(screen.getByRole("button", { name: "찾기" }));
+  expect(await screen.findByText("기업 지역과 다른 지역 공고입니다")).toBeInTheDocument();
+});
+
+test("AI 검색 목록에 기업 지역 제외 안내를 표시한다", async () => {
+  mockFetch(loggedIn, hasCompany, aiServer({ requestMode: "SEARCH_LIST", status: "LISTED", candidateCount: 1,
+    programs: [], answer: null, citations: [], naturalFilter: null, appliedRegion: "서울특별시", regionFilterApplied: true }));
+  renderAt("/ai");
+  await userEvent.type(await screen.findByLabelText("지원사업 질문"), "사업 찾아줘");
+  await userEvent.click(screen.getByRole("button", { name: "찾기" }));
+  expect(await screen.findByText("서울특별시 기준으로 다른 지역 공고를 제외했습니다")).toBeInTheDocument();
 });

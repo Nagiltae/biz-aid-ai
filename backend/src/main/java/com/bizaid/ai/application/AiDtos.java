@@ -59,7 +59,8 @@ public final class AiDtos {
 
     public record AiQueryResult(String requestMode, String status, Integer candidateCount, List<ProgramItem> programs,
                                 String answer, List<Citation> citations, JsonNode naturalFilter, String query,
-                                List<SelectionCandidate> selectionCandidates, String selectedPblancId) {
+                                List<SelectionCandidate> selectionCandidates, String selectedPblancId, String appliedRegion,
+                                Boolean regionFilterApplied, Map<String, Integer> regionFilterBasis, String regionWarning) {
     }
 
     /** 조건 하나의 판정. result는 MET(충족) / NOT_MET(미충족) / UNKNOWN(판단 불가)이다. */
@@ -83,7 +84,7 @@ public final class AiDtos {
     }
 
     /** 기업정보로 적용한 조건. region은 적용한 광역 표준명, excludedJurisdictions는 후보에서 뺀 다른 광역 소관기관이다. */
-    public record CompanyConditions(List<String> targets, String businessStatus, String region, List<String> excludedJurisdictions) {
+    public record CompanyConditions(List<String> targets, String businessStatus, String region, List<String> excludedJurisdictions, Map<String, Integer> regionBasis, String regionRule) {
     }
 
     public record QueryConditions(List<String> categories, List<String> targets, Boolean currentlyOpen) {

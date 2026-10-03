@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 대화와 메시지 저장·조회.
  * 다른 사용자의 대화는 존재 여부도 알려 주지 않도록 "없음"과 같은 오류로 처리한다.
- * 대화·AI 검색은 기업정보를 등록한 사용자만 쓴다(없으면 company_not_registered).
+ * 대화·AI 검색은 로그인 사용자에게 제공한다. 기업정보 없는 검색은 지역 필터 없이 실행한다.
  */
 @Service
 public class ConversationService {
@@ -49,7 +49,6 @@ public class ConversationService {
 
     @Transactional
     public ConversationDtos.ConversationResponse create(Long userId, String title) {
-        companyService.requireRegistered(userId);
         String value = title == null || title.isBlank() ? DEFAULT_TITLE : title.strip();
         Conversation conversation = conversations.save(new Conversation(userId, value, clock.instant()));
         activityLog.success(ActivityAction.CONVERSATION_CREATE, userId, "CONVERSATION", conversation.getId(), null);
@@ -58,14 +57,12 @@ public class ConversationService {
 
     @Transactional(readOnly = true)
     public List<ConversationDtos.ConversationResponse> list(Long userId) {
-        companyService.requireRegistered(userId);
         return conversations.findTop50ByUserIdOrderByUpdatedAtDescIdDesc(userId).stream()
                 .map(ConversationDtos.ConversationResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
     public List<ConversationDtos.MessageResponse> messages(Long userId, Long conversationId) {
-        companyService.requireRegistered(userId);
         owned(userId, conversationId);
         return messages.findByConversationIdOrderByIdAsc(conversationId).stream().map(this::toResponse).toList();
     }
@@ -73,7 +70,6 @@ public class ConversationService {
     /** 사용자 질문 저장. */
     @Transactional
     public ConversationDtos.MessageResponse addUserMessage(Long userId, Long conversationId, String content) {
-        companyService.requireRegistered(userId);
         return append(owned(userId, conversationId), MessageRole.USER, content.strip(), null, null);
     }
 
@@ -83,8 +79,7 @@ public class ConversationService {
      */
     @Transactional
     public ConversationDtos.StartedQuestion startQuestion(Long userId, Long conversationId, String question) {
-        // AI 검색(/api/ai/query)도 이 진입점을 거치므로 여기서 함께 막힌다.
-        companyService.requireRegistered(userId);
+        // BOUNDARY: 기업정보는 검색의 optional 지역 조건이다. 사용자 소유권 검증은 그대로 유지한다.
         String text = question.strip();
         Conversation conversation;
         if (conversationId == null) {

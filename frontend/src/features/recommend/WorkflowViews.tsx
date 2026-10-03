@@ -46,13 +46,13 @@ export function SearchSummary({ response }: { response: WorkflowResponse }) {
         search.status !== "LISTED" && <div className="alert info">{SEARCH_STATUS_TEXT[search.status] ?? `검색 결과: ${search.status}`}</div>
       )}
       {appliedRegion && (
-        <p className="muted small">기업 지역({appliedRegion}) 기준으로 다른 광역 지자체가 담당하는 공고는 제외했습니다. 중앙부처 공고는 포함합니다.</p>
+        <p className="muted small">기업 지역({appliedRegion}) 기준으로 소관기관과 제목 지역 표시를 확인해 다른 지역 공고는 제외했습니다. 지역 표시 없는 중앙부처 공고는 포함합니다.</p>
       )}
       {queryUnapplied.length > 0 && (
         <div className="alert warn" role="note" aria-label="질문 조건 미반영 안내">
           질문의 '{queryUnapplied.map((item) => item.value).join(", ")}'은 검색 조건으로 반영하지 못했습니다.{" "}
           {appliedRegion
-            ? `기업 지역(${appliedRegion})과 중앙부처 공고 기준으로 찾았습니다. 매핑 없는 소관기관 공고도 포함합니다.`
+            ? `기업 지역(${appliedRegion})과 전국 공고 기준으로 찾았습니다(소관기관 / 제목 지역 표시 기준). 매핑 없는 공고는 포함합니다.`
             : "기업 지역 조건은 적용되지 않았습니다."}{" "}
           기업 지역을 바꾸려면 <Link to="/company">기업정보 수정</Link>에서 확인해 주세요.
         </div>

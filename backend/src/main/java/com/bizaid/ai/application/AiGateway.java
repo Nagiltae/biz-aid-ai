@@ -21,6 +21,13 @@ public interface AiGateway {
         throw new UnsupportedOperationException("공고 선택을 지원하지 않는 연결 창구입니다.");
     }
 
+    default AiDtos.AiQueryResult query(String query, String selectedPblancId, String companyRegion) {
+        if (companyRegion == null) {
+            return query(query, selectedPblancId);
+        }
+        throw new UnsupportedOperationException("기업 지역 전달을 지원하지 않는 연결 창구입니다.");
+    }
+
     AiDtos.EligibilityResult evaluateEligibility(AiDtos.EligibilityCommand command);
 
     AiDtos.PersonalizedSearchResult personalizedSearch(AiDtos.PersonalizedSearchCommand command);

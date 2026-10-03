@@ -32,7 +32,7 @@ public class CompanyService {
     }
 
     /**
-     * 기업정보가 있어야 쓰는 기능(AI 검색·대화)의 공통 확인. 없으면 company_not_registered로 막는다.
+     * 기업정보가 필수인 기능의 등록 상태 확인. AI 검색·대화는 기업정보 없이도 허용하며 이 확인을 쓰지 않는다.
      * 화면도 같은 규칙으로 막지만, API를 직접 호출하는 우회를 서버에서 한 번 더 막는다.
      */
     @Transactional(readOnly = true)
@@ -46,6 +46,12 @@ public class CompanyService {
     @Transactional(readOnly = true)
     public Company find(Long userId) {
         return companies.findByUserId(userId).orElseThrow(() -> new ApiException(ErrorCode.COMPANY_NOT_REGISTERED));
+    }
+
+    /** AI 검색은 기업정보 없이 전체 범위를 쓸 수 있다. 지역만 전달하고 다른 기업정보는 노출하지 않는다. */
+    @Transactional(readOnly = true)
+    public String optionalRegion(Long userId) {
+        return companies.findByUserId(userId).map(Company::getRegion).orElse(null);
     }
 
     @Transactional

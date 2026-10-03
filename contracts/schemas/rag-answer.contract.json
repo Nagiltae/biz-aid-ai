@@ -148,5 +148,12 @@
     "candidate_limit": 5,
     "priority": "explicit selected ID; list intent; named detail question; otherwise existing LLM",
     "selection": "name match score, OPEN (both dates known and covering as_of), latest source_created_at; unresolved ties return SELECTION_REQUIRED, no retrieval or answer LLM; selected ID must be active"
+  },
+  "company_region_query": {
+    "source": "Spring optional company.region only",
+    "scope": "SEARCH_LIST and generic DOCUMENT_QA use same company-region contract as personalized search",
+    "named_exception": "explicit selected ID or recognized announcement name => region exclusion bypassed, outside-region warning; other lifecycle/contract validation retained",
+    "missing": "no company/blank/legacy region => full regional scope, not guessed",
+    "identity": "no query/embedding/RRF/key/vector changes"
   }
 }
