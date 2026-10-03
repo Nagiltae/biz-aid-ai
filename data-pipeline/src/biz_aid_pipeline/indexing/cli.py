@@ -26,5 +26,7 @@ def main(argv=None):
         except PipelineError as error:
             result = {"source_sha256": source_sha256, "status": "FAILED", "failure_code": str(error)}
             status = 1
+        if result["status"] != "INDEXED":
+            status = 1
         print(json.dumps(result, ensure_ascii=False), flush=True)
     return status

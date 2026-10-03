@@ -123,6 +123,8 @@ def drive(sources, index_one, done, state, write, stop_requested=lambda: False):
             state["source_points"][sha] = outcome.get("source_points")
             state["collection"] = outcome.get("collection", state["collection"])
         else:
+            # BOUNDARY: admission 보류는 완전 적재 성공이 아니다. 명시적 실패 코드로 completeness를 닫는다.
+            outcome.setdefault("failure_code", "index_admission_skipped")
             state["failed"] += 1
             state["failures"][outcome["failure_code"]] = state["failures"].get(outcome["failure_code"], 0) + 1
         write(outcome, state)

@@ -176,5 +176,33 @@
       "내부운영",
       "내부규정"
     ]
+  },
+  "new_document_admission": {
+    "namespaces": [
+      "v2"
+    ],
+    "max_document_points_per_program": 200,
+    "max_reference_points_per_program": 60,
+    "reference_share_min_points": 40,
+    "max_reference_share": 0.5,
+    "reference_filename_cues": [
+      "해설서",
+      "가이드북",
+      "매뉴얼",
+      "표준산업분류",
+      "표준분류체계"
+    ],
+    "reject_mode": "whole source SKIPPED_INDEX_POLICY before embedding/upsert; never truncate chunks; preserve S3/MySQL parse artifact",
+    "existing_points": "no admission rewrite/delete for already indexed source; current old dataset untouched",
+    "basis": "2026-10-04 bundle2: prior sources over500points caused domination (3458/1048); conservative local admission bound200, long filename-identified reference60 or over50% once40points. Short restored notices60points across5sources remain allowed. Not measured optimal thresholds."
+  },
+  "closed_cleanup": {
+    "profile": "dev",
+    "namespace": "v2 only",
+    "closed": "application_end_date is non-null AND < explicit as_of; equality and unknown remain",
+    "backup": "server snapshot + local byte size/SHA readback required before delete; snapshot reused only after server metadata and local integrity validation",
+    "preservation": "MySQL/S3/parsing/V1 unchanged; filtering by pblanc_id, not shared source SHA",
+    "entrypoint": "scripts/prune_closed_program_points.py",
+    "basis": "2026-10-04 bundle2 explicit snapshot-backed deletion authorization"
   }
 }

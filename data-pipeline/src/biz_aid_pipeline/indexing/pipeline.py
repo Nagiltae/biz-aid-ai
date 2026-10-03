@@ -18,13 +18,21 @@ def unique_texts(chunks):
     return texts
 
 
-def index_chunks(chunks, source_sha256, embedder, client, contract, namespace=None):
+def index_chunks(chunks, source_sha256, embedder, client, contract, namespace=None, filenames=()):
     identity = embedder.identity
     expected = {"repo_id": identity["model_repo_id"], "revision": identity["model_revision"]}
     # BOUNDARY: chunk 크기를 잰 tokenizer와 embedding 모델이 다르면 token 한도와 vector 의미가 어긋난다.
     if any(chunk.embedding_model != expected for chunk in chunks):
         raise PipelineError("chunk_embedding_model_mismatch")
     name, created = qdrant_store.ensure_collection(client, contract, identity, namespace)
+    spec = contract.get("new_document_admission")
+    if spec and namespace in spec["namespaces"] and not client.count(name, count_filter=qdrant_store.source_filter(source_sha256), exact=True).count:
+        from biz_aid_pipeline.indexing.admission import admission_reasons
+        reasons = admission_reasons(chunks, filenames, client, name, spec)
+        if reasons:
+            # BOUNDARY: 기존 point는 수정하지 않는다. 새 source 전체를 보류하고 파싱 원본/관계는 영구 저장소에 남긴다.
+            return {"source_sha256": source_sha256, "status": "SKIPPED_INDEX_POLICY", "collection": name,
+                    "chunks": len(chunks), "source_points": 0, "upserted": 0, "reasons": reasons}
     texts = unique_texts(chunks)
     started = time.monotonic()
     vectors = dict(zip(texts, embedder.encode(list(texts.values()))))
@@ -47,4 +55,12 @@ def index_source(source_sha256, embedder, client, contract, profile="dev", root=
     chunks = chunk_source(root, profile, source_sha256, explicit_parse_key)
     if not chunks:
         raise PipelineError("no_chunks")
-    return index_chunks(chunks, source_sha256, embedder, client, contract, namespace)
+    from biz_aid_pipeline.chunking.source import original_filenames
+    from biz_aid_pipeline.config.settings import DbConfig
+    from biz_aid_pipeline.parsing.repository import ParseResultRepository
+    repository = ParseResultRepository(DbConfig.load(root, profile))
+    try:
+        filenames = original_filenames(repository, source_sha256)
+    finally:
+        repository.close()
+    return index_chunks(chunks, source_sha256, embedder, client, contract, namespace, filenames)
