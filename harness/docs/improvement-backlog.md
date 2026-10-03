@@ -161,7 +161,9 @@
 - Why deferred: 원문 해석 규칙을 새로 만들지 않는다(근거 없는 정규화 금지). 모르는 기간은 제외하지 않는 쪽이 안전하다.
 - Revisit trigger: "지금 신청 가능" 필터가 제품 요구로 확정될 때, 또는 자격 판단 단계에서 기간 판정이 필요할 때
 - Side effect: 기간 원문 분류 규칙은 Structured 정규화 규칙·fingerprint 버전과 함께 결정해야 한다.
-- Status: OPEN
+- Status: RESOLVED (명시 날짜 형식 보강; 날짜 없는 FREE_TEXT는 의도적으로 UNKNOWN 유지)
+
+- Bundle2 Evidence: dot/slash/Korean 명시 범위를 period normalizer로 보강. dev603→604,1행 파생값만 갱신, raw/fingerprint/lifecycle 보존. 날짜가 없는 나머지950건이 자동 마감 판정 가능해졌다는 뜻은 아니다. [묶음2 Report](../workspace/reports/development/2026-10-03-bundle2-region-data.md).
 
 ## IMP-012 필터 추출 LLM이 질문에 없는 조건을 만들어냄
 
@@ -240,7 +242,9 @@
 - Revisit trigger: V2 collection 전환 후 주기적 갱신이 필요할 때 또는 운영 배포 전
 - Side effect: 정리는 V2 collection에서만 한다. V1 collection은 baseline 재현용이라 대상이 아니다. MySQL·S3 원본은 지우지 않는다.
 - Evidence(V2 적재 현황, 2026-10-02): V2 collection point의 공고 중 현재 CLOSED가 17공고·1,719 point다. 13공고(1,115 point)는 기준일 2026-10-01에 마감된 공고다. 4공고(604 point)는 기준일 전(09-30)에 마감돼 범위 밖인데, 범위 안 공고와 같은 첨부 문서를 공유해 indexing이 공고 relation마다 point를 만들면서 들어왔다. V2 개인화 검색은 MySQL 후보 단계에서 요청일 기준 마감 공고를 빼므로(`exclude_closed_on`) 이 point를 결과로 내지 않는다. V1 경로(`/api/ai/query`)는 "지금" 표현이 없으면 마감 공고를 빼지 않는 기존 동작 그대로다. 정리는 하지 않았다(`2026-10-02-v2-data-completeness.md`).
-- Status: OPEN
+- Status: RESOLVED (재실행 가능한 snapshot-backed dev V2 정리 구현)
+
+- Bundle2 Evidence: 2026-10-04 이전 종료일 확정62공고3679point를 로컬 검증snapshot 후 정리. V264041→60362,V13849 유지. MySQL1554행/S3 유지. 자동 scheduler는 만들지 않았다. [묶음2 Report](../workspace/reports/development/2026-10-03-bundle2-region-data.md).
 
 ## IMP-019 개인화 검색에서 기업정보는 후보 필터에만 쓰이고 순위에는 반영되지 않음
 
@@ -253,9 +257,11 @@
 - Partial resolution(2026-10-03, 사용자 결정·규칙 변경): 지역 부분을 반영했다. 기업 지역을 광역 지자체 16개 표준명 중에서 고르고(전남광주통합특별시는 하나), 맞춤 추천 후보에서 다른 광역 지자체 소관 공고만 뺀다(중앙부처·매핑 없는 소관기관 유지, `company-region` 계약). 경기도 중소기업·금융 질문의 후보는 145 → 43이다. 기록 `2026-10-03-company-region-filter.md`.
 - Follow-up: 중앙부처 소관이면서 공고명에 지역 표기([전북]·[대전] 등)가 있는 공고는 이번에 유지한다. 2026-10-03 기준 마감이 확정되지 않은 중앙부처 공고 384건 중 63건(16%)이다(경북 8·경남 7·전북 6·충북·서울·부산·대구 각 5). 지역 한정 여부는 공고문을 봐야 해서 후속 후보로 둔다.
 - Remaining(2026-10-03 사용자 결정 나): 질문 지역은 Natural Filter에서 정형 조건으로 추출하지 않고 서버의 unapplied 조건 그대로 화면에 눈에 띄게 알린다. 기업 지역과 중앙부처·매핑 없는 소관기관을 기준으로 찾았다는 안내와 기업정보 수정 링크를 제공한다. 별도 지역 키워드 추출은 하지 않는다. 근본 해결(질문 지역의 정형 추출)은 IMP-012·IMP-024와 함께 cases-v2로 변경 전후를 비교한 뒤 처리한다. 후속 후보 필터 결정(2026-10-03): MySQL 소관기관 필터 유지. 질문 지역 unapplied 결정 나와 별개다. 경기도 기준 종료 미확정1,314건 중 다른 광역812건(61.8%)을 다시 넣는 비용과 Top3 부적합 위험을 고려했다. [측정 Report](../workspace/reports/development/2026-10-03-region-filter-measurement.md)의 지자체 표본 관내30/40(75%)·명시적 누락4/40(10%)은 모집단 오류율 추정이 아니며 누락은 IMP-031 후속으로 복구한다. 이 기록 당시 순위 반영은 OPEN이었으며 아래 Bundle1 Evidence에서 구현했다.
-- Status: OPEN
+- Status: OPEN (기업 지역 순위·제목 필터 구현; 실제 신청 가능 지역은 장기 과제)
 
 - Bundle1 Evidence: 지역 순위 반영 구현(2026-10-03 묶음1): Top10·최고점90% 이상 같은 지역 소관+0.001, 원점수/가산/최종점수/원순위 제공. 질문 지역 unapplied 및 소관 필터 유지 결정은 별개이며 신청 가능 지역 추출은 IMP-031 OPEN이다. 고정 경기 질문2건 모두 같은 지역 Top3 포함. [묶음1 Report](../workspace/reports/development/2026-10-03-bundle1-quality.md).
+
+- Bundle2 Evidence: 기업 지역+전국 규칙을 소관/제목으로 확장하고 AI 검색에도 optional지역을 적용. 질문 지역 unapplied는 불변. 제목은 실제 자격의 대리 지표이며 IMP-031 AI 추출은 장기 과제. 고정질문P3의 실제 추출은 창업+소상공인이고 서울에 해당하는 정형 후보0이다. 회사규모로 가능한 중소기업·창업벤처까지 질문의 명시 대상을 임의 확장하지 않았다. [묶음2 Report](../workspace/reports/development/2026-10-03-bundle2-region-data.md).
 
 ## IMP-020 Top 3 자격 판정 전체 응답이 Spring 응답 제한시간을 넘음
 
@@ -372,7 +378,9 @@
   - 지금도 제외: 40원본(`imp028-still-excluded-sources.txt`). 재적재 목록은 `index-sources-after-imp028.txt`(130)
   - V2 64,041 point·2,776원본. 고른 이유는 Report §11 후속에 있다
 - Remaining: 재발 방지(REFERENCE 판정, 원본당 point 상한 등)는 미정이다. 다음 형식(XLSX 등)이나 ZIP 재적재 전에 정한다.
-- Status: OPEN(45원본 point 삭제로 현재 영향은 해소, 재발 방지 미정)
+- Status: RESOLVED (기존 영향 정리는 역사적 기록 유지; 새 적재 admission 구현)
+
+- Bundle2 Evidence: 새 V2 source만 공고당문서200point/파일명상참고60point,40point이상참고의 점유율50% 경계를 적용. 초과는 embedding/upsert 전 whole-source SKIPPED_INDEX_POLICY, existing source는 이 규칙으로 수정하지 않음. 수출바우처123769는 기존3원본174point,ZIP 아님; 대형참고 지배가 근거0의 확정 원인이 아님. [묶음2 Report](../workspace/reports/development/2026-10-03-bundle2-region-data.md).
 
 ## IMP-029 일부 공고에서 자격 판정 criteria를 지나치게 쪼개거나 반복 생성함
 
@@ -403,7 +411,9 @@
 - Why deferred: 2026-10-03 사용자 결정으로 소관기관 필터는 유지한다. 신청 가능 지역 추출은 IMP-031에서 조건·근거를 보존해 후속 비교한다.
 - Revisit trigger: 이런 공고가 늘거나 사용자 문의가 생길 때, 또는 IMP-019 후속(중앙부처 공고의 지역 표기)을 정할 때
 - Side effect: 공고명 지역 표기를 대상 지역으로 쓰면 중앙부처 공고 63건의 처리와 같은 규칙으로 정해야 한다.
-- Status: OPEN
+- Status: RESOLVED (매핑 가능한 복수 제목 지역 사례)
+
+- Bundle2 Evidence: 복수 제목 지역이 소관 광역보다 우선. [부산ㆍ울산ㆍ경남] 경남소관은 부산·울산·경남 모두 유지한다. 미표기 실제 다지역/이전 조건은 IMP-031 장기 과제. [묶음2 Report](../workspace/reports/development/2026-10-03-bundle2-region-data.md).
 
 ## IMP-031 공고별 신청 가능 지역 추출
 
@@ -415,6 +425,8 @@
 - Revisit trigger: 배포 후 지역 누락 복구 Task 승인 시. 입력·출력 비용 가정은 측정 Report에 있으며 실제 LLM 추출 비용은 미측정이다.
 - Side effect: 신규 DB/계약·적재/근거검증 경계와 사용자 승인 필요. 기존 source_payload·fingerprint·검색 identity 보존.
 - Status: OPEN
+
+- Long-term decision(2026-10-04): 공고별 신청 가능 지역의 AI 추출은 장기 과제로 유지하고 이번에는 실행하지 않는다. NATIONWIDE/REGION_LIST/UNKNOWN + 근거, 이전 예정·수요/공급 역할을 보존할 후속 설계다. 제목 규칙도 대리 지표이며 [측정 Report](../workspace/reports/development/2026-10-03-region-filter-measurement.md)의 중앙표본에서 관내 전용으로 확인되지 않은5/20(25%)은 지역조건 없음3·다른 지역 허용1·근거 부족1로 구성된다. 따라서5건 모두 전국 허용이라고 단정하지 않으며, 제목 규칙의 누락 위험은 남는다. 표본 비율을 모집단 비율이나 전국 자격 확정으로 해석하지 않는다.
 
 ## IMP-032 공고 소관기관과 실제 신청 대상 지역 불일치
 

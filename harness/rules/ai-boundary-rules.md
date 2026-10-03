@@ -24,7 +24,7 @@ AI POST 요청(검색·자격 판정)은 자동 재시도하지 않는다(LLM �
 최종 자격 상태는 검증된 criterion 결과로 application이 계산하며 모델이 덮어쓸 수 없다.
 LLM이 추출한 정형 조건은 SQL 실행 전에 application의 허용 canonical 값(활성 공고의 실제 DB 값)으로 검증한다. 허용 값 밖은 적용하지 않고 unapplied로 드러낸다.
 처리할 수 없거나 모호한 hard 조건(예: 질문 속 지역)을 다른 정형 field(예: 소관기관 jurisdiction_name)로 바꿔 적용하지 않는다(질문 속 지역은 unapplied).
-예외(2026-10-03 사용자 결정, IMP-019): 저장된 기업정보의 지역이 광역 지자체 표준명이면 기업 지역과 다른 광역 지자체가 소관기관인 공고만 후보에서 뺀다. 중앙부처·공공기관·매핑에 없는 소관기관은 남긴다(fail-open). 표준명·소관기관 매핑은 `contracts/schemas/company-region.contract.json`에만 둔다.
+승인 예외(2026-10-04 묶음2): 기업 표준 지역 + 전국/미매핑 공고 후보만 유지한다. company-region 계약의 소관/제목 지역 규칙을 개인화와 AI 검색에서 공유한다. 중앙/미매핑 소관의 제목 지역 표시는 제한하고 복수지역 표시는 소관 광역보다 우선한다. 미매핑 지역은 fail-open이며 질문 속 지역 정형 추출은 하지 않는다. 제목은 실제 신청 자격의 증명이 아니다. 특정 공고를 직접 물은 DOCUMENT_QA는 지역 제외를 우회하고 타지역 경고를 표시한다. 기업 없는 AI 검색은 지역 제한 없으며 개인화/판정은 기존 등록 요구를 유지한다.
 저장된 기업정보는 LLM이 해석하지 않는다. 의미가 확실하고 사용자가 승인한 매핑(`candidates/personalized.py`, `candidates/region.py`)만 일반 코드로 검색조건이 되고, 나머지(업력·휴업·표준명이 아닌 예전 지역 값 등)는 unapplied로 드러낸다. 질문 조건과 겹치지 않으면 완화하지 않고 충돌 상태로 돌려준다(지원대상 kind=target, 정형 소관기관 조건과 기업 지역 kind=region).
 "현재·지금" 같은 상대 시간은 LLM이 만든 날짜가 아니라 application 시간(Asia/Seoul 날짜 또는 명시한 as_of)으로 해석한다.
 LLM이 제안한 hard filter는 질문 원문에 근거가 있고 application이 검증한 경우에만 후보 선택에 영향을 준다. 근거 없는 제안은 진단(discarded)으로만 남긴다.
@@ -43,3 +43,5 @@ Retriever는 적재와 같은 BgeM3Embedder(같은 embedding_key)로 query를 �
 LangSmith 실행 추적은 설정(`BIZAID_TRACING_ENABLED`)으로 켤 때만, `observability/tracing.py`가 정한 단계를 명시적으로 기록한다. LangChain/LangGraph 자동 추적은 쓰지 않으며 workflow 실행 중에는 강제로 끈다.
 외부 추적에는 단계 이름·시간·상태·개수·오류 코드·공개 공고 ID·field ID만 보낸다. 질문·기업정보·임시 답변 값·문서 원문·검색 조각·prompt·모델 응답·비밀값·예외 메시지 원문은 보내지 않는다(형식 검사로 이중 차단).
 추적 식별값은 사용자·기업과 무관한 무작위 값(trace_key)이다. 추적 생성·전송 실패는 무시하고 AI 흐름을 멈추거나 바꾸지 않는다.
+
+마감 정리는 dev V2에만 명시 기준일과 snapshot 검증 후 적용한다(document-indexing 계약). 신규 원본 admission은 embedding 전 전체 source 보류이며 chunk prefix만 적재하지 않는다. 기존 collection을 admission 때문에 다시 쓰거나 지우지 않는다.

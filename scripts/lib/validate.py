@@ -95,7 +95,7 @@ def run(*command, capture=False):
 
 def workspace_category(name):
     # BOUNDARY: 사용자가 지정한 Task handoff는 실행 상태 산출물이며 current-task와 다르다.
-    if name == "harness/workspace/handoff/bundle1-handoff.md":
+    if name in ("harness/workspace/handoff/bundle1-handoff.md", "harness/workspace/handoff/bundle2-handoff.md"):
         return "GENERATED_CHECKPOINT"
     for category, names in STATIC_WORKSPACE_FILES.items():
         if name in names:

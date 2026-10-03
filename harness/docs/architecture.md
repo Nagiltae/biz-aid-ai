@@ -96,3 +96,9 @@ parsing(S3 원본 → DoclingDocument, S3 + V5 row) ← chunking(현재 parse_ke
 
 MySQL과 Qdrant는 `pblanc_id`·`source_sha256`으로만 연결한다. collection은 embedding_key별이고 dev Compose Qdrant만 쓴다(host는 loopback, Compose 안의 FastAPI는 `http://qdrant:6333`만 허용).
 `retrieval/`은 같은 embedder로 query를 만들어 현재 embedding_key collection을 읽기만 한다(dense·sparse·RRF hybrid). `candidates/`가 MySQL 후보를 만들고 RAG가 그 pblanc_id 범위 안에서만 검색한다. [AI 경계](../rules/ai-boundary-rules.md)와 [파일 경계](../rules/file-boundaries.md)를 따른다.
+
+## 묶음2 지역·데이터 정리(2026-10-04)
+
+기업 지역 후보는 company-region 계약의 제목 표시/소관기관 규칙으로 계산하며 개인화 검색과 AI 검색이 공유한다. Spring은 optional 기업 region만 내부 요청에 전달한다. 회사 없는 AI 검색·대화는 인증/소유권 검증으로 제공하고, 맞춤 추천·자격 판정의 기업 등록 요구는 유지한다. 직접 질문한 다른 지역 공고는 답변 대상에서 숨기지 않고 경고한다.
+
+기간 파생은 existing period normalizer의 명시 날짜 범위를 보강한다. dev MySQL1554행 중603→604행에 날짜가 생겼고 다른 source/lifecycle column은 보존됐다. V2 마감 정리는 snapshot 로컬 byte 검증 후 pblanc_id로 삭제하며 원본·MySQL row·V1은 보존한다. 2026-10-04 이전 마감62공고3679point 정리 후 V2는60362point, V1은3849point다. 신규 원본 admission은 공고당 원본200point, 식별된 대형 참고자료60point/점유율 경계로 embedding 전 전체 source를 보류하며 기존 적재에는 적용하지 않는다. 상세 계약 및 이번 Report를 참조한다.

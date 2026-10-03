@@ -642,3 +642,7 @@ V1 종료 상태를 V2 변경과 같은 조건으로 비교하도록 SEARCH_LIST
 ## 2026-10-03 묶음1 품질
 
 사용자 승인: FORM 근거 제외·내부 지급규정 role 정정·근접 RRF 지역 가산·규칙 우선 질문 모드·공고 선택을 계약에 기록한다. V1 baseline/identity/vector/MySQL 지역 필터는 유지한다. 고정질문 runner는 strict 입력, 사용자 지정 handoff는 좁은 checkpoint 예외다. 실제 결과는 묶음1 Report에 기록하며 AGY 승인으로 취급하지 않는다.
+
+## 2026-10-04 묶음2 지역·데이터 정리
+
+기업 지역 제목/소관 규칙과 named QA 예외를 계약·FastAPI·Spring·React에 공유했다. 명시 신청기간 파생 보강·원문 보존, snapshot 후 V2 마감 정리, 신규 문서 admission을 추가했다. 제품 key/vector/V1과 비밀값 불변. 사용자 지정 bundle2 handoff만 non-gating 경계에 추가했다. 최종 검증 결과는 개발 Report에 실제 exit로 기록한다.

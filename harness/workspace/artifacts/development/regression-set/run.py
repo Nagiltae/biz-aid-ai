@@ -50,6 +50,7 @@ def run_cases(cases):
                                              for criterion in (item.get("eligibility") or {}).get("criteria", [])),
                        "evaluations": evaluations,
                        "search_status": search.get("status"),
+                       "applied_conditions": search.get("applied_conditions"),
                        "same_region_top3": any(item.get("jurisdiction_name") == case["company_profile"]["region"] for item in programs)}
             else:
                 response = requests.post(base + "v1/query", json={"query": query, "as_of": "2026-10-03"}, headers=headers, timeout=165)
@@ -83,6 +84,8 @@ def main():
     parser.add_argument("--cases", type=Path, default=HERE.parents[4] / "evals/bundle1-quality-questions.json")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.output.exists():
+        parser.error("output already exists; keep prior regression evidence")
     cases = json.loads(args.cases.read_text())["cases"]
     if args.cases.name == "bundle1-quality-questions.json":
         (HERE / "questions.json").write_text(args.cases.read_text())

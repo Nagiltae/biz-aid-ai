@@ -263,3 +263,7 @@ NOT_MET→INELIGIBLE, 잘못된 evidence id·다른 공고 evidence·모르는 p
 ## 묶음1 고정질문
 
 `harness/workspace/artifacts/development/regression-set/run.py`는 Registry strict 실행 입력이다. 질문 JSON과 결과 JSON/log는 실행 산출물이다. dev FastAPI에서 검색4·문서QA3·추천3을 순차1회 실행하며75초 LLM 기한·기존 workflow를 재사용한다. V1 frozen baseline을 대체하지 않는다. 사용자 지정 bundle1-handoff는 non-gating checkpoint다.
+
+## 묶음2 최소 회귀
+
+`test_bundle2_region_data.py`는 제목 복수/권역/fail-open 후보, 명시 날짜, 백업 전 삭제 거부/V1 거부, 새 문서 whole-source admission/기존 불변, named 타지역 QA를 검증한다. `test_structured_mysql.py`는 biz_aid_test에서 파생 날짜만 갱신하고 재실행 no-op인지 확인한다. Spring fake FastAPI와 React는 optional기업지역과 안내/미등록 전체 검색을 검증하며 실제LLM은 check-all에 넣지 않는다. 고정 질문 세트는 승인된 이번 작업에서만1회 별도 실행하고 이전 결과와 비교한다.

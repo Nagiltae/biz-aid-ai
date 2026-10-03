@@ -1,28 +1,27 @@
-# Current Task — 묶음 1 추천·답변 품질 및 고정 질문 회귀
+# Current Task — 묶음2 지역·데이터 정리
 
 ## Goal / Context
 
-2026-10-03 사용자 승인 범위 1→7. dev에서 기존 제품 경계를 최소 수정한다. 직전 근거 ID 오류는 당시 raw 응답이 없어 원인을 임의 확정하지 않는다. 현재 empty/outside 개수 진단을 추가한다.
+사용자 승인0~6. 묶음1 최종구현은1d6d726에 보존됐으며 고정10건/QA근거부족/서울후보0 관찰을 이어받는다. 제품 key·vector·V1은 불변,commit/push 없음.
 
 ## Scope / Acceptance
 
-1. IMP-029 evidence_ids minItems1 및 근거 없는 criterion fail-closed.
-2. Eligibility/DOCUMENT_QA Qdrant 근거에서 FORM 제외. UNKNOWN·role 없는 기존 point 유지. 목록 검색 영향 없음.
-3. IMP-027 내부 지급 규정 document_role UNKNOWN. 승인된 V2 payload-only 정정, ID·vector·V1 불변.
-4. 개인화 후보 Top10 중 최고 RRF90% 이상인 같은 표준 지역 소관 +0.001, Top3. 원점수·원순위·가산·최종점수 기록. MySQL 지역 제외·query·embedding·RRF 불변.
-5. 명확한 목록/공고명+상세질문은 계약 규칙 우선, 애매한 의도만 기존 LLM.
-6. 공고명 일치도→접수중→최신 선택, 동점 최대5 후보 사용자 선택. Spring은 검증·전달, React는 원래 질문+선택ID로 다시 요청.
-7. 고정 검색4/문서QA3/맞춤추천3 순차 1회. 기존75초 LLM 기한 유지. 마지막 check-all 1회.
+0 P3 조건별 MySQL조회,LLM반복없음.
+1 company-region 별칭/권역계약으로 제목지역+소관 필터,중앙표본20 및공동지역 사례확인.
+2 period normalizer 명시 날짜 보강,derived-only atomic refresh.
+3 기준일2026-10-04 이전확정마감 V2point만snapshot 검증 후승인삭제;MySQL/S3/V1유지.
+4 신규원본 admission,기존point재적재없음;수출바우처조회만.
+5 Backlog·Architecture·계약동기화.
+6 Spring기업지역 전달→FastAPI공통규칙→React안내. named QA타지역 유지+경고,회사없으면 전체지역.
 
 ## Read First
 
-AGENTS → Codex → [Backlog](../docs/improvement-backlog.md) → [AI 경계](../rules/ai-boundary-rules.md) → rag-answer/eligibility/indexing/internal-api 계약 → 해당 제품·테스트.
+AGENTS→Codex→Backlog→AI경계/Source/DB→company-region/rag/indexing/internal-api 계약. [묶음1 Report](reports/development/2026-10-03-bundle1-quality.md),[지역 측정](reports/development/2026-10-03-region-filter-measurement.md).
 
 ## Validation / Reports
 
-[Final Report](reports/development/2026-10-03-bundle1-quality.md). 사용자 지정 `harness/workspace/handoff/bundle1-handoff.md`는 실행 상태 산출물이며 handoff에 제어 설정 변경이 필요 없다.
-Generated JSON/log와 달리 regression-set/run.py는 사용자가 재사용할 실행 입력으로 strict 등록한다. 과거 V1 baseline 변경 없음.
+[Final Report](reports/development/2026-10-03-bundle2-region-data.md). Targeted Python/Spring/React와기존MySQL Integration,최종check-all1회,고정10질문script1회. 최종제품입력 확정후생성report/handoff만갱신. handoff는harness/workspace/handoff/bundle2-handoff.md.
 
 ## Next Steps
 
-1~7 구현·고정질문10건1회 완료. 검색4 LISTED/QA2답변·1근거부족/추천2정보대기·1공고0개 완료. 123260 동일 snapshot1회는9조건·NEEDS_MORE_INFO·32.56초 정상. Python39/Spring10/React18 targeted PASS. 최종 check-all → Report. prod·secret 직접 읽기·재임베딩·V1변경·commit/push 금지. AGY 독립 검토 pending; 다음 묶음은 자동 시작하지 않는다.
+구현 및 승인정리 완료: 날짜603→604(1행),V2 64041→60362(62공고3679point),V1 3849유지. 고정10질문1회 완료(S4건 LISTED,Q2건 ANSWERED/1건 INSUFFICIENT_EVIDENCE,P2건Top3판정/서울P3 NO_CANDIDATES). 최종check-all을 실제 실행하고 결과를 Report로확인한다. AGY independent review pending이며다음묶음자동시작금지.
