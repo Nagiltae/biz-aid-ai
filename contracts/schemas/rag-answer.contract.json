@@ -5,7 +5,11 @@
   "retrieval": {
     "mode": "hybrid",
     "top_k": 5,
-    "rule": "uses retrieval.Retriever unchanged; mode and top_k equal the Retrieval Evaluation baseline (gold-v1) and change only with a new evaluation"
+    "rule": "uses retrieval.Retriever unchanged; mode and top_k equal the Retrieval Evaluation baseline (gold-v1) and change only with a new evaluation",
+    "exclude_document_roles": [
+      "FORM"
+    ],
+    "role_basis": "2026-10-03 user approval: application forms are not answer/eligibility evidence; missing role and UNKNOWN retained"
   },
   "context": {
     "evidence_id": "request-local E1..En in retrieval rank order",
@@ -106,5 +110,43 @@
     "group_limit_per_mode": 50,
     "fill_rule": "never add programs outside the candidate scope or without retrieved evidence to reach max_programs; fewer relevant programs are returned instead",
     "calls": "two Qdrant group queries per request (dense, sparse); no per-candidate queries and no extra LLM call"
+  },
+  "personalized_ranking": {
+    "candidate_limit": 10,
+    "region_bonus": 0.001,
+    "minimum_score_ratio": 0.9,
+    "basis": "2026-10-03 one V2 finance query: top10 RRF 0.02626..0.03110, Gyeonggi rank6 0.02804 vs national rank3 0.02847. Add 0.001 only inside top10 and >=90% of best original score. No query/vector/RRF changes. Zero bonus preserves order."
+  },
+  "question_routing": {
+    "list_phrases": [
+      "찾아줘",
+      "찾아주세요",
+      "추천",
+      "어떤사업",
+      "목록"
+    ],
+    "detail_phrases": [
+      "지원요건",
+      "지원대상",
+      "신청자격",
+      "요건",
+      "자격",
+      "서류",
+      "기간",
+      "한도",
+      "조건"
+    ],
+    "name_suffixes": [
+      "알려줘",
+      "알려주세요",
+      "설명해줘",
+      "은",
+      "는",
+      "의"
+    ],
+    "minimum_name_chars": 4,
+    "candidate_limit": 5,
+    "priority": "explicit selected ID; list intent; named detail question; otherwise existing LLM",
+    "selection": "name match score, OPEN (both dates known and covering as_of), latest source_created_at; unresolved ties return SELECTION_REQUIRED, no retrieval or answer LLM; selected ID must be active"
   }
 }

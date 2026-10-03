@@ -21,6 +21,7 @@ MODEL_OUTPUT_ERRORS = ("filter_extraction_", "eligibility_output_", "eligibility
 
 
 class QueryRequest(BaseModel):
+    selected_pblanc_id: str | None = Field(default=None, pattern=r"^PBLN_[0-9]{12,20}$")
     query: str = Field(min_length=1, max_length=2000)
     as_of: date | None = None
 
@@ -56,7 +57,7 @@ class PersonalizedSearchRequest(BaseModel):
 
 
 def status_for(code):
-    if code == "eligibility_program_not_found_or_inactive":
+    if code in ("eligibility_program_not_found_or_inactive", "query_program_not_found_or_inactive"):
         return 404
     # 흐름 상태와 맞지 않는 요청(이미 완료된 workflow 진행, 묻지 않은 field 답변 등)은 요청 쪽 문제다.
     if code.startswith("workflow_"):
@@ -138,6 +139,8 @@ def create_app(runtime_factory=None, api_key=None):
 
     @app.post("/internal/v1/query", dependencies=[Depends(require_internal_key)])
     def query(body: QueryRequest, request: Request):
+        if body.selected_pblanc_id is not None:
+            return request.app.state.runtime.answer_query(body.query, body.as_of, selected_pblanc_id=body.selected_pblanc_id)
         return request.app.state.runtime.answer_query(body.query, body.as_of)
 
     @app.post("/internal/v1/eligibility", dependencies=[Depends(require_internal_key)])

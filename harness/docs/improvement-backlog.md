@@ -252,8 +252,10 @@
 - Side effect: 현재 승인된 기업 지역 기반 소관기관 제외 예외만 적용한다(AI 경계). 소관기관은 신청 가능 지역의 대리 지표라 여러 지역 대상 공고를 조용히 제외할 수 있다(IMP-030). 질문 지역 추출·검색 문장·순위 변경은 별도 비교/승인 대상이다.
 - Partial resolution(2026-10-03, 사용자 결정·규칙 변경): 지역 부분을 반영했다. 기업 지역을 광역 지자체 16개 표준명 중에서 고르고(전남광주통합특별시는 하나), 맞춤 추천 후보에서 다른 광역 지자체 소관 공고만 뺀다(중앙부처·매핑 없는 소관기관 유지, `company-region` 계약). 경기도 중소기업·금융 질문의 후보는 145 → 43이다. 기록 `2026-10-03-company-region-filter.md`.
 - Follow-up: 중앙부처 소관이면서 공고명에 지역 표기([전북]·[대전] 등)가 있는 공고는 이번에 유지한다. 2026-10-03 기준 마감이 확정되지 않은 중앙부처 공고 384건 중 63건(16%)이다(경북 8·경남 7·전북 6·충북·서울·부산·대구 각 5). 지역 한정 여부는 공고문을 봐야 해서 후속 후보로 둔다.
-- Remaining(2026-10-03 사용자 결정 나): 질문 지역은 Natural Filter에서 정형 조건으로 추출하지 않고 서버의 unapplied 조건 그대로 화면에 눈에 띄게 알린다. 기업 지역과 중앙부처·매핑 없는 소관기관을 기준으로 찾았다는 안내와 기업정보 수정 링크를 제공한다. 별도 지역 키워드 추출은 하지 않는다. 근본 해결(질문 지역의 정형 추출)은 IMP-012·IMP-024와 함께 cases-v2로 변경 전후를 비교한 뒤 처리한다. 후속 후보 필터 결정(2026-10-03): MySQL 소관기관 필터 유지. 질문 지역 unapplied 결정 나와 별개다. 경기도 기준 종료 미확정1,314건 중 다른 광역812건(61.8%)을 다시 넣는 비용과 Top3 부적합 위험을 고려했다. [측정 Report](../workspace/reports/development/2026-10-03-region-filter-measurement.md)의 지자체 표본 관내30/40(75%)·명시적 누락4/40(10%)은 모집단 오류율 추정이 아니며 누락은 IMP-031 후속으로 복구한다. 순위 반영은 OPEN이다.
+- Remaining(2026-10-03 사용자 결정 나): 질문 지역은 Natural Filter에서 정형 조건으로 추출하지 않고 서버의 unapplied 조건 그대로 화면에 눈에 띄게 알린다. 기업 지역과 중앙부처·매핑 없는 소관기관을 기준으로 찾았다는 안내와 기업정보 수정 링크를 제공한다. 별도 지역 키워드 추출은 하지 않는다. 근본 해결(질문 지역의 정형 추출)은 IMP-012·IMP-024와 함께 cases-v2로 변경 전후를 비교한 뒤 처리한다. 후속 후보 필터 결정(2026-10-03): MySQL 소관기관 필터 유지. 질문 지역 unapplied 결정 나와 별개다. 경기도 기준 종료 미확정1,314건 중 다른 광역812건(61.8%)을 다시 넣는 비용과 Top3 부적합 위험을 고려했다. [측정 Report](../workspace/reports/development/2026-10-03-region-filter-measurement.md)의 지자체 표본 관내30/40(75%)·명시적 누락4/40(10%)은 모집단 오류율 추정이 아니며 누락은 IMP-031 후속으로 복구한다. 이 기록 당시 순위 반영은 OPEN이었으며 아래 Bundle1 Evidence에서 구현했다.
 - Status: OPEN
+
+- Bundle1 Evidence: 지역 순위 반영 구현(2026-10-03 묶음1): Top10·최고점90% 이상 같은 지역 소관+0.001, 원점수/가산/최종점수/원순위 제공. 질문 지역 unapplied 및 소관 필터 유지 결정은 별개이며 신청 가능 지역 추출은 IMP-031 OPEN이다. 고정 경기 질문2건 모두 같은 지역 Top3 포함. [묶음1 Report](../workspace/reports/development/2026-10-03-bundle1-quality.md).
 
 ## IMP-020 Top 3 자격 판정 전체 응답이 Spring 응답 제한시간을 넘음
 
@@ -303,7 +305,9 @@
 - Why deferred: 분류 보정 방식(규칙 보조·예시·재질문)은 평가 질문과 기대값이 있어야 비교할 수 있다. 이번 단계(DOCX·PPTX)는 범위가 다르다.
 - Revisit trigger: cases-v2 작성 시(분류 보정 + 공고 선택 방식 비교)
 - Side effect: 분류를 바꾸면 SEARCH_LIST(목록) 질문의 동작도 함께 바뀐다. IMP-025(공고 선택)와 함께 본다.
-- Status: OPEN
+- Status: RESOLVED (2026-10-03 묶음1 구현 및 제한된 회귀 확인)
+
+- Bundle1 Evidence: 2026-10-03 명확한 목록 표현은 SEARCH_LIST, DB 공고명과 일치/포함+상세표현은 DOCUMENT_QA를 생성 전 규칙으로 고정. 모호한 질문만 기존 LLM 의도를 쓴다. 고정 검색4/QA3의 유형 일치 확인. 과거 V1 baseline은 변경하지 않았다. [묶음1 Report](../workspace/reports/development/2026-10-03-bundle1-quality.md).
 
 ## IMP-025 이름이 비슷한 공고 중 특정 공고를 고르는 단계가 없음
 
@@ -313,7 +317,9 @@
 - Why deferred: 공고 선택 방식(제목 일치 우선, 후보가 여럿이면 되묻기, 근거 공고 하나로 제한 등)은 cases-v2 기대값으로 비교해야 한다.
 - Revisit trigger: cases-v2 작성 시(분류 보정 + 공고 선택 방식 비교)
 - Side effect: 공고를 하나로 좁히면 여러 공고 비교 질문의 답이 달라진다. 근거 공고 격리 규칙(자격 판정)과 같은 원칙을 쓸지 함께 정한다.
-- Status: OPEN
+- Status: RESOLVED (2026-10-03 묶음1 구현 및 제한된 회귀 확인)
+
+- Bundle1 Evidence: 2026-10-03 공고명 일치도→접수중→최신 source_created_at, 동점 최대5 후보 사용자 선택 구현. 선택ID→활성 공고 하나 근거 범위와 Spring 전달·React 재질문을 테스트했다. 실제 고정 QA는 모두 한 공고로 선택되어 live 선택 UI는 별도 실행하지 않았다. [묶음1 Report](../workspace/reports/development/2026-10-03-bundle1-quality.md).
 
 ## IMP-026 Office 설정 hash가 계약 설명 문구까지 포함함
 
@@ -333,7 +339,9 @@
 - Why deferred: 한 건이고 내용이 짧아 검색 근거를 밀어낼 위험이 작다. 사용자 결정으로 기록만 한다.
 - Revisit trigger: cases-v2에서 document_role을 검색 필터·가중치에 쓰기로 정할 때
 - Side effect: "지침"을 빼면 실제 사업 지침 문서(관리지침·운영지침)가 UNKNOWN이 된다. 예외 단어(수당·위원·내부) 방식과 비교해야 한다.
-- Status: OPEN
+- Status: RESOLVED (2026-10-03 묶음1 구현 및 제한된 회귀 확인)
+
+- Bundle1 Evidence: 2026-10-03 수당지급·위원수당·내부운영·내부규정 단서는 UNKNOWN 우선. 일반 사업 지침 BODY 유지. V23point BODY→UNKNOWN 정정(첫1point 후 직렬화 오류, 수정 후2point 검증 완료), V264041/V13849 count 유지. ID/vector upsert 없음. [묶음1 Report](../workspace/reports/development/2026-10-03-bundle1-quality.md).
 
 ## IMP-028 ZIP 내부 대형 참고자료가 일부 공고의 검색 근거를 대부분 차지함
 
@@ -383,6 +391,8 @@
 - Revisit trigger: 배포 시 이 실패를 화면에서 명시하고, 별도 승인된 123260 근거 ID 출력 원인 검토 또는 cases-v2 판정 기대값 비교 시
 - Side effect: prompt를 바꾸면 기존 정상 공고의 criterion 수·결과도 달라질 수 있다. criteria 상한(12)도 함께 다시 정한다.
 - Status: OPEN
+
+- Bundle1 Evidence: 2026-10-03 evidence_ids minItems1 추가 및 application 거부 유지. 기존 로그에는 invalid_evidence_id 코드만 있고 raw response가 없어 당시 빈 배열/범위 밖 ID는 확정할 수 없다. 현재 진단은 empty/outside_count만 남긴다. 고정 workflow에서6건 판정 완료; 123260 동일 snapshot 단일 확인은 HTTP200/NEEDS_MORE_INFO·9조건·각조건1~2개근거·32.56초였다. 과거 응답은 없으므로 원인을 소급 확정하지 않는다. 묶음1 Report 참조. 조건 과분할/모델 품질 전체 해결을 의미하지 않아 OPEN 유지.
 
 ## IMP-030 여러 지역 대상인데 소관이 한 광역인 공고가 다른 지역 기업 후보에서 빠짐
 

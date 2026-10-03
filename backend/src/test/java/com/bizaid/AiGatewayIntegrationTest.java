@@ -139,6 +139,34 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
     }
 
     @Test
+    void documentSelectionAndChosenScopeArePassedWithoutInventingAnswer() throws Exception {
+        String token = signupWithCompany("choose@example.com");
+        reply = new Reply(200, """
+                {"request_mode":"DOCUMENT_QA","status":"SELECTION_REQUIRED","query":"같은 사업 지원요건",
+                 "selection_candidates":[{"pblanc_id":"PBLN_000000000119801","name":"같은 사업"},
+                                         {"pblanc_id":"PBLN_000000000119802","name":"같은 사업"}],"citations":[]}
+                """, 0);
+        JsonNode selection = ask(token, "같은 사업 지원요건");
+        assertThat(selection.at("/result/selectionCandidates").size()).isEqualTo(2);
+        assertThat(selection.at("/assistantMessage/content").asText()).isEmpty();
+        reply = new Reply(200, """
+                {"request_mode":"DOCUMENT_QA","status":"ANSWERED","selected_pblanc_id":"PBLN_000000000119801",
+                 "answer":"선택 공고 근거", "citations":[{"evidence_id":"E1","pblanc_id":"PBLN_000000000119801"}]}
+                """, 0);
+        mvc.perform(post("/api/ai/query").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"query\":\"같은 사업 지원요건\",\"selectedPblancId\":\"PBLN_000000000119801\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.selectedPblancId").value("PBLN_000000000119801"));
+        assertThat(read(RECEIVED.get(RECEIVED.size() - 1).body()).path("selected_pblanc_id").asText()).isEqualTo("PBLN_000000000119801");
+        reply = new Reply(200, """
+                {"request_mode":"DOCUMENT_QA","status":"ANSWERED","selected_pblanc_id":"PBLN_000000000119801",
+                 "answer":"다른 공고", "citations":[{"evidence_id":"E1","pblanc_id":"PBLN_000000000119802"}]}
+                """, 0);
+        mvc.perform(post("/api/ai/query").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"query\":\"같은 사업 지원요건\",\"selectedPblancId\":\"PBLN_000000000119801\"}"))
+                .andExpect(status().isBadGateway());
+    }
+
+    @Test
     void documentQaAnswerAndCitationsArePassedAndAnswerBecomesMessageText() throws Exception {
         String token = signupWithCompany("qa@example.com");
         reply = new Reply(200, """

@@ -29,7 +29,11 @@
     "query": "지원대상 지원 자격 신청 자격 지원 요건 제외 대상 신청 제한",
     "mode": "hybrid",
     "top_k": 5,
-    "rule": "fixed application query (no company values, no query rewrite); Retriever scope is exactly the target pblanc_id; the retrieval baseline is unchanged"
+    "rule": "fixed application query (no company values, no query rewrite); Retriever scope is exactly the target pblanc_id; the retrieval baseline is unchanged",
+    "exclude_document_roles": [
+      "FORM"
+    ],
+    "role_basis": "2026-10-03 user approval: application forms are not answer/eligibility evidence; missing role and UNKNOWN retained"
   },
   "criterion_output": {
     "fields": [
@@ -54,7 +58,8 @@
     "max_criteria": 15,
     "max_output_tokens": 1280,
     "limit_basis": "2026-10-03 user-approved bounded fix for IMP-029: explicitly exclude submission documents/procedures/form fields, forbid duplicate conditions and group related requirements (usually 2-8), without omitting independent mandatory conditions. max_criteria 15 accepts completed 12-criterion outputs previously rejected at the 12 boundary; outputs reaching 15 remain fail-closed. max_output_tokens 1,280 covers 15 criteria at an assumed 75 tokens each (1,125) plus JSON overhead. At the previously observed 18.7 output tokens/s generation alone could take about 68.4s; the existing 75s whole-call deadline remains the final safety boundary, not a guarantee of completion. No prompt-comparison experiment or new quality baseline was run; this task validates one same-input workflow.",
-    "limit_rule": "an output that reaches max_criteria (15) or is cut by max_output_tokens is not judged: eligibility_output_limit_reached (fail closed). A complete list of 12 criteria is below this boundary and uses unchanged criterion validation and application-derived overall status. Prompt grouping does not authorize omitting independent mandatory requirements."
+    "limit_rule": "an output that reaches max_criteria (15) or is cut by max_output_tokens is not judged: eligibility_output_limit_reached (fail closed). A complete list of 12 criteria is below this boundary and uses unchanged criterion validation and application-derived overall status. Prompt grouping does not authorize omitting independent mandatory requirements.",
+    "evidence_schema_basis": "2026-10-03 IMP-029: evidence_ids minItems1 + request-local enum; application rejects empty/outside IDs and logs only empty/outside counts. Historical invalid-ID subtype unrecorded. Same123260 snapshot smoke now9criteria each1..2citations,32.56s."
   },
   "validation": {
     "fail": [

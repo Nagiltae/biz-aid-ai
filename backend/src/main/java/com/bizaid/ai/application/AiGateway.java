@@ -14,6 +14,13 @@ public interface AiGateway {
 
     AiDtos.AiQueryResult query(String query);
 
+    default AiDtos.AiQueryResult query(String query, String selectedPblancId) {
+        if (selectedPblancId == null) {
+            return query(query);
+        }
+        throw new UnsupportedOperationException("공고 선택을 지원하지 않는 연결 창구입니다.");
+    }
+
     AiDtos.EligibilityResult evaluateEligibility(AiDtos.EligibilityCommand command);
 
     AiDtos.PersonalizedSearchResult personalizedSearch(AiDtos.PersonalizedSearchCommand command);

@@ -25,7 +25,21 @@ function AppliedFilter({ result }: { result: AiQueryResult }) {
  * AI 검색 결과: 공고 목록(SEARCH_LIST) 또는 근거 기반 답변(DOCUMENT_QA).
  * 목록은 FastAPI 순위 그대로 보여 준다(화면에서 다시 정렬하지 않는다).
  */
-export function AiQueryResultView({ result }: { result: AiQueryResult }) {
+export function AiQueryResultView({ result, onSelect }: { result: AiQueryResult; onSelect?: (id: string, query: string) => void }) {
+  if (result.status === "SELECTION_REQUIRED") {
+    return (
+      <section className="ai-result" aria-label="공고 선택">
+        <p>이름이 비슷한 공고가 여러 개 있습니다. 질문할 공고를 선택해 주세요.</p>
+        <ul>{result.selectionCandidates?.map((item) => (
+          <li key={item.pblancId}>
+            <strong>{item.name}</strong> · {item.jurisdictionName ?? "소관기관 미상"} · {item.applicationPeriodRaw ?? "기간 미상"}
+            <button type="button" className="button small" disabled={!onSelect || !result.query}
+                    onClick={() => onSelect?.(item.pblancId, result.query!)}>이 공고로 질문</button>
+          </li>
+        ))}</ul>
+      </section>
+    );
+  }
   if (result.requestMode === "SEARCH_LIST") {
     const programs = result.programs ?? [];
     return (

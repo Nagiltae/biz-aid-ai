@@ -44,3 +44,7 @@ Source Hit@1·Source Hit@5·Evidence Hit@5를 계산한다. Gold hash가 동결 
 `table_engine/`은 Docling TableFormer·PP-TableMagic·Camelot의 표 추출을 같은 corpus에서 비교하는 benchmark 도구다.
 `corpus.json`은 SHA·provenance만 고정하고, engine 출력·GT·crop evidence는 ignored `data/parsed/table-engine-eval/<run-id>/`에 둔다.
 제품 parsing route를 대신하지 않으며 결과는 Source 규칙의 PDF Table Engine 절에 따라 사용자 결정에만 쓰인다.
+
+## 묶음1 기능 회귀
+
+`bundle1-quality-questions.json`은 검색4·문서QA3·추천3의 작은 고정 실행 입력이다. V1 frozen baseline/Gold 정답 평가와 구분하며 자연어 답변 정답률을 주장하지 않는다. 재사용 runner는 `harness/workspace/artifacts/development/regression-set/run.py`에 strict 등록했다. 출력 JSON/log는 non-gating이고 동일 질문을 다음 묶음에서 비교한다.

@@ -69,7 +69,12 @@ public class HttpAiGateway implements AiGateway {
 
     @Override
     public AiDtos.AiQueryResult query(String query) {
-        AiDtos.AiQueryResult result = post("/internal/v1/query", new QueryPayload(query), AiDtos.AiQueryResult.class);
+        return query(query, null);
+    }
+
+    @Override
+    public AiDtos.AiQueryResult query(String query, String selectedPblancId) {
+        AiDtos.AiQueryResult result = post("/internal/v1/query", new QueryPayload(query, selectedPblancId), AiDtos.AiQueryResult.class);
         if (result == null || !REQUEST_MODES.contains(result.requestMode()) || result.status() == null) {
             throw invalid("query: unknown request_mode or missing status");
         }
@@ -79,6 +84,20 @@ public class HttpAiGateway implements AiGateway {
             if (!result.programs().stream().allMatch(program -> program.pblancId() != null && seen.add(program.pblancId()))) {
                 throw invalid("query: duplicate or missing pblanc_id in programs");
             }
+        }
+        if ("SELECTION_REQUIRED".equals(result.status())) {
+            Set<String> choices = new HashSet<>();
+            if (!"DOCUMENT_QA".equals(result.requestMode()) || result.selectionCandidates() == null
+                    || result.selectionCandidates().isEmpty() || result.selectionCandidates().size() > 5
+                    || result.answer() != null || !nullSafe(result.citations()).isEmpty()
+                    || !result.selectionCandidates().stream().allMatch(item -> item.pblancId() != null && choices.add(item.pblancId()))) {
+                throw invalid("query: invalid selection candidates");
+            }
+        }
+        String resolvedId = result.selectedPblancId();
+        if ((selectedPblancId != null && !selectedPblancId.equals(resolvedId))
+                || (resolvedId != null && !nullSafe(result.citations()).stream().allMatch(item -> resolvedId.equals(item.pblancId())))) {
+            throw invalid("query: selected program scope mismatch");
         }
         return result;
     }
@@ -265,7 +284,7 @@ public class HttpAiGateway implements AiGateway {
     }
 
     /** FastAPI 요청 본문(/internal/v1/query, /internal/v1/eligibility). HTTP 전송 형식이라 이 구현 안에만 둔다. */
-    private record QueryPayload(String query) {
+    private record QueryPayload(String query, String selectedPblancId) {
     }
 
     private record EligibilityPayload(String pblancId, AiDtos.CompanyProfileSnapshot companyProfile) {

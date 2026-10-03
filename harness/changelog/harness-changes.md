@@ -638,3 +638,7 @@ V1 종료 상태를 V2 변경과 같은 조건으로 비교하도록 SEARCH_LIST
 - IMP-019/030 측정 Evidence와 IMP-031 신청 가능 지역 추출·IMP-032 원본 소관 불일치 후속을 기록한다.
 - IMP-029 사용자 범위 축소: 비교 실험을 생략하고 prompt의 서류/절차/작성 항목 제외·중복 금지·관련 조건 묶기와 상한15개/1280token을 적용한다. 75초 기한·fail-closed·공고별 근거 격리·기존 identity는 보존한다. 같은 입력 workflow1회 후 check-all1회; 결과는 Task Report에 기록한다.
 - 실제 workflow1회에서 117611 상한 실패는 해소됐으나 123260은 근거ID 검증 실패다. 성공으로 숨기지 않고 IMP-029 OPEN/부분 해결을 보존한다. 모든 HTTP 단계는90초 미만이었다.
+
+## 2026-10-03 묶음1 품질
+
+사용자 승인: FORM 근거 제외·내부 지급규정 role 정정·근접 RRF 지역 가산·규칙 우선 질문 모드·공고 선택을 계약에 기록한다. V1 baseline/identity/vector/MySQL 지역 필터는 유지한다. 고정질문 runner는 strict 입력, 사용자 지정 handoff는 좁은 checkpoint 예외다. 실제 결과는 묶음1 Report에 기록하며 AGY 승인으로 취급하지 않는다.

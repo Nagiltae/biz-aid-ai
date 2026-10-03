@@ -51,7 +51,7 @@ public class AiController {
     @PostMapping("/api/ai/query")
     public AiDtos.AiQueryResponse query(@AuthenticationPrincipal AuthUser user,
                                        @Valid @RequestBody AiRequests.AiQueryRequest request) {
-        return aiQueryService.query(user.id(), request.query(), request.conversationId());
+        return aiQueryService.query(user.id(), request.query(), request.conversationId(), request.selectedPblancId());
     }
 
     @PostMapping("/api/programs/{pblancId}/eligibility")

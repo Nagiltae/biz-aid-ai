@@ -119,7 +119,7 @@ class PersonalizedSearchTests(unittest.TestCase):
         service = PersonalizedSearchService(natural, ProgramCandidateService(repository), lambda: discovery)
         result = service.search("우리 회사가 신청할 수 있는 금융 지원사업", CompanySearchProfile.from_dict({"company_size": "소상공인"}), AS_OF)
         # CLOSED(P2)·인증 대상(P5)·비활성(P7)은 후보가 아니다. OPEN(P1)·UNKNOWN(P3)·UPCOMING(P4)·중소기업(P6)은 남는다.
-        self.assertEqual(discovery.calls, [("우리 회사가 신청할 수 있는 금융 지원사업", ("P1", "P3", "P4", "P6"), 3)])
+        self.assertEqual(discovery.calls, [("우리 회사가 신청할 수 있는 금융 지원사업", ("P1", "P3", "P4", "P6"), 10)])
         self.assertEqual((result["status"], result["candidate_count"], len(result["programs"])), ("LISTED", 4, 3))
         self.assertEqual(result["applied_conditions"]["company"]["targets"], ["소상공인", "중소기업"])
         closed = PersonalizedSearchService(natural, ProgramCandidateService(repository), lambda: discovery).search(

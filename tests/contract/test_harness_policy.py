@@ -38,6 +38,23 @@ class HarnessPolicyTests(unittest.TestCase):
             env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"),
         )
 
+    def test_registered_regression_runner_is_strict_not_generated(self):
+        path = self.directory / "harness/workspace/artifacts/development/regression-set/run.py"
+        original = path.read_bytes()
+        path.write_bytes(original + b"invalid whitespace  ")
+        self.assertEqual(self.check("format").returncode, 1)
+        path.unlink()
+        self.assertEqual(self.check("harness").returncode, 1)
+
+    def test_user_handoff_output_is_narrow_and_non_gating(self):
+        path = self.directory / "harness/workspace/handoff/bundle1-handoff.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("handoff output  ")
+        for mode in ("format", "harness", "git-tracked"):
+            self.assertEqual(self.check(mode).returncode, 0)
+        (path.parent / "unregistered-control.md").write_text("not a generated checkpoint\n")
+        self.assertEqual(self.check("git-tracked").returncode, 1)
+
     def test_registered_repository_is_valid(self):
         for mode in ("harness", "git-tracked", "comments"):
             with self.subTest(mode=mode):
@@ -136,12 +153,18 @@ class HarnessPolicyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("active producer must not gate same-task handoff", result.stderr)
 
-    def test_agent_output_directories_need_not_exist(self):
+    def test_generated_outputs_can_be_absent_while_registered_inputs_remain(self):
+        # BOUNDARY: 디렉터리 삭제 fixture도 명시적인 strict 입력은 보존한다. 생성물 부재만 검증한다.
+        anchors = [self.directory / name for names in self.registry["workspace_static_files"].values() for name in names]
+        saved = {path: path.read_bytes() for path in anchors if path.is_file()}
         for directory in (
             "reports/development", "reports/agy",
             "artifacts/development", "artifacts/agy",
         ):
             shutil.rmtree(self.directory / "harness/workspace" / directory, ignore_errors=True)
+        for path, data in saved.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
         for mode in ("format", "harness", "git-tracked"):
             result = self.check(mode)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -310,9 +333,10 @@ class HarnessPolicyTests(unittest.TestCase):
         self.assertIn("broken/outside", result.stderr)
 
     def test_no_generated_outputs_is_valid(self):
+        static = {name for names in self.registry["workspace_static_files"].values() for name in names}
         for directory in ("reports", "checkpoints", "artifacts"):
             for path in (self.directory / "harness/workspace" / directory).rglob("*"):
-                if path.is_file() and path.name != "README.md":
+                if path.is_file() and str(path.relative_to(self.directory)) not in static:
                     path.unlink()
         for mode in ("format", "lint", "comments", "harness", "git-tracked"):
             result = self.check(mode)

@@ -45,10 +45,11 @@ export function AiSearchPage() {
 
   const ask = useMutation({
     // 대화를 먼저 정해 두면 AI가 실패해도 "다시 시도"가 같은 대화에 이어진다.
-    mutationFn: async (question: string) => {
+    mutationFn: async (input: { question: string; selectedPblancId?: string }) => {
+      const { question, selectedPblancId } = input;
       const id = conversationId ?? (await conversationApi.create(question.slice(0, 40))).id;
       setConversationId(id);
-      return aiApi.query(question, id);
+      return aiApi.query(question, id, selectedPblancId);
     },
     // 성공·실패 모두 서버에 저장된 메시지를 다시 읽는다. 실패하면 질문만 있고 AI 답변은 없다(가짜 답변 저장 안 함).
     onSettled: () => {
@@ -62,12 +63,17 @@ export function AiSearchPage() {
     const question = text.trim();
     if (!question || ask.isPending || locked) return;
     setLastQuestion(question);
-    ask.mutate(question);
+    ask.mutate({ question });
     setText("");
   };
   const open = (id: number | null) => {
     setConversationId(id);
     ask.reset();
+  };
+  const selectProgram = (id: string, question: string) => {
+    if (ask.isPending || locked) return;
+    setLastQuestion(question);
+    ask.mutate({ question, selectedPblancId: id });
   };
   const history = newestTurnsFirst(conversationId !== null ? messages.data ?? [] : []);
   // 기업정보 확인 전에는 잠금 여부를 모르므로 입력칸을 그리지 않는다(맞춤 추천 화면과 같은 확인 문구).
@@ -106,10 +112,10 @@ export function AiSearchPage() {
         {ask.isPending && (
           <Loading message={`"${lastQuestion}" — 공고 조건과 공고문을 확인하고 있습니다. 1분 가까이 걸릴 수 있습니다.`} />
         )}
-        {ask.isError && <AiErrorNotice error={ask.error} onRetry={() => ask.mutate(lastQuestion)} />}
+        {ask.isError && <AiErrorNotice error={ask.error} onRetry={() => ask.mutate({ question: lastQuestion })} />}
         {/* 새 대화의 첫 응답은 메시지 목록을 다시 읽기 전까지 응답 결과로 바로 보여 준다. */}
         {ask.data && history.every((message) => message.id !== ask.data.assistantMessage.id) && (
-          <AiQueryResultView result={ask.data.result} />
+          <AiQueryResultView result={ask.data.result} onSelect={selectProgram} />
         )}
         {messages.isError && <ErrorMessage error={messages.error} />}
         {history.length > 0 && (
@@ -121,7 +127,7 @@ export function AiSearchPage() {
                 {message.role === "USER" || !message.result ? (
                   <p className="prewrap">{message.content}</p>
                 ) : (
-                  <AiQueryResultView result={message.result} />
+                  <AiQueryResultView result={message.result} onSelect={selectProgram} />
                 )}
               </li>
             ))}

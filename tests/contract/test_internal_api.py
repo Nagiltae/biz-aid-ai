@@ -20,7 +20,9 @@ class FakeRuntime:
         self.query_result = {"request_mode": "SEARCH_LIST", "status": "LISTED", "candidate_count": 2,
                              "programs": [{"rank": 1, "pblanc_id": "PBLN_000000000000001"}], "natural_filter": {"applied": {}}}
 
-    def answer_query(self, query, as_of=None):
+    def answer_query(self, query, as_of=None, selected_pblanc_id=None):
+        if selected_pblanc_id:
+            self.calls.append(("selected", selected_pblanc_id))
         self.calls.append(("query", query, as_of))
         return self.query_result
 
@@ -59,6 +61,13 @@ class InternalApiTests(unittest.TestCase):
     def setUp(self):
         self.runtime = FakeRuntime()
         self.app = create_app(lambda: self.runtime, api_key="test-internal-key")
+
+    def test_selected_program_is_forwarded_and_validated(self):
+        with TestClient(self.app, headers={"X-Internal-Api-Key": "test-internal-key"}) as client:
+            response = client.post("/internal/v1/query", json={"query": "같은 질문", "selected_pblanc_id": "PBLN_000000000119801"})
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(("selected", "PBLN_000000000119801"), self.runtime.calls)
+            self.assertEqual(client.post("/internal/v1/query", json={"query": "질문", "selected_pblanc_id": "bad"}).status_code, 422)
 
     def test_query_serializes_search_list_and_document_qa_service_results(self):
         with TestClient(self.app, headers={"X-Internal-Api-Key": "test-internal-key"}) as client:

@@ -234,9 +234,14 @@
     "tests/integration/test_phase0_api_quality_cli.py",
     "tests/integration/test_phase0_cli.py",
     "tests/integration/test_phase0_document_download_cli.py",
-    "tests/integration/test_structured_mysql.py"
+    "tests/integration/test_structured_mysql.py",
+    "data-pipeline/src/biz_aid_pipeline/candidates/question.py",
+    "data-pipeline/src/biz_aid_pipeline/indexing/role_update.py",
+    "scripts/update_document_roles.py",
+    "tests/contract/test_bundle1_quality.py",
+    "harness/workspace/artifacts/development/regression-set/run.py"
   ],
-  "report": "harness/workspace/reports/development/2026-10-03-region-wrapup-and-imp029.md",
+  "report": "harness/workspace/reports/development/2026-10-03-bundle1-quality.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -640,12 +645,19 @@
     "tests/integration/test_phase0_api_quality_cli.py",
     "tests/integration/test_phase0_cli.py",
     "tests/integration/test_phase0_document_download_cli.py",
-    "tests/integration/test_structured_mysql.py"
+    "tests/integration/test_structured_mysql.py",
+    "data-pipeline/src/biz_aid_pipeline/candidates/question.py",
+    "data-pipeline/src/biz_aid_pipeline/indexing/role_update.py",
+    "scripts/update_document_roles.py",
+    "tests/contract/test_bundle1_quality.py",
+    "harness/workspace/artifacts/development/regression-set/run.py",
+    "evals/bundle1-quality-questions.json"
   ],
   "agy_review_evidence": null,
   "workspace_static_files": {
     "STATIC_CONTROL": [
-      "harness/workspace/current-task.md"
+      "harness/workspace/current-task.md",
+      "harness/workspace/artifacts/development/regression-set/run.py"
     ],
     "STATIC_DOCUMENTATION": [
       "harness/workspace/artifacts/README.md",

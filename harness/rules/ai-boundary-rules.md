@@ -9,7 +9,10 @@ DB로 판단 가능한 날짜·지역·기업형태·지원분야·상태를 LLM
 근거 기반 답변 RAG v1(Hybrid top5 → LlmProvider → citation, Phase 6, dev·로컬 Ollama)과 MySQL 정형 후보로 제한한 RAG.
 자연어 질문에서 정형 후보 조건을 LLM으로 추출하는 것도 승인됐다(`candidates/natural.py`). 추출은 필터 입력 후보일 뿐 SQL·후보 선택·날짜를 정하지 않는다.
 단일 공고 자격 사전 판단(Eligibility v1: 공고 1개 + 기업 Profile snapshot, `eligibility/`)이 승인됐다.
-계속 금지: Reranker·LLM query rewrite·parent/neighbor expansion·추천 점수·적합도 순위.
+계속 금지: Reranker·LLM query rewrite·parent/neighbor expansion·자격 적합도 점수.
+승인 예외(2026-10-03 묶음1): 개인화 의미검색 Top10의 가까운 점수대에만 계약의 같은 지역 소관 가산점을 더한다. query·벡터·RRF·MySQL 후보 필터는 유지하고 원점수·가산·최종점수·원순위를 남긴다.
+Eligibility·DOCUMENT_QA 근거 검색에서 FORM만 Qdrant must_not로 제외하고 UNKNOWN·missing은 유지한다. SEARCH_LIST·개인화 공고 검색에는 이 필터를 적용하지 않는다.
+명확한 목록 의도·공고명+상세질문은 계약 규칙이 먼저 정하고 애매한 경우만 모델에 맡긴다. 공고 선택 동점은 최대5 후보를 사용자에게 묻고 선택 후 근거를 그 활성 공고 하나로 격리한다.
 LangGraph는 V2-3 추천 흐름(`workflow/recommendation.py`)의 단계·분기만 소유한다. 검색·RRF·Citation·판정 규칙·최종 상태는 기존 서비스를 노드에서 호출하며 다시 만들지 않는다. 한 단계(한 HTTP 요청)에서 비싼 공고 판정 LLM 호출은 최대 1건이다. 여러 공고 판정은 V2-2부터 개인화 검색 Top 3에 한해 승인됐다(전체 후보 일괄 LLM 판정은 금지).
 최종 추천 결과(V2-4 final_result)는 LLM을 다시 부르지 않고 기존 판정 상태를 코드로 나눈다(ELIGIBLE → 추천, INELIGIBLE → 제외, 그 밖·판정 실패 → 판단 불가). 순서는 검색 순위 그대로이며, 이유·근거는 그 공고 판정에 이미 있는 조건과 검증된 Citation만 쓴다. 추천할 공고가 없으면 빈 추천 목록이 정상 결과다.
 여러 공고 판정도 공고마다 기존 단일 공고 판정을 따로 실행해 근거 범위를 공고별로 격리한다. 한 공고의 실패는 그 공고에만 명시적 실패 상태·코드로 남기고 다른 공고 결과나 UNKNOWN·성공으로 바꾸지 않는다.

@@ -1,0 +1,71 @@
+{
+  "version": "bundle1-20261003",
+  "company_profiles": "synthetic minimal fixed profiles; no invented tax/credit facts",
+  "cases": [
+    {
+      "case_id": "S1",
+      "kind": "search",
+      "query": "소상공인이 받을 수 있는 금융 지원사업 찾아줘"
+    },
+    {
+      "case_id": "S2",
+      "kind": "search",
+      "query": "중소기업 수출 지원사업 찾아줘"
+    },
+    {
+      "case_id": "S3",
+      "kind": "search",
+      "query": "창업 기술 지원사업 추천해줘"
+    },
+    {
+      "case_id": "S4",
+      "kind": "search",
+      "query": "고용 지원사업은 어떤 사업이 있어"
+    },
+    {
+      "case_id": "Q1",
+      "kind": "qa",
+      "query": "비즈플러스카드 지원요건 알려줘"
+    },
+    {
+      "case_id": "Q2",
+      "kind": "qa",
+      "query": "청년일자리도약장려금 지원대상 알려줘"
+    },
+    {
+      "case_id": "Q3",
+      "kind": "qa",
+      "query": "수출바우처 지원요건 알려줘"
+    },
+    {
+      "case_id": "P1",
+      "kind": "personalized",
+      "query": "경기도 소상공인 금융 지원사업 찾아줘",
+      "company_profile": {
+        "region": "경기도",
+        "company_size": "소상공인",
+        "business_status": "영업중"
+      }
+    },
+    {
+      "case_id": "P2",
+      "kind": "personalized",
+      "query": "경기도 중소기업 수출 지원사업 찾아줘",
+      "company_profile": {
+        "region": "경기도",
+        "company_size": "중소기업",
+        "business_status": "영업중"
+      }
+    },
+    {
+      "case_id": "P3",
+      "kind": "personalized",
+      "query": "서울 소상공인 창업 지원사업 찾아줘",
+      "company_profile": {
+        "region": "서울특별시",
+        "company_size": "소상공인",
+        "business_status": "영업중"
+      }
+    }
+  ]
+}

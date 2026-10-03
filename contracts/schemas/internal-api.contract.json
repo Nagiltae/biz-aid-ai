@@ -20,10 +20,11 @@
     "POST /internal/v1/query": {
       "request": {
         "query": "string 1..2000",
-        "as_of": "YYYY-MM-DD optional"
+        "as_of": "YYYY-MM-DD optional",
+        "selected_pblanc_id": "optional active program ID; forces DOCUMENT_QA and scopes evidence to this program"
       },
       "delegates": "ServiceRuntime.answer_query → NaturalLanguageFilterService → ProgramCandidateService → rag.router.handle_request",
-      "response": "service result as returned: SEARCH_LIST {request_mode, status, candidate_count, programs, natural_filter, candidate_period_unknown} or DOCUMENT_QA (RagAnswer fields + request_mode, natural_filter)"
+      "response": "service result as returned: SEARCH_LIST {request_mode, status, candidate_count, programs, natural_filter, candidate_period_unknown} or DOCUMENT_QA (RagAnswer fields + request_mode, natural_filter); SELECTION_REQUIRED has query + up to5 selection_candidates and no answer/citations; otherwise selected_pblanc_id records the single chosen scope"
     },
     "POST /internal/v1/eligibility": {
       "request": {
@@ -40,8 +41,8 @@
         "as_of": "YYYY-MM-DD optional (default Asia/Seoul today)",
         "company_profile": "CompanySearchProfile: company_size, business_status, region, business_start_date (all optional; unknown fields 422)"
       },
-      "delegates": "ServiceRuntime.personalized_search → company_conditions (code mapping) + NaturalLanguageFilterService (query only) → ProgramCandidateService (exclude_closed_on=as_of) → ProgramDiscoveryService(limit 3)",
-      "company_mapping": "user-approved: company_size 소상공인 → target {소상공인, 중소기업}, 중소기업 → {중소기업}; other sizes, region, business_start_date, 휴업 → unapplied_conditions; 폐업 → COMPANY_CLOSED",
+      "delegates": "existing MySQL candidates -> ProgramDiscoveryService(limit10) -> contract regional bonus -> Top3",
+      "company_mapping": "company-region contract standard region excludes other metropolitan jurisdictions; approved targets mapping unchanged; null/legacy region unapplied",
       "combine": "AND of company and query conditions; query targets are intersected with company targets and an empty intersection returns CONDITION_CONFLICT (never silently relaxed)",
       "response": "{status: LISTED|NO_CANDIDATES|NO_INDEXED_PROGRAMS|COMPANY_CLOSED|CONDITION_CONFLICT, top_k: 3, as_of, candidate_count, programs (≤3, discovery items in rank order), applied_conditions{company, query, exclude_closed_on}, unapplied_conditions[{source, field, value, reason}], natural_filter, conflict?}",
       "rule": "FastAPI never reads users/companies; Spring owns the company data and sends only these fields. The V1 /internal/v1/query behaviour is unchanged"

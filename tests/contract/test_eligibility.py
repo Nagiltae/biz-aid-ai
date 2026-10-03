@@ -28,7 +28,8 @@ class Retriever:
     def __init__(self, results):
         self.results, self.calls = results, []
 
-    def search(self, query, mode, top_k, pblanc_ids=None):
+    def search(self, query, mode, top_k, pblanc_ids=None, exclude_roles=()):
+        self.exclude_roles = exclude_roles
         self.calls.append((query, mode, top_k, tuple(pblanc_ids)))
         return self.results
 

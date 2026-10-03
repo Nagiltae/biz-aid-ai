@@ -29,11 +29,15 @@ public class AiQueryService {
     }
 
     public AiDtos.AiQueryResponse query(Long userId, String query, Long requestedConversationId) {
+        return query(userId, query, requestedConversationId, null);
+    }
+
+    public AiDtos.AiQueryResponse query(Long userId, String query, Long requestedConversationId, String selectedPblancId) {
         ConversationDtos.StartedQuestion started = conversationService.startQuestion(userId, requestedConversationId, query);
         Long conversationId = started.conversationId();
         AiDtos.AiQueryResult result;
         try {
-            result = aiGateway.query(query.strip());
+            result = aiGateway.query(query.strip(), selectedPblancId);
         } catch (ApiException exception) {
             // 실패하면 ASSISTANT 메시지는 저장하지 않는다(질문만 남는다). 활동 기록에도 질문 본문은 넣지 않는다.
             activityLog.failure(ActivityAction.AI_QUERY, userId, "CONVERSATION", conversationId, exception.errorCode().code(), null);

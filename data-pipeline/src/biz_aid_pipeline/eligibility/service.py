@@ -5,6 +5,7 @@ LLM은 criterion별 MET·NOT_MET·UNKNOWN과 근거 evidence id·사용한 profi
 """
 import copy
 import json
+import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -33,7 +34,7 @@ OUTPUT_SCHEMA = {
     "properties": {"criteria": {"type": "array", "items": {
         "type": "object",
         "properties": {"criterion": {"type": "string"}, "result": {"type": "string", "enum": list(RESULTS)},
-                       "reason": {"type": "string"}, "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                       "reason": {"type": "string"}, "evidence_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
                        "profile_fields": {"type": "array", "items": {"type": "string"}}},
         "required": ["criterion", "result", "reason", "evidence_ids", "profile_fields"]}}},
     "required": ["criteria"],
@@ -113,6 +114,8 @@ def validate(raw, index, facts, pblanc_id, names=None):
         evidence_ids = list(dict.fromkeys(str(value) for value in item["evidence_ids"]))
         # BOUNDARY: 근거 없는 criterion, 이번 context에 없는 id, 다른 공고의 evidence는 받지 않는다(조용한 fallback 없음).
         if not evidence_ids or any(value not in index for value in evidence_ids):
+            logging.getLogger(__name__).warning("eligibility_invalid_evidence_id empty=%s outside_count=%d",
+                                               not evidence_ids, sum(value not in index for value in evidence_ids))
             raise PipelineError("eligibility_invalid_evidence_id")
         if any(index[value].pblanc_id != pblanc_id for value in evidence_ids):
             raise PipelineError("eligibility_cross_program_evidence")
@@ -145,7 +148,7 @@ class EligibilityService:
         if program is None:
             raise PipelineError("eligibility_program_not_found_or_inactive")
         # 검색 질의는 application이 정한 고정 문구다. 기업 정보를 넣어 검색을 한쪽으로 치우치게 하지 않는다.
-        results = self.retriever.search(spec["query"], spec["mode"], spec["top_k"], pblanc_ids=(pblanc_id,))
+        results = self.retriever.search(spec["query"], spec["mode"], spec["top_k"], pblanc_ids=(pblanc_id,), exclude_roles=("FORM",))
         if any(result.pblanc_id != pblanc_id for result in results):
             raise PipelineError("retrieval_scope_violation")
         base = {"pblanc_id": pblanc_id, "program_name": program["name"], "as_of": str(as_of),

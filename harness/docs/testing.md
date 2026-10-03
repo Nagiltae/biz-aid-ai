@@ -259,3 +259,7 @@ NOT_MET→INELIGIBLE, 잘못된 evidence id·다른 공고 evidence·모르는 p
 답변 문장 전체 exact match 대신 공고 ID·순위·후보 범위, `(source_sha256, chunk_index)` 근거, citation, 핵심 사실, 자격 상태·핵심 criterion을 판정한다.
 응답 시간은 환경 의존 참고값이며 PASS/FAIL에 쓰지 않는다. 실제 Ollama·dev MySQL·dev Qdrant 실행은 check-all 밖에서 명시적으로 1회 수행하고,
 고정 fixture hash·판정 helper만 Contract test로 검사한다. 품질 실패를 고치기 위한 prompt tuning이나 반복 LLM 평가는 이 기준선 작업에 포함하지 않는다.
+
+## 묶음1 고정질문
+
+`harness/workspace/artifacts/development/regression-set/run.py`는 Registry strict 실행 입력이다. 질문 JSON과 결과 JSON/log는 실행 산출물이다. dev FastAPI에서 검색4·문서QA3·추천3을 순차1회 실행하며75초 LLM 기한·기존 workflow를 재사용한다. V1 frozen baseline을 대체하지 않는다. 사용자 지정 bundle1-handoff는 non-gating checkpoint다.

@@ -27,3 +27,6 @@ __pycache__/
 /harness/workspace/artifacts/codex/**/*.log
 /harness/workspace/artifacts/agy/**/*.json
 /harness/workspace/artifacts/agy/**/*.log
+
+# 사용자 지정 실행 인수인계 산출물(제어 파일 제외).
+/harness/workspace/handoff/bundle1-handoff.md

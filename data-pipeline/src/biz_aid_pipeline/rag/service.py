@@ -115,13 +115,13 @@ class RagService:
             if not candidates:
                 return RagAnswer(query, "NO_CANDIDATES", self.contract["status"]["no_candidates_message"], [], [], [], [],
                                  self.provider.name, self.provider.model, 0.0, candidate_count=0)
-            results = self.retriever.search(query, spec["mode"], spec["top_k"], pblanc_ids=candidates)
+            results = self.retriever.search(query, spec["mode"], spec["top_k"], pblanc_ids=candidates, exclude_roles=("FORM",))
             allowed = set(candidates)
             # RISK: scope는 Qdrant filter가 강제하지만, 후보 밖 결과가 오면 근거로 쓰지 않고 실패시킨다.
             if any(result.pblanc_id not in allowed for result in results):
                 raise PipelineError("retrieval_scope_violation")
         else:
-            results = self.retriever.search(query, spec["mode"], spec["top_k"])
+            results = self.retriever.search(query, spec["mode"], spec["top_k"], exclude_roles=("FORM",))
         context, index = build_context(results)
         user = f"질문: {query}\n\n근거(evidence):\n{context}" if results else f"질문: {query}\n\n근거(evidence): 없음"
         response = self.provider.generate(LlmRequest(SYSTEM_PROMPT, user, answer_schema(self.contract["output_schema"], index)))

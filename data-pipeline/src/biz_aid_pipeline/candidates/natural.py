@@ -101,9 +101,15 @@ class NaturalLanguageFilterService:
     def __init__(self, provider, domain):
         self.provider, self.domain = provider, domain
 
-    def extract(self, query, as_of=None):
+    def extract(self, query, as_of=None, request_mode=None):
         system = SYSTEM_TEMPLATE.format(categories=", ".join(self.domain["categories"]), targets=", ".join(self.domain["targets"]))
-        response = self.provider.generate(LlmRequest(system, f"질문: {query}", output_schema(self.domain)))
+        schema = output_schema(self.domain)
+        if request_mode is not None:
+            if request_mode not in REQUEST_MODES:
+                raise PipelineError("filter_request_mode_invalid")
+            # BOUNDARY: 명확한 의도는 규칙이 먼저 결정한다. LLM은 나머지 정형 조건만 추출한다.
+            schema["properties"]["request_mode"]["enum"] = [request_mode]
+        response = self.provider.generate(LlmRequest(system, f"질문: {query}", schema))
         # BOUNDARY: 추출 실패를 "조건 없음"으로 바꾸면 전체 공고를 검색하게 된다. 조용한 fallback 없이 실패시킨다.
         try:
             raw = json.loads(response.text)
@@ -136,5 +142,5 @@ class NaturalLanguageFilterService:
             open_requested = False
         day = (as_of or service_today()) if open_requested else None
         candidate_filter = ProgramCandidateFilter(categories=applied["categories"], targets=applied["targets"], not_closed_on=day)
-        return NaturalFilterResult(raw["request_mode"], candidate_filter, raw, {key: list(value) for key, value in applied.items()},
+        return NaturalFilterResult(request_mode or raw["request_mode"], candidate_filter, raw, {key: list(value) for key, value in applied.items()},
                                    list(dict.fromkeys(unapplied)), discarded, str(day) if day else None)

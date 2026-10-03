@@ -15,12 +15,12 @@ CI는 dev Push에 현재 적용 검증을 실행한다. 원격 실행 여부는 
 
 ## Workspace Control/Input / Generated Output(관리 문서와 생성 산출물 구분)
 
-실제 Inventory의 고정 입력은 current-task 1개와 artifacts/README.md, checkpoints/README.md 두 문서다.
+고정 입력은 current-task와 재사용 실행 코드 regression-set/run.py, artifacts/README.md·checkpoints/README.md다.
 Registry.workspace_static_files는 이 anchor의 역할을 선언하고 required_files는 개별 strict 구조를 관리한다.
 
 | 분류 | 현재 경계 | Validation / Git |
 | --- | --- | --- |
-| STATIC_CONTROL | harness/workspace/current-task.md | format·tracking·link/scope·Registry strict |
+| STATIC_CONTROL | harness/workspace/current-task.md, artifacts/development/regression-set/run.py | format·tracking·link/scope·Registry strict |
 | STATIC_DOCUMENTATION | artifacts/README.md, checkpoints/README.md | format·tracking·links·Registry strict |
 | GENERATED_REPORT | reports/**/*.md | non-gating, 신규 파일 ignore |
 | GENERATED_CHECKPOINT | checkpoints/**/*.md 중 고정 README 제외 | non-gating, 신규 파일 ignore |
@@ -127,3 +127,5 @@ Targeted Re-review는 보완 Report에 대한 **PASS**로 완료됐다. 최신 E
 Registry.report의 현재 Task Report는 검토 대상이 달라 CURRENT REPORT REVIEW가 pending이다.
 보완 구현과 check-all 통과만으로 과거 결과를 바꾸거나 현재 Task / Human Review를 승인하지 않는다.
 Human Review는 AGY 원문·활성 개발 Producer Report·최종 Validation·Git Diff를 대조해 다음 Task를 판단한다.
+
+사용자 지정 `harness/workspace/handoff/bundle1-handoff.md`는 동일 Task 실행 상태를 이어가는 non-gating checkpoint다. 반면 `artifacts/development/regression-set/run.py`는 재사용 실행 입력으로 strict 등록하며 JSON/log 실행 결과와 구분한다.

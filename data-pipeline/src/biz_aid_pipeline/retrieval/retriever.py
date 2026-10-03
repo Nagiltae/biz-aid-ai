@@ -78,21 +78,23 @@ class Retriever:
         if differences:
             raise PipelineError("retrieval_collection_schema_mismatch:" + ",".join(differences))
 
-    def _filter(self, pblanc_id, source_sha256, pblanc_ids=None):
+    def _filter(self, pblanc_id, source_sha256, pblanc_ids=None, exclude_roles=()):
         from qdrant_client import models
         conditions = [models.FieldCondition(key=key, match=models.MatchValue(value=value))
                       for key, value in (("pblanc_id", pblanc_id), ("source_sha256", source_sha256)) if value]
         if pblanc_ids is not None:
             # BOUNDARY: MySQL이 정한 후보 밖 point는 Qdrant 검색 후보 자체가 되지 않는다(검색 뒤 자르기가 아니다).
             conditions.append(models.FieldCondition(key="pblanc_id", match=models.MatchAny(any=list(pblanc_ids))))
-        return models.Filter(must=conditions) if conditions else None
+        excluded = [models.FieldCondition(key="document_role", match=models.MatchAny(any=list(exclude_roles)))] if exclude_roles else []
+        # BOUNDARY: FORM만 제외한다. 역할이 없거나 UNKNOWN인 기존 원본은 그대로 남긴다.
+        return models.Filter(must=conditions, must_not=excluded) if conditions or excluded else None
 
     def _query(self, vector, using, limit, query_filter):
         points = self.client.query_points(self.collection, query=vector, using=using, limit=limit,
                                           query_filter=query_filter, with_payload=True).points
         return [(str(point.id), point.score, point.payload) for point in points]
 
-    def search(self, query, mode="hybrid", top_k=None, pblanc_id=None, source_sha256=None, pblanc_ids=None):
+    def search(self, query, mode="hybrid", top_k=None, pblanc_id=None, source_sha256=None, pblanc_ids=None, exclude_roles=()):
         """pblanc_ids(후보 scope)를 주면 그 공고의 chunk 안에서만 찾는다. 빈 scope는 embedding·검색 없이 빈 결과다."""
         from qdrant_client import models
         options, fusion = self.contract["options"], self.contract["fusion"]
@@ -106,7 +108,7 @@ class Retriever:
         if pblanc_ids is not None and not pblanc_ids:
             return []
         dense, sparse = self.embedder.encode([query])[0]
-        query_filter = self._filter(pblanc_id, source_sha256, pblanc_ids)
+        query_filter = self._filter(pblanc_id, source_sha256, pblanc_ids, exclude_roles)
         limit = top_k if mode != "hybrid" else max(top_k, fusion["candidate_limit"])
         hits = {}
         if mode in ("dense", "hybrid"):

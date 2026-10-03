@@ -2,6 +2,7 @@ package com.bizaid.ai.presentation;
 
 import com.bizaid.ai.application.AiDtos;
 import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -17,7 +18,8 @@ public final class AiRequests {
     public record AiQueryRequest(
             @NotBlank(message = "질문을 입력해 주세요.") @Size(max = 2000, message = "질문은 2000자 이하로 입력해 주세요.")
             String query,
-            Long conversationId) {
+            Long conversationId,
+            @Pattern(regexp = "^PBLN_[0-9]{12,20}$", message = "공고 ID 형식이 올바르지 않습니다.") String selectedPblancId) {
     }
 
     /** V2 개인화 검색 질문. 기업정보는 요청으로 받지 않고 로그인 사용자의 저장된 기업정보를 쓴다. */

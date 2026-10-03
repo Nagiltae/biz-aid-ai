@@ -22,7 +22,8 @@ class FakeRetriever:
     def __init__(self, results):
         self.results, self.calls = results, []
 
-    def search(self, query, mode, top_k, pblanc_ids=None):
+    def search(self, query, mode, top_k, pblanc_ids=None, exclude_roles=()):
+        self.exclude_roles = exclude_roles
         self.calls.append((query, mode, top_k) if pblanc_ids is None else (query, mode, top_k, tuple(pblanc_ids)))
         return self.results
 
@@ -48,6 +49,7 @@ class RagAnswerContractTests(unittest.TestCase):
         answer = RagService(retriever, provider).answer("보증한도는?")
         # 적재·평가 baseline과 같은 hybrid top_k 5로 검색한다.
         self.assertEqual(retriever.calls, [("보증한도는?", "hybrid", 5)])
+        self.assertEqual(retriever.exclude_roles, ("FORM",))
         self.assertEqual((answer.status, answer.used_evidence_ids), ("ANSWERED", ["E2"]))
         citation = answer.citations[0]
         self.assertEqual((citation.chunk_id, citation.pblanc_id, citation.pages, citation.rank), ("chunk-2", "PBLN_2", [3], 2))

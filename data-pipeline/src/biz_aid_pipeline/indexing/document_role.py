@@ -1,7 +1,7 @@
 """조각 출처 종류(document_role) 판정: 공고 본문(BODY)·신청 양식(FORM)·목록(LIST)·미상(UNKNOWN).
 
 형식과 원본 파일명 단서만 쓰는 단순 규칙이다. 빈 신청 양식이 본문 근거를 밀어내는지 cases-v2에서 재기 위한 기록용이며,
-검색 순위·필터·자격 판정 근거 선택에는 쓰지 않는다. parse_key·chunk_set_key·embedding_text·embedding_key의 입력이 아니다.
+목록 순위에는 쓰지 않고 FORM은 판정·문서 답변 근거에서만 제외한다. parse_key·chunk_set_key·embedding_text·embedding_key의 입력이 아니다.
 """
 import unicodedata
 
@@ -17,6 +17,9 @@ def normalize(name):
 
 def filename_role(detected_format, filename, spec):
     text = normalize(filename)
+    # WHY: 내부 지급 규정은 지원사업 본문이라는 증거가 아니다. 업무 지침 단서는 보존한다.
+    if any(normalize(cue) in text for cue in spec.get("internal_policy_cues", ())):
+        return "UNKNOWN"
     for role in PRIORITY:
         if any(normalize(cue) in text for cue in spec["filename_cues"][role]):
             return role

@@ -500,3 +500,28 @@ test("등록된 기업정보는 보기 화면으로 보여 주고 [수정]을 �
   const put = calls.find((call) => call.init.method === "PUT");
   expect(JSON.parse(String(put?.init.body))).toMatchObject({ companyName: "비즈에이드", companySize: "중견기업" });
 });
+
+test("비슷한 이름 공고를 고르면 원래 질문과 선택 ID를 Spring으로 보낸다", async () => {
+  let count = 0;
+  const calls = mockFetch(loggedIn, hasCompany, (url, init) => {
+    if (url === "/api/conversations" && init.method === "POST") return { status: 201, body: { id: 1 } };
+    if (url === "/api/conversations") return { status: 200, body: [] };
+    if (url.endsWith("/messages")) return { status: 200, body: [] };
+    if (url === "/api/ai/query") {
+      count += 1;
+      return { status: 200, body: { conversationId: 1, assistantMessage: { id: count }, result: count === 1 ? {
+        requestMode: "DOCUMENT_QA", status: "SELECTION_REQUIRED", query: "비슷한 사업 지원요건",
+        selectionCandidates: [{ pblancId: "PBLN_000000000119801", name: "비슷한 사업", jurisdictionName: "경기도" }],
+      } : { requestMode: "DOCUMENT_QA", status: "ANSWERED", answer: "선택한 공고 근거 답변", citations: [] } } };
+    }
+    return undefined;
+  });
+  renderAt("/ai");
+  const input = await screen.findByRole("textbox", { name: "지원사업 질문" });
+  await userEvent.type(input, "비슷한 사업 지원요건");
+  await userEvent.click(screen.getByRole("button", { name: "찾기" }));
+  await userEvent.click(await screen.findByRole("button", { name: "이 공고로 질문" }));
+  expect(await screen.findByText("선택한 공고 근거 답변")).toBeInTheDocument();
+  const body = JSON.parse(calls.filter((call) => call.url === "/api/ai/query").at(-1)!.init.body as string);
+  expect(body).toMatchObject({ query: "비슷한 사업 지원요건", selectedPblancId: "PBLN_000000000119801" });
+});

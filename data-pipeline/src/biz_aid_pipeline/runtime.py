@@ -40,25 +40,46 @@ class ServiceRuntime:
                                             namespace=self.collection_namespace)
             return self._retriever
 
-    def answer_query(self, query, as_of=None, manual_filter=None):
+    def answer_query(self, query, as_of=None, manual_filter=None, selected_pblanc_id=None):
         """자연어(또는 수동 정형 필터) 질문 → MySQL 후보 → request_mode 분기(SEARCH_LIST·DOCUMENT_QA) 결과 dict."""
         from biz_aid_pipeline.candidates.discovery import ProgramDiscoveryService
         from biz_aid_pipeline.candidates.natural import NaturalLanguageFilterService, filter_domain
         from biz_aid_pipeline.candidates.service import ProgramCandidateService
         from biz_aid_pipeline.rag.router import handle_request
         from biz_aid_pipeline.rag.service import RagService
+        from biz_aid_pipeline.candidates.question import deterministic_mode, choose_program
+        from biz_aid_pipeline.candidates.natural import service_today
+        from biz_aid_pipeline.candidates.service import ProgramCandidateFilter
+        as_of = as_of or service_today()
         extraction, request_mode = None, "DOCUMENT_QA"
-        if manual_filter is None:
-            extraction = NaturalLanguageFilterService(self.provider, filter_domain(self.repository)).extract(query, as_of)
-            candidate_filter, request_mode = extraction.candidate_filter, extraction.request_mode
+        active = self.repository.find(ProgramCandidateFilter()).pblanc_ids
+        metadata = self.repository.program_metadata(active)
+        mode = "DOCUMENT_QA" if selected_pblanc_id else deterministic_mode(query, metadata)
+        if selected_pblanc_id:
+            candidate_filter = ProgramCandidateFilter()
+        elif manual_filter is None:
+            extraction = NaturalLanguageFilterService(self.provider, filter_domain(self.repository)).extract(query, as_of, request_mode=mode)
+            candidate_filter, request_mode = extraction.candidate_filter, mode or extraction.request_mode
         else:
             candidate_filter = manual_filter
         # BOUNDARY: 정형 조건(활성 공고 포함)은 항상 MySQL에서 먼저 적용한다. 후보가 없으면 BGE-M3·Qdrant를 쓰지 않는다.
         candidates = ProgramCandidateService(self.repository).find_candidates(candidate_filter)
-        retriever = self.retriever() if candidates.pblanc_ids else None
+        scope = candidates.pblanc_ids
+        if request_mode == "DOCUMENT_QA":
+            # BOUNDARY: 사용자 선택은 현재 활성 공고만 허용하고 그 공고 하나로 근거를 격리한다.
+            selection_metadata = metadata if selected_pblanc_id else {key: metadata[key] for key in scope if key in metadata}
+            scope, choices = choose_program(query, selection_metadata, as_of, selected_pblanc_id)
+            if choices:
+                return {"request_mode": request_mode, "status": "SELECTION_REQUIRED", "query": query,
+                        "selection_candidates": choices, "candidate_count": len(choices),
+                        "answer": None, "citations": [], "programs": []}
+        retriever = self.retriever() if scope else None
         rag_service = RagService(retriever, self.provider)
         discovery = ProgramDiscoveryService(self.repository, retriever, rag_service.contract)
-        output = handle_request(query, request_mode, candidates.pblanc_ids, rag_service, discovery)
+        output = handle_request(query, request_mode, scope, rag_service, discovery)
+        output["query"] = query
+        output["selected_pblanc_id"] = scope[0] if request_mode == "DOCUMENT_QA" and len(scope) == 1 else None
+        output["mode_basis"] = "rule" if mode else "llm"
         output["candidate_period_unknown"] = candidates.period_unknown
         if extraction is not None:
             output["natural_filter"] = extraction.to_dict()

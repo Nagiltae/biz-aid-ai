@@ -8,7 +8,8 @@ BOUNDARY: 기업정보는 Spring이 소유하고 요청 때 snapshot으로 받�
 from dataclasses import dataclass, fields
 from datetime import date
 
-from biz_aid_pipeline.candidates.region import excluded_jurisdictions
+from biz_aid_pipeline.candidates.region import excluded_jurisdictions, region_contract
+from biz_aid_pipeline.rag.service import rag_contract
 from biz_aid_pipeline.candidates.service import ProgramCandidateFilter
 from biz_aid_pipeline.config.settings import PipelineError
 
@@ -108,6 +109,21 @@ def combine(company, extraction, as_of):
                                   not_closed_on=query_filter.not_closed_on, exclude_closed_on=as_of), None
 
 
+def regional_ranking(programs, region, spec):
+    """가까운 의미 검색 결과에만 작은 지역 가산점을 적용하고 원래 순위를 남긴다."""
+    best = max((item.get("rrf_score", 0.0) for item in programs), default=0.0)
+    mapping = region_contract()["jurisdiction_regions"]
+    standard = region in region_contract()["regions"]
+    ranked = []
+    for item in programs:
+        score = item.get("rrf_score", 0.0)
+        bonus = spec["region_bonus"] if (standard and mapping.get(item.get("jurisdiction_name")) == region
+                  and score > 0 and score >= best * spec["minimum_score_ratio"]) else 0.0
+        ranked.append(dict(item, original_rank=item["rank"], original_score=score, region_bonus=bonus, final_score=score + bonus))
+    ranked.sort(key=lambda item: (-item["final_score"], item["original_rank"]))
+    return [dict(item, rank=rank) for rank, item in enumerate(ranked[:TOP_K], 1)]
+
+
 class PersonalizedSearchService:
     def __init__(self, natural_filter, candidate_service, discovery_factory):
         self.natural_filter, self.candidate_service, self.discovery_factory = natural_filter, candidate_service, discovery_factory
@@ -138,6 +154,8 @@ class PersonalizedSearchService:
         candidates = self.candidate_service.find_candidates(candidate_filter).pblanc_ids
         if not candidates:
             return dict(base, status="NO_CANDIDATES", candidate_count=0, programs=[])
-        programs = self.discovery_factory().discover(query, candidates, limit=TOP_K)
+        ranking = rag_contract()["personalized_ranking"]
+        programs = self.discovery_factory().discover(query, candidates, limit=ranking["candidate_limit"])
+        programs = regional_ranking(programs, company.region, ranking)
         return dict(base, status="LISTED" if programs else "NO_INDEXED_PROGRAMS", candidate_count=len(candidates),
                     programs=programs)

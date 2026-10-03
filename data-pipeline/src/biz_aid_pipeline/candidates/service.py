@@ -80,7 +80,8 @@ class ProgramCandidateRepository:
         """목록 응답용 공고 정형 정보. MySQL 값을 그대로 돌려주며 원문에서 새 정보를 추론하지 않는다."""
         table = self.programs.c
         columns = (table.pblanc_id, table.name, table.category, table.target, table.jurisdiction_name, table.executing_org_name,
-                   table.application_start_date, table.application_end_date, table.application_period_raw, table.announcement_url)
+                   table.application_start_date, table.application_end_date, table.application_period_raw, table.announcement_url,
+                   *([table.source_created_at] if "source_created_at" in table else []))
         with self.engine.connect() as connection:
             rows = connection.execute(select(*columns).where(table.pblanc_id.in_(list(pblanc_ids)), table.source_active.is_(True),
                                                              table.source_deleted.is_(False))).mappings().all()

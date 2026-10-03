@@ -39,7 +39,7 @@ class ProgramDiscoveryService:
             return []
         # BOUNDARY: 순위용 검색도 MySQL 후보 scope 안에서만 한다. 목록 설정은 RAG top_k와 분리한다.
         # 목록을 채우려고 후보 밖 공고나 검색 근거가 없는 공고를 넣지 않는다. 근거가 있는 공고만 최대 max_programs개다.
-        size = min(limit or self.spec["max_programs"], self.spec["max_programs"])
+        size = min(limit, self.spec["group_limit_per_mode"]) if limit is not None else self.spec["max_programs"]
         best = self.retriever.search_programs(query, size, candidates, self.spec["group_limit_per_mode"])
         allowed = set(candidates)
         if any(result.pblanc_id not in allowed for result in best):

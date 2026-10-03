@@ -16,6 +16,10 @@ export interface Citation {
 }
 
 export interface AiProgramItem {
+  originalScore?: number;
+  regionBonus?: number;
+  finalScore?: number;
+  originalRank?: number;
   rank: number;
   pblancId: string;
   name: string | null;
@@ -35,6 +39,9 @@ export interface AiQueryResult {
   programs: AiProgramItem[] | null;
   answer: string | null;
   citations: Citation[] | null;
+  query?: string;
+  selectedPblancId?: string | null;
+  selectionCandidates?: { pblancId: string; name: string; jurisdictionName: string | null; applicationPeriodRaw: string | null }[];
   naturalFilter: { applied?: Record<string, string[] | string | null> } | null;
 }
 
@@ -72,8 +79,8 @@ export interface EligibilityRequest {
 }
 
 export const aiApi = {
-  query: (query: string, conversationId: number | null) =>
-    apiRequest<AiQueryResponse>("/api/ai/query", { method: "POST", body: { query, conversationId } }),
+  query: (query: string, conversationId: number | null, selectedPblancId?: string) =>
+    apiRequest<AiQueryResponse>("/api/ai/query", { method: "POST", body: { query, conversationId, selectedPblancId } }),
   eligibility: (pblancId: string, body: EligibilityRequest) =>
     apiRequest<EligibilityResult>(`/api/programs/${encodeURIComponent(pblancId)}/eligibility`, { method: "POST", body }),
 };

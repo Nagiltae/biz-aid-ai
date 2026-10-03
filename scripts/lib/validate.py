@@ -35,7 +35,8 @@ DYNAMIC_WORKSPACE_PATHS = [
     "harness/workspace/artifacts/**/*.log",
 ]
 STATIC_WORKSPACE_FILES = {
-    "STATIC_CONTROL": ["harness/workspace/current-task.md"],
+    "STATIC_CONTROL": ["harness/workspace/current-task.md",
+                       "harness/workspace/artifacts/development/regression-set/run.py"],
     "STATIC_DOCUMENTATION": [
         "harness/workspace/artifacts/README.md",
         "harness/workspace/checkpoints/README.md",
@@ -93,6 +94,9 @@ def run(*command, capture=False):
 
 
 def workspace_category(name):
+    # BOUNDARY: 사용자가 지정한 Task handoff는 실행 상태 산출물이며 current-task와 다르다.
+    if name == "harness/workspace/handoff/bundle1-handoff.md":
+        return "GENERATED_CHECKPOINT"
     for category, names in STATIC_WORKSPACE_FILES.items():
         if name in names:
             return category

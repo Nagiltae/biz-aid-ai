@@ -45,15 +45,21 @@ public final class AiDtos {
     public record ProgramItem(Integer rank, String pblancId, String name, String category, String target,
                               String jurisdictionName, String executingOrgName, LocalDate applicationStartDate,
                               LocalDate applicationEndDate, String applicationPeriodRaw, String announcementUrl,
-                              Double rrfScore, Integer denseRank, Integer sparseRank, String evidenceChunkId) {
+                              Double rrfScore, Integer denseRank, Integer sparseRank, String evidenceChunkId, Double originalScore,
+                              Double regionBonus, Double finalScore, Integer originalRank) {
     }
 
     /**
      * FastAPI /internal/v1/query 결과. requestMode는 FastAPI가 정한 값(SEARCH_LIST 또는 DOCUMENT_QA)이다.
      * SEARCH_LIST는 programs, DOCUMENT_QA는 answer·citations를 채운다. naturalFilter는 적용된 조건 진단 정보로 원본 구조를 그대로 둔다.
      */
+    public record SelectionCandidate(String pblancId, String name, String jurisdictionName, LocalDate applicationStartDate,
+                                     LocalDate applicationEndDate, String applicationPeriodRaw) {
+    }
+
     public record AiQueryResult(String requestMode, String status, Integer candidateCount, List<ProgramItem> programs,
-                                String answer, List<Citation> citations, JsonNode naturalFilter) {
+                                String answer, List<Citation> citations, JsonNode naturalFilter, String query,
+                                List<SelectionCandidate> selectionCandidates, String selectedPblancId) {
     }
 
     /** 조건 하나의 판정. result는 MET(충족) / NOT_MET(미충족) / UNKNOWN(판단 불가)이다. */

@@ -102,9 +102,9 @@
       "LIST",
       "UNKNOWN"
     ],
-    "ranking": "not used for search ranking, filtering or eligibility evidence selection until a decision after cases-v2 evaluation",
+    "ranking": "not used for search ranking; FORM excluded only from Eligibility and DOCUMENT_QA",
     "identity": "not an input of parse_key, chunk_set_key, chunk_id, embedding_text or embedding_key; this top-level section is outside the hashed contract sections (embedding, chunker)",
-    "existing_points": "the 61,335 V2 points and all PDF / HWP / HWPX points indexed before 2026-10-02 have no document_role field and are read as UNKNOWN; they are not re-indexed for this field; points indexed before a rule revision keep the role written at indexing time (payloads are not rewritten)",
+    "existing_points": "Approved V2 payload-only role correction; IDs, vectors, identity and V1 collection unchanged",
     "attach_stage": "set on the payload by chunking (ChunkSource.document_role from the source format and original filenames) from the image OCR stage (2026-10-02); existing points are not re-indexed for this field",
     "rule": "normalize every original filename (NFC, lower case, whitespace removed); each filename gets the first role in priority order FORM > LIST > BODY that matches a filename cue or a qualified cue (the qualified cue only counts when one of its with_any words is also in the name), otherwise the format default; when the filenames of one source disagree the role is UNKNOWN",
     "filename_cues": {
@@ -169,6 +169,12 @@
     ],
     "rule_revisions": [
       "2026-10-03 (user decision, stage 4 generic ZIP): 제출서류 is no longer a FORM cue on its own (guidance names such as 선정심사 기준 및 제출 서류 안내 were FORM); 제출서류 with 목록 / 체크리스트 is LIST and with 안내 / 기준 is BODY; FORM cues 결과보고서, 상세서, 조사서, 프로필 added (평가표 is not a FORM cue because evaluation tables carry selection criteria)"
+    ],
+    "internal_policy_cues": [
+      "수당지급",
+      "위원수당",
+      "내부운영",
+      "내부규정"
     ]
   }
 }
