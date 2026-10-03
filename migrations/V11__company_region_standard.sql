@@ -1,4 +1,5 @@
 -- 기업 지역을 광역 지자체 표준명(contracts/schemas/company-region.contract.json regions)으로 바꾼다(2026-10-03 사용자 결정, IMP-019).
+-- RISK: 2026-10-03 사용자가 TAB/개행 미제거 → NULL, 광주시 prefix 오분류 경계를 수용하고 적용 승인했다. 현재 해당 값은 없으며 운영 기업 데이터 없음·Spring 표준명 입력 검증을 전제로 한다.
 -- 공백을 뺀 값이 계약 별칭으로 시작하면 그 표준명, 어떤 별칭에도 맞지 않으면 NULL이다. 긴 별칭을 먼저 본다.
 UPDATE companies
 SET region = CASE

@@ -33,6 +33,8 @@ export function SearchSummary({ response }: { response: WorkflowResponse }) {
   const unapplied = search.unappliedConditions ?? [];
   const regionConflict = search.status === "CONDITION_CONFLICT" && search.conflict?.kind === "region" ? search.conflict : null;
   const appliedRegion = search.appliedConditions?.company?.region;
+  // BOUNDARY: 질문에서 지역을 따로 추출하지 않고 서버가 미반영이라고 알려 준 조건을 그대로 표시한다.
+  const queryUnapplied = unapplied.filter((item) => item.source === "query");
   return (
     <div className="search-summary">
       {regionConflict ? (
@@ -45,6 +47,15 @@ export function SearchSummary({ response }: { response: WorkflowResponse }) {
       )}
       {appliedRegion && (
         <p className="muted small">기업 지역({appliedRegion}) 기준으로 다른 광역 지자체가 담당하는 공고는 제외했습니다. 중앙부처 공고는 포함합니다.</p>
+      )}
+      {queryUnapplied.length > 0 && (
+        <div className="alert warn" role="note" aria-label="질문 조건 미반영 안내">
+          질문의 '{queryUnapplied.map((item) => item.value).join(", ")}'은 검색 조건으로 반영하지 못했습니다.{" "}
+          {appliedRegion
+            ? `기업 지역(${appliedRegion})과 중앙부처 공고 기준으로 찾았습니다. 매핑 없는 소관기관 공고도 포함합니다.`
+            : "기업 지역 조건은 적용되지 않았습니다."}{" "}
+          기업 지역을 바꾸려면 <Link to="/company">기업정보 수정</Link>에서 확인해 주세요.
+        </div>
       )}
       {search.status === "LISTED" && (
         <p className="muted small">조건에 맞는 공고 {search.candidateCount ?? "-"}건 중 질문과 관련도가 높은 상위 {search.programs?.length ?? 0}건을 판정합니다.</p>

@@ -1,5 +1,11 @@
 # Harness 변경 이력
 
+## 2026-10-03 — 질문 지역 미반영 안내와 소관기관 대리 필터 측정
+
+사용자 결정(나): 질문 지역은 기존 Natural Filter의 unapplied 상태를 유지하며 별도 추출 없이 추천 화면의 강조 안내로 보여 준다. 기업 지역 기준·중앙부처/매핑 없는 소관기관 포함·기업정보 수정 링크를 명시했다. 기업 지역이 적용되지 않은 경우 적용했다고 쓰지 않는다. frontend 테스트 2건 추가.
+IMP-019 Remaining을 결정과 cases-v2/IMP-024 후속 비교로 갱신하고 IMP-005에 운영 Spring 이미지의 contracts 포함 경계를 기록했다. 소관기관 제외·검색 query·판정 prompt/규칙·embedding·identity는 변경하지 않았다.
+이번 측정은 LLM 없는 read-only 표본 검토이며 V11은 pending SQL 미리보기만 수행한다. V11 적용은 별도 사용자 승인 전 금지다.
+
 ## 2026-10-03 — 맞춤 추천 기업 지역 조건(IMP-019 지역 부분)
 
 **규칙 변경(사용자 결정)**: `ai-boundary-rules.md`의 "지역을 소관기관 Hard Filter로 쓰지 않는다"에 예외를 둔다. 저장된 기업 지역이 광역 표준명이면 다른 광역 지자체 소관 공고만 후보에서 뺀다(중앙부처·매핑 없는 소관기관 유지, fail-open). 질문 속 지역은 계속 unapplied다.
@@ -625,3 +631,10 @@ BGE-M3 tokenizer 파일을 기존 모델 artifact에 `scope=chunking`으로 등�
 V1 종료 상태를 V2 변경과 같은 조건으로 비교하도록 SEARCH_LIST 4건·DOCUMENT_QA 3건·Eligibility 3건을
 `evals/v1_baseline/cases-v1.json`에 두고 sha256으로 동결했다. 문장 전체 대신 공고 ID·후보 범위·문서 SHA와 조각 순번·Citation·핵심 사실·자격 상태를 판정한다.
 기존 case와 기대값은 수정하지 않고 기준 변경은 새 version으로 만든다. 실제 Ollama·dev MySQL·dev Qdrant 1회 실행은 check-all 밖에서 수행하며 응답 시간은 합격 조건이 아니다.
+
+## 2026-10-03 — 지역 마무리 및 IMP-029
+
+- 사용자 V11 적용 승인과 whitespace/prefix 경계 수용을 기록하고 common Flyway로 이동한다. 질문 지역 unapplied와 후보 소관기관 필터 유지 결정을 구분한다.
+- IMP-019/030 측정 Evidence와 IMP-031 신청 가능 지역 추출·IMP-032 원본 소관 불일치 후속을 기록한다.
+- IMP-029 사용자 범위 축소: 비교 실험을 생략하고 prompt의 서류/절차/작성 항목 제외·중복 금지·관련 조건 묶기와 상한15개/1280token을 적용한다. 75초 기한·fail-closed·공고별 근거 격리·기존 identity는 보존한다. 같은 입력 workflow1회 후 check-all1회; 결과는 Task Report에 기록한다.
+- 실제 workflow1회에서 117611 상한 실패는 해소됐으나 123260은 근거ID 검증 실패다. 성공으로 숨기지 않고 IMP-029 OPEN/부분 해결을 보존한다. 모든 HTTP 단계는90초 미만이었다.

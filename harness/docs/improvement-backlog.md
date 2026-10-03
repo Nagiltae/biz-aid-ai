@@ -14,7 +14,7 @@
 | 단계 | 항목 | 기준 |
 | --- | --- | --- |
 | V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
-| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025, IMP-026, IMP-027, IMP-028, IMP-029, IMP-030 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
+| V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025, IMP-026, IMP-027, IMP-028, IMP-029, IMP-030, IMP-031, IMP-032 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
 | 운영/AWS 단계 | IMP-005(RESOLVED), IMP-006, IMP-007, IMP-015, IMP-016, IMP-017(RESOLVED), IMP-021, IMP-022, IMP-023 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
 | 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
 
@@ -81,6 +81,8 @@
 - Side effect: scope별 검증 경로나 파일 digest cache를 도입하더라도 parse_key·chunk·embedding identity 계산은 바뀌면 안 된다.
 - Resolution(2026-10-03, IMP-017과 함께): 계약 `model_artifacts.expected_scope_manifest_sha256`(chunking·embedding)을 추가하고, 질문 서버(ServiceRuntime의 BGE-M3)는 그 두 범위 파일만 검증한다(`verified_scope_artifacts_sha256`, `BgeM3Embedder(scope_only=True)`). 파싱 모델이 없어도 동작하며 전체 3.7GB를 hash하지 않는다(범위 검증 1.4초). 파싱·청킹·인덱싱 배치는 전체 manifest 검증 그대로다. embedding_key는 같다(테스트·실측 `228acdd12220`). 기록 `2026-10-03-fastapi-compose-imp017.md`.
 - Status: RESOLVED
+
+- 운영 준비 메모(2026-10-03): Spring `RegionCatalog`가 개발 Compose의 `/contracts` read-only mount에서 읽는 `contracts/`는 운영 이미지에도 포함하거나 동등하게 제공해야 한다. 개발 host bind mount에 의존해 배포하면 지역 목록·검증이 실패한다. 운영 이미지 빌드 시 같은 계약 파일이 포함되는지 검증한다(개발 구현/RESOLVED 이력을 운영 배포 완료로 해석하지 않음).
 
 ## IMP-006 현재 parse_key를 실행 환경에서 다시 계산
 
@@ -247,10 +249,10 @@
 - Evidence: V2-1 Smoke(소상공인·영업중·경기도·2024 개업, "우리 회사가 지금 신청할 수 있는 지원사업 찾아줘")에서 후보 1,237개, 지역·업력은 unapplied였다(`2026-10-01-v2-1-personalized-search.md`).
 - Why deferred: 순위에 기업정보를 넣는 방법(검색 문장 보강, 가중치)은 품질 평가 기준(cases-v2)과 V2 collection 적재 완료 뒤에 비교해야 한다. 이번 범위는 흐름 구현이다.
 - Revisit trigger: V2 collection 전환과 cases-v2 작성 뒤
-- Side effect: 기업정보를 검색 문장에 넣을 때도 지역을 소관기관 Hard Filter로 바꾸면 안 된다(AI 경계).
+- Side effect: 현재 승인된 기업 지역 기반 소관기관 제외 예외만 적용한다(AI 경계). 소관기관은 신청 가능 지역의 대리 지표라 여러 지역 대상 공고를 조용히 제외할 수 있다(IMP-030). 질문 지역 추출·검색 문장·순위 변경은 별도 비교/승인 대상이다.
 - Partial resolution(2026-10-03, 사용자 결정·규칙 변경): 지역 부분을 반영했다. 기업 지역을 광역 지자체 16개 표준명 중에서 고르고(전남광주통합특별시는 하나), 맞춤 추천 후보에서 다른 광역 지자체 소관 공고만 뺀다(중앙부처·매핑 없는 소관기관 유지, `company-region` 계약). 경기도 중소기업·금융 질문의 후보는 145 → 43이다. 기록 `2026-10-03-company-region-filter.md`.
 - Follow-up: 중앙부처 소관이면서 공고명에 지역 표기([전북]·[대전] 등)가 있는 공고는 이번에 유지한다. 2026-10-03 기준 마감이 확정되지 않은 중앙부처 공고 384건 중 63건(16%)이다(경북 8·경남 7·전북 6·충북·서울·부산·대구 각 5). 지역 한정 여부는 공고문을 봐야 해서 후속 후보로 둔다.
-- Remaining: 질문 속 지역과 기업 지역의 충돌 처리는 결정이 필요하다. Natural Filter는 질문 지역을 정형 조건으로 뽑지 않고 unapplied로만 남기므로(기존 결정), 구현한 충돌 규칙은 정형 소관기관 조건(수동 필터)에서만 동작한다. 순위에 기업정보를 반영하는 부분도 OPEN이다.
+- Remaining(2026-10-03 사용자 결정 나): 질문 지역은 Natural Filter에서 정형 조건으로 추출하지 않고 서버의 unapplied 조건 그대로 화면에 눈에 띄게 알린다. 기업 지역과 중앙부처·매핑 없는 소관기관을 기준으로 찾았다는 안내와 기업정보 수정 링크를 제공한다. 별도 지역 키워드 추출은 하지 않는다. 근본 해결(질문 지역의 정형 추출)은 IMP-012·IMP-024와 함께 cases-v2로 변경 전후를 비교한 뒤 처리한다. 후속 후보 필터 결정(2026-10-03): MySQL 소관기관 필터 유지. 질문 지역 unapplied 결정 나와 별개다. 경기도 기준 종료 미확정1,314건 중 다른 광역812건(61.8%)을 다시 넣는 비용과 Top3 부적합 위험을 고려했다. [측정 Report](../workspace/reports/development/2026-10-03-region-filter-measurement.md)의 지자체 표본 관내30/40(75%)·명시적 누락4/40(10%)은 모집단 오류율 추정이 아니며 누락은 IMP-031 후속으로 복구한다. 순위 반영은 OPEN이다.
 - Status: OPEN
 
 ## IMP-020 Top 3 자격 판정 전체 응답이 Spring 응답 제한시간을 넘음
@@ -367,7 +369,7 @@
 ## IMP-029 일부 공고에서 자격 판정 criteria를 지나치게 쪼개거나 반복 생성함
 
 - Area: 자격 판정(eligibility) LLM 출력
-- Issue: 지역산업위기대응 이차보전·인천 특별 경영안정자금 같은 공고에서 모델이 제출 서류·완화 규정까지 criterion으로 나열하거나 같은 조건을 반복한다. 2026-10-03부터는 출력 상한(criteria 12개·출력 1,024 token)에 닿으면 판정하지 않고 `eligibility_output_limit_reached`로 실패시키므로 시간 초과·과열은 막지만, 그 공고는 판정 결과가 없다.
+- Issue: 지역산업위기대응 이차보전·인천 특별 경영안정자금 같은 공고에서 모델이 제출 서류·완화 규정까지 criterion으로 나열하거나 같은 조건을 반복한다. 2026-10-03 최초 안전장치에서는 출력 상한(criteria 12개·출력 1,024 token)에 닿으면 판정하지 않고 `eligibility_output_limit_reached`로 실패시키므로 시간 초과·과열은 막지만, 그 공고는 판정 결과가 없다.
 - Evidence(2026-10-03, qwen3.5:9b):
   - PBLN_000000000123260: 5,000 token 동안 67개, 고유 13개(중복 54), 37개가 서류 관련
   - PBLN_000000000117611: 37개 1,735 token 97초
@@ -375,8 +377,10 @@
   - 수정 뒤 두 공고는 52.5초·31.4초에 `eligibility_output_limit_reached`
   - 입력 근거 길이는 원인이 아니다(prompt 2,315~3,252 token, chunk 96~1,556자)
   - 기록 `2026-10-03-recommend-timeout-diagnosis.md`
-- Why deferred: 고치려면 prompt 규칙·출력 schema(예: 중복 금지, 조건 묶기 예시)나 모델을 바꿔야 한다. 이번 작업은 판정 규칙·prompt를 바꾸지 않는 범위다.
-- Revisit trigger: cases-v2 작성 시(자격 판정 기대값으로 prompt·schema 조정 효과 비교)
+- Follow-up(2026-10-03 사용자 승인): 비교 실험 없이 prompt에 서류/절차/작성 항목 제외·중복 금지·관련 조건 묶기(보통2~8)를 추가하고 상한15개/1280token으로 변경했다. 잘린 출력·15개 도달 실패 및75초 기한은 유지한다. [후속 Report](../workspace/reports/development/2026-10-03-region-wrapup-and-imp029.md)에 같은 입력 workflow1회 결과를 기록한다.
+- Why deferred: corpus 전체에서 반복/과분할이 사라졌다고 단정하지 않는다. 사용자 요청대로 이번에는 비교 실험을 생략하고 좁은 기능 수정·workflow 확인만 한다.
+- Evidence(후속 workflow1회): 동일 질문·저장된 기업 snapshot에서 126190 COMPLETED/NEEDS_MORE_INFO(6조건,37.42초), 117611 COMPLETED/NEEDS_MORE_INFO(7조건,49.95초). 123260은 상한 대신 eligibility_invalid_evidence_id로 FAILED(39.38초). Top3 처리 완료·WAITING_FOR_USER이며 모든 HTTP 단계90초 미만. IMP-029는 아직 부분 해결이다.
+- Revisit trigger: 배포 시 이 실패를 화면에서 명시하고, 별도 승인된 123260 근거 ID 출력 원인 검토 또는 cases-v2 판정 기대값 비교 시
 - Side effect: prompt를 바꾸면 기존 정상 공고의 criterion 수·결과도 달라질 수 있다. criteria 상한(12)도 함께 다시 정한다.
 - Status: OPEN
 
@@ -385,7 +389,29 @@
 - Area: V2 맞춤 추천 후보(기업 지역 필터)
 - Issue: 기업 지역 필터는 소관기관(jurisdiction_name)이 다른 광역 지자체인 공고를 뺀다. 여러 지역을 함께 대상으로 하는 공고도 소관이 한 광역이면 나머지 지역 기업의 후보에서 빠진다.
 - Evidence: 2026-10-03 기준 1건. `[부산ㆍ울산ㆍ경남] 2026년 동남 정보보호클러스터 보안 테스팅 지원사업 공고`는 소관이 경상남도라서 부산·울산 기업에서는 후보가 아니다. 기록 `2026-10-03-company-region-filter.md`.
-- Why deferred: 1건이고, 공고명 표기로 대상 지역을 추가하려면 제목 해석 규칙(별도 결정)이 필요하다.
+- Evidence(추가): [지역 측정 Report](../workspace/reports/development/2026-10-03-region-filter-measurement.md)에서 명시적 누락4/40(지역 허용3+소관 오류1), 원문 지역 조건 없음3·근거 부족3.
+- Why deferred: 2026-10-03 사용자 결정으로 소관기관 필터는 유지한다. 신청 가능 지역 추출은 IMP-031에서 조건·근거를 보존해 후속 비교한다.
 - Revisit trigger: 이런 공고가 늘거나 사용자 문의가 생길 때, 또는 IMP-019 후속(중앙부처 공고의 지역 표기)을 정할 때
 - Side effect: 공고명 지역 표기를 대상 지역으로 쓰면 중앙부처 공고 63건의 처리와 같은 규칙으로 정해야 한다.
+- Status: OPEN
+
+## IMP-031 공고별 신청 가능 지역 추출
+
+- Area: 맞춤 추천 / 자격 근거
+- Issue: 소관기관은 기업의 신청 가능 지역을 보장하지 않는다. 현행 후보 hard filter 유지 결정과 누락 복구는 별개다.
+- Evidence: [지역 측정 Report](../workspace/reports/development/2026-10-03-region-filter-measurement.md), 지자체 표본 명시적 누락4/40(10%).
+- Follow-up: NATIONWIDE / REGION_LIST / UNKNOWN과 원문 evidence·source SHA·parse key·page/chunk를 보존해 공고 단위로 추출한다. 이전 예정·복수 사업장·수요/공급 기업 역할 등 조건을 단순 시·도 목록으로 잃지 않는다. 근거 부족은 UNKNOWN이다.
+- Why deferred: 내일 배포 범위에서 제외. 현재 소관기관 필터를 유지하면서 cases-v2로 전후 비교 후 처리한다.
+- Revisit trigger: 배포 후 지역 누락 복구 Task 승인 시. 입력·출력 비용 가정은 측정 Report에 있으며 실제 LLM 추출 비용은 미측정이다.
+- Side effect: 신규 DB/계약·적재/근거검증 경계와 사용자 승인 필요. 기존 source_payload·fingerprint·검색 identity 보존.
+- Status: OPEN
+
+## IMP-032 공고 소관기관과 실제 신청 대상 지역 불일치
+
+- Area: 원본 API metadata 데이터 품질
+- Issue: PBLN_000000000124890은 대구 소관·대구 제목이지만 실제 공고 자격은 대전 유성구에 영업신고한 사업자이다. 소관기관 기반 필터가 적격 대전 기업에게 숨길 수 있다.
+- Evidence: [지역 측정 Report](../workspace/reports/development/2026-10-03-region-filter-measurement.md) 표본13, 원문 “유성구에 영업신고한 상시근로자 5인 미만 사업자”.
+- Why deferred: 원본을 임의 정정하지 않고 데이터 품질 관찰로 보존한다. 이번에 filter/DB source를 변경하지 않는다.
+- Revisit trigger: IMP-031 근거 기반 지역 추출 또는 원본 공급자 확인 Task.
+- Side effect: source 원문과 별도의 검증 결과를 구분해야 한다.
 - Status: OPEN

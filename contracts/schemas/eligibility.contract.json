@@ -51,10 +51,10 @@
       "every criterion cites at least one evidence id of this request and names the profile fields it compared"
     ],
     "field_ids": "the model sees company facts keyed by stable field IDs (snapshot field names, business_age_months, extra_1..extra_N for additional_facts with a label legend); profile_fields and evidence_ids are restricted per request by JSON schema enum, then re-validated by the application and mapped back to the original names in the result",
-    "max_criteria": 12,
-    "max_output_tokens": 1024,
-    "limit_basis": "2026-10-03 diagnosis (recommend Top 3, local qwen3.5:9b, 18.7 output tokens/s): normal judgments had 2, 8 and 10 criteria (170-1,000 output tokens, 9-48s); the failing program looped over 13 distinct criteria (67 criteria, 54 exact duplicates, 37 about documents) and did not finish within 5,000 tokens; another listed 37 criteria (1,735 tokens, 97s). max_criteria 12 is 20% above the largest normal count and is enforced as JSON schema maxItems during generation; max_output_tokens 1,024 covers 12 criteria at 75 tokens each (about 55s)",
-    "limit_rule": "an output that reaches max_criteria or is cut by max_output_tokens is not judged: the evaluation fails with eligibility_output_limit_reached (fail closed) so a truncated criteria list can never become ELIGIBLE; prompt text, criterion rules and overall status rules are unchanged"
+    "max_criteria": 15,
+    "max_output_tokens": 1280,
+    "limit_basis": "2026-10-03 user-approved bounded fix for IMP-029: explicitly exclude submission documents/procedures/form fields, forbid duplicate conditions and group related requirements (usually 2-8), without omitting independent mandatory conditions. max_criteria 15 accepts completed 12-criterion outputs previously rejected at the 12 boundary; outputs reaching 15 remain fail-closed. max_output_tokens 1,280 covers 15 criteria at an assumed 75 tokens each (1,125) plus JSON overhead. At the previously observed 18.7 output tokens/s generation alone could take about 68.4s; the existing 75s whole-call deadline remains the final safety boundary, not a guarantee of completion. No prompt-comparison experiment or new quality baseline was run; this task validates one same-input workflow.",
+    "limit_rule": "an output that reaches max_criteria (15) or is cut by max_output_tokens is not judged: eligibility_output_limit_reached (fail closed). A complete list of 12 criteria is below this boundary and uses unchanged criterion validation and application-derived overall status. Prompt grouping does not authorize omitting independent mandatory requirements."
   },
   "validation": {
     "fail": [

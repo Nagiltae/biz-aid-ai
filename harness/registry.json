@@ -236,7 +236,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-10-03-company-region-filter.md",
+  "report": "harness/workspace/reports/development/2026-10-03-region-wrapup-and-imp029.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -360,7 +360,7 @@
     "data-pipeline/.dockerignore",
     "data-pipeline/Dockerfile",
     "data-pipeline/README.md",
-    "data-pipeline/pending-migrations/V11__company_region_standard.sql",
+    "migrations/V11__company_region_standard.sql",
     "data-pipeline/requirements-api.txt",
     "data-pipeline/requirements.txt",
     "data-pipeline/src/biz_aid_pipeline/__init__.py",

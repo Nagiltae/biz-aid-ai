@@ -130,14 +130,20 @@ class EligibilityContractTests(unittest.TestCase):
         provider = Provider([criterion("신용 요건", "MET", ["credit_score"])])
         EligibilityService(Repository(), Retriever(EVIDENCE), provider).evaluate(TARGET, PROFILE, AS_OF)
         request = provider.requests[0]
-        # 생성 단계 상한: criteria 최대 개수(maxItems)와 출력 token 수(num_predict)를 함께 보낸다. prompt 문구는 그대로다.
+        # 생성 단계 상한: criteria 최대 개수(maxItems)와 출력 token 수(num_predict)를 함께 보낸다. 요청의 prompt도 확인한다.
         self.assertEqual(request.output_schema["properties"]["criteria"]["maxItems"], limits["max_criteria"])
         self.assertEqual(request.max_output_tokens, limits["max_output_tokens"])
         self.assertEqual(request.system, SYSTEM_PROMPT)
+        self.assertIn("제출 서류·신청 절차·작성 항목", request.system)
+        self.assertIn("같은 조건을 두 번 쓰지 않는다", request.system)
+        self.assertIn("관련 조건은 하나로 묶는다(보통 2~8개)", request.system)
+        self.assertIn("독립적인 필수 요건을 생략하지 않는다", request.system)
         # 2026-10-03 진단의 반복 폭주처럼 상한까지 찬 목록은 잘렸을 수 있어 판정하지 않는다(ELIGIBLE 오판 방지).
         full = [criterion(f"요건 {number}", "MET", ["credit_score"]) for number in range(limits["max_criteria"])]
         with self.assertRaisesRegex(PipelineError, "^eligibility_output_limit_reached$"):
             evaluate(full)
+        # 2026-10-03 승인: 완결된 12개 조건은 더 이상 이전 상한 때문에 실패하지 않는다.
+        self.assertEqual(len(evaluate(full[:12])[0]["criteria"]), 12)
         # 상한보다 하나 적으면 기존 규칙 그대로 판정한다.
         self.assertEqual(evaluate(full[:-1])[0]["status"], "ELIGIBLE")
         # num_predict에 닿아 JSON이 끝나지 않은 응답도 같은 고정 코드로 실패한다.

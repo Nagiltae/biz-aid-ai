@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT / "data-pipeline/src"))
 
 from biz_aid_pipeline.candidates.region import excluded_jurisdictions, region_contract, standard_regions
 
-MIGRATION = ROOT / "data-pipeline/pending-migrations/V11__company_region_standard.sql"
+MIGRATION = ROOT / "migrations/V11__company_region_standard.sql"
 
 
 class CompanyRegionContractTests(unittest.TestCase):
@@ -38,7 +38,7 @@ class CompanyRegionContractTests(unittest.TestCase):
         self.assertIsNone(excluded_jurisdictions("경기도 광명시"))
         self.assertIsNone(excluded_jurisdictions("광주광역시"))
 
-    def test_pending_migration_converts_with_the_contract_aliases(self):
+    def test_approved_migration_converts_with_the_contract_aliases(self):
         contract = region_contract()
         sql = MIGRATION.read_text(encoding="utf-8")
         # 계약의 모든 별칭이 변환문에 있고, 어떤 별칭에도 맞지 않는 값은 NULL이 된다.
@@ -50,8 +50,9 @@ class CompanyRegionContractTests(unittest.TestCase):
         order = re.findall(r"LIKE '([^%']+)%'", sql)
         self.assertEqual(order, sorted(order, key=len, reverse=True))
         self.assertIn("COMMENT", sql)
-        # BOUNDARY: 승인 전에는 check-all이 dev DB에 적용하는 migrations/에 두지 않는다.
-        self.assertFalse(list((ROOT / "migrations").glob("V11__*.sql")))
+        # BOUNDARY: 사용자 적용 승인 뒤 공통 Flyway 계보로 이동했으며 pending 복사본을 남기지 않는다.
+        self.assertFalse((ROOT / "data-pipeline/pending-migrations" / MIGRATION.name).exists())
+        self.assertIn("적용 승인", sql)
 
 
 if __name__ == "__main__":

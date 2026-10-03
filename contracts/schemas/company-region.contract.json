@@ -1,7 +1,7 @@
 {
   "version": 1,
   "purpose": "company region (광역 지자체) for the company form and the personalized candidate filter; one source for Spring (validation and the /api/company/regions list), React (select options) and FastAPI (candidate filter)",
-  "decision": "2026-10-03 user decision (IMP-019 region part, rule change): plan A excludes only programs whose jurisdiction_name is a different 광역 지자체 than the company region; central ministries, public bodies, unmapped jurisdictions and nationwide programs stay. Plan 가: the company region is one of the 16 standard names below (data has one merged 전남광주통합특별시 instead of 광주광역시 and 전라남도)",
+  "decision": "2026-10-03 user decision (IMP-019 region part, rule change): plan A excludes only programs whose jurisdiction_name is a different 광역 지자체 than the company region; central ministries, public bodies, unmapped jurisdictions and nationwide programs stay. Plan 가: the company region is one of the 16 standard names below (data has one merged 전남광주통합특별시 instead of 광주광역시 and 전라남도); 2026-10-03 follow-up: retain the current jurisdiction candidate filter (distinct from question-region unapplied decision 나); V11 application approved with ASCII-space-only and ambiguous 광주시 prefix risks accepted, current dev affected values absent, prod company data absent per user, Spring accepts standard values only",
   "regions": [
     "서울특별시",
     "부산광역시",
@@ -147,7 +147,7 @@
     "탄소중립녹색성장위원회",
     "국세청"
   ],
-  "national_rule": "central ministries and public bodies are kept for every company region (nationwide target); listed for audit only, the filter never needs them",
+  "national_rule": "central ministries and public bodies are kept for every company region as candidate-filter policy, not as proof of nationwide eligibility; listed for audit only, the filter never needs them",
   "unmapped_rule": "fail open: a jurisdiction_name that is neither in jurisdiction_regions nor in national_jurisdictions is kept, because excluding an unknown owner could hide a valid nationwide program; new values are reviewed and added here",
   "filter_rule": "with a standard company region the candidate filter excludes jurisdiction_name IN (jurisdiction_regions keys whose region differs); the applied conditions record the region and the excluded jurisdictions; a company region outside regions (legacy free text) is unapplied with reason region_not_standard",
   "query_rule": "query jurisdictions (Natural Filter) are intersected with the allowed set (company region jurisdictions + national + unmapped); if nothing remains the result is CONDITION_CONFLICT with conflict.kind region (company_region, query_jurisdictions) and no candidates; a query naming only central ministries is never a conflict",

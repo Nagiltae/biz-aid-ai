@@ -211,6 +211,30 @@ test("맞춤 추천은 지역 충돌을 기업정보 수정 안내와 함께 보
   expect(screen.getByText(/기업 지역\(경기도\) 기준으로 다른 광역 지자체가 담당하는 공고는 제외했습니다/)).toBeInTheDocument();
 });
 
+test("질문 지역 미반영은 서버 조건 그대로 눈에 띄게 알리고 기업정보 수정 링크를 보여 준다", () => {
+  const response = { search: { status: "LISTED", candidateCount: 43, programs: [],
+    unappliedConditions: [{ source: "query", field: "constraint", value: "서울", reason: "not_supported" }],
+    appliedConditions: { company: { region: "경기도" } } } } as unknown as WorkflowResponse;
+  render(<MemoryRouter><SearchSummary response={response} /></MemoryRouter>);
+  const notice = screen.getByRole("note", { name: "질문 조건 미반영 안내" });
+  expect(notice).toHaveClass("alert", "warn");
+  expect(notice).toHaveTextContent("질문의 '서울'은 검색 조건으로 반영하지 못했습니다.");
+  expect(notice).toHaveTextContent("기업 지역(경기도)과 중앙부처 공고 기준으로 찾았습니다.");
+  expect(within(notice).getByRole("link", { name: "기업정보 수정" })).toHaveAttribute("href", "/company");
+  expect(screen.queryByText(/달라 공고를 고를 수 없습니다/)).not.toBeInTheDocument();
+});
+
+test("질문을 화면에서 지역 추출하지 않고 기업 지역 미적용 상태를 숨기지 않는다", () => {
+  const response = { search: { status: "LISTED", programs: [],
+    unappliedConditions: [{ source: "company", field: "region", value: "기존 자유 입력", reason: "region_not_standard" }] } } as unknown as WorkflowResponse;
+  const { rerender } = render(<MemoryRouter><SearchSummary response={response} /></MemoryRouter>);
+  expect(screen.queryByRole("note", { name: "질문 조건 미반영 안내" })).not.toBeInTheDocument();
+  const query = { search: { ...response.search, unappliedConditions: [{ source: "query", field: "constraint", value: "서울", reason: "not_supported" }] } } as unknown as WorkflowResponse;
+  rerender(<MemoryRouter><SearchSummary response={query} /></MemoryRouter>);
+  expect(screen.getByRole("note", { name: "질문 조건 미반영 안내" })).toHaveTextContent("기업 지역 조건은 적용되지 않았습니다.");
+  expect(screen.queryByText(/기업 지역\(.*\)과 중앙부처 공고 기준/)).not.toBeInTheDocument();
+});
+
 test("DOCUMENT_QA 답변과 공고문 근거(공고명·페이지·문단)를 보여 준다", async () => {
   mockFetch(loggedIn, hasCompany, aiServer({ requestMode: "DOCUMENT_QA", status: "ANSWERED", candidateCount: 1, programs: null, naturalFilter: null,
     answer: "업력 6개월 이상 개인사업자가 대상입니다.",
