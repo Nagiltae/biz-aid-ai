@@ -71,5 +71,12 @@
     "target": 100,
     "scope": "SAMPLE",
     "live_full_execution": false
+  },
+  "application_period_derivation": {
+    "supported": "explicit full ranges YYYY-M-D / YYYY.M.D / YYYY/M/D or YYYY년 M월 D일, both bounds include year, separator~ / ～ / 〜",
+    "validation": "calendar-valid, start<=end; no inferred year or recurring period",
+    "unknown": "free text budget/exhaustion/monthly/partial ranges remain raw and NULL; not an error",
+    "maintenance": "existing normalizer period() only, explicit date refresh updates derived dates atomically, preserves every other column including source fingerprint and lifecycle",
+    "basis": "2026-10-04 IMP-011; dev one missed dot range observed"
   }
 }

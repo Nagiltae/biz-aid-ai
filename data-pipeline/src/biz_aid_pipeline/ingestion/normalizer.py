@@ -22,11 +22,16 @@ FIELD_MAPPING = {
 def period(raw):
     if raw is None or not raw.strip():
         return None, None, "UNAVAILABLE"
-    match = re.fullmatch(r"(\d{4}-\d{2}-\d{2})\s*~\s*(\d{4}-\d{2}-\d{2})", raw.strip())
+    # BOUNDARY: 명시적인 연·월·일 범위만 파생한다. 예산/매월/차수 같은 자유 문구에 날짜를 추측하지 않는다.
+    atom = r"(\d{4})[./-](\d{1,2})[./-](\d{1,2})\.?"
+    korean = r"(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일"
+    match = re.fullmatch(rf"(?:{atom})\s*[~〜～]\s*(?:{atom})", raw.strip())
+    if not match:
+        match = re.fullmatch(rf"(?:{korean})\s*[~〜～]\s*(?:{korean})", raw.strip())
     if not match:
         return None, None, "FREE_TEXT"
     try:
-        start, end = date.fromisoformat(match[1]), date.fromisoformat(match[2])
+        start, end = date(*map(int, match.groups()[:3])), date(*map(int, match.groups()[3:]))
         if start > end:
             return None, None, "INVALID_DATE_RANGE"
         return start, end, "DATE_RANGE"

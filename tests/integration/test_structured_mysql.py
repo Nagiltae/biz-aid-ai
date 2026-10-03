@@ -59,6 +59,24 @@ class StructuredMysqlTests(unittest.TestCase):
         self.assertEqual(self.row()["source_payload"], self.base[0])
         self.assertEqual(str(self.row()["application_start_date"]), "2026-09-01")
 
+    def test_date_refresh_only_derived_columns_and_idempotent(self):
+        from biz_aid_pipeline.ingestion.date_refresh import refresh_dates
+        items = [dict(self.base[0], reqstBeginEndDe="2026.01.02 ~ 2026.10.03")]
+        self.run_data(self.data(items))
+        table = self.repository.programs
+        with self.repository.engine.begin() as connection:
+            connection.execute(update(table).where(table.c.pblanc_id == items[0]["pblancId"]).values(
+                application_start_date=None, application_end_date=None))
+        before = dict(self.row())
+        refresh_dates(self.repository, True)
+        after = dict(self.row())
+        self.assertEqual(str(after.pop("application_start_date")), "2026-01-02")
+        self.assertEqual(str(after.pop("application_end_date")), "2026-10-03")
+        before.pop("application_start_date")
+        before.pop("application_end_date")
+        self.assertEqual(after, before)
+        self.assertEqual(refresh_dates(self.repository, True)["changed_rows"], 0)
+
     def test_actual_dev_mysql_port_3306(self):
         self.assertEqual(self.repository.engine.url.port, 3306)
         with self.repository.engine.connect() as connection:
