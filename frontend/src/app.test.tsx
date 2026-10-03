@@ -143,6 +143,32 @@ test("SEARCH_LIST 결과를 FastAPI 순위 그대로 공고 카드로 보여 준
   expect(calls.every((call) => call.url.startsWith("/api/"))).toBe(true);
 });
 
+test("AI 검색은 시간이 걸릴 수 있다고 안내하고, 이전 대화는 최근 질문 묶음이 맨 위에 온다", async () => {
+  const listed = (name: string) => ({ requestMode: "SEARCH_LIST", status: "LISTED", candidateCount: 1, answer: null, citations: null,
+    naturalFilter: null, programs: [{ rank: 1, pblancId: "PBLN_000000000000001", name, category: "금융", target: null,
+      jurisdictionName: null, executingOrgName: null, applicationStartDate: null, applicationEndDate: null, applicationPeriodRaw: null }] });
+  mockFetch(loggedIn, hasCompany, (url) => {
+    if (url === "/api/conversations") return { status: 200, body: [{ id: 7, title: "이전 대화", createdAt: "", updatedAt: "" }] };
+    // 서버는 시간순(첫 질문 → 답변 → 둘째 질문 → 답변)으로 준다.
+    if (url === "/api/conversations/7/messages") return { status: 200, body: [
+      { id: 1, role: "USER", content: "첫 번째 질문", resultType: null, result: null, createdAt: "" },
+      { id: 2, role: "ASSISTANT", content: "", resultType: "SEARCH_LIST", result: listed("첫 번째 결과 공고"), createdAt: "" },
+      { id: 3, role: "USER", content: "두 번째 질문", resultType: null, result: null, createdAt: "" },
+      { id: 4, role: "ASSISTANT", content: "", resultType: "SEARCH_LIST", result: listed("두 번째 결과 공고"), createdAt: "" }] };
+    return undefined;
+  });
+  renderAt("/ai");
+  expect(await screen.findByText(/답변까지 시간이 걸릴 수 있습니다/)).toBeInTheDocument();
+  await userEvent.click(await screen.findByRole("button", { name: "이전 대화" }));
+  const history = await screen.findByRole("list", { name: "대화 기록" });
+  await within(history).findByText("두 번째 결과 공고");
+  // 최근 질문 묶음(질문 → 답변)이 위, 이전 묶음이 아래다. 묶음 안에서는 질문이 답변보다 먼저다.
+  const order = ["두 번째 질문", "두 번째 결과 공고", "첫 번째 질문", "첫 번째 결과 공고"].map((text) => within(history).getByText(text));
+  for (let index = 1; index < order.length; index += 1) {
+    expect(order[index - 1].compareDocumentPosition(order[index]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  }
+});
+
 test("DOCUMENT_QA 답변과 공고문 근거(공고명·페이지·문단)를 보여 준다", async () => {
   mockFetch(loggedIn, hasCompany, aiServer({ requestMode: "DOCUMENT_QA", status: "ANSWERED", candidateCount: 1, programs: null, naturalFilter: null,
     answer: "업력 6개월 이상 개인사업자가 대상입니다.",

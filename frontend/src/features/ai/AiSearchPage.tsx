@@ -6,7 +6,20 @@ import { useMyCompany } from "../company/useMyCompany";
 import { AiErrorNotice } from "./AiErrorNotice";
 import { AiQueryResultView } from "./AiQueryResultView";
 import { aiApi } from "./aiApi";
-import { conversationApi } from "./conversationApi";
+import { conversationApi, type Message } from "./conversationApi";
+
+/**
+ * 저장된 메시지(질문·답변이 시간순으로 섞인 목록)를 "질문 + 그 답변" 묶음으로 나눈 뒤 최근 묶음이 위로 오게 뒤집는다.
+ * 묶음 안에서는 질문이 답변보다 위에 남는다. 실패한 질문은 답변 없이 질문만 있는 묶음이 된다.
+ */
+export function newestTurnsFirst(messages: Message[]): Message[] {
+  const turns: Message[][] = [];
+  for (const message of messages) {
+    if (message.role === "USER" || turns.length === 0) turns.push([message]);
+    else turns[turns.length - 1].push(message);
+  }
+  return turns.reverse().flat();
+}
 
 const EXAMPLES = ["소상공인이 받을 수 있는 금융 지원사업 찾아줘", "비즈플러스카드 지원요건 알려줘", "경기도 제조업 수출 지원사업 알려줘"];
 
@@ -56,7 +69,7 @@ export function AiSearchPage() {
     setConversationId(id);
     ask.reset();
   };
-  const history = conversationId !== null ? messages.data ?? [] : [];
+  const history = newestTurnsFirst(conversationId !== null ? messages.data ?? [] : []);
   // 기업정보 확인 전에는 잠금 여부를 모르므로 입력칸을 그리지 않는다(맞춤 추천 화면과 같은 확인 문구).
   if (company.isPending) return <Loading message="기업정보를 확인하고 있습니다." />;
 
@@ -79,6 +92,9 @@ export function AiSearchPage() {
               {ask.isPending ? "찾는 중..." : "찾기"}
             </button>
           </form>
+          <p className="muted small search-time-note">
+            AI가 질문을 해석하고 공고 조건과 공고문 근거를 확인하므로 답변까지 시간이 걸릴 수 있습니다(보통 수십 초, 길면 1분 가까이).
+          </p>
           <div className="examples">
             {EXAMPLES.map((example) => (
               <button key={example} type="button" className="chip" disabled={locked} onClick={() => setText(example)}>{example}</button>
@@ -86,10 +102,21 @@ export function AiSearchPage() {
           </div>
         </div>
 
+        {/* 가장 최근 질문의 진행·오류·결과가 맨 위에 오고, 그 아래로 이전 대화가 최근 순으로 이어진다. */}
+        {ask.isPending && (
+          <Loading message={`"${lastQuestion}" — 공고 조건과 공고문을 확인하고 있습니다. 1분 가까이 걸릴 수 있습니다.`} />
+        )}
+        {ask.isError && <AiErrorNotice error={ask.error} onRetry={() => ask.mutate(lastQuestion)} />}
+        {/* 새 대화의 첫 응답은 메시지 목록을 다시 읽기 전까지 응답 결과로 바로 보여 준다. */}
+        {ask.data && history.every((message) => message.id !== ask.data.assistantMessage.id) && (
+          <AiQueryResultView result={ask.data.result} />
+        )}
+        {messages.isError && <ErrorMessage error={messages.error} />}
         {history.length > 0 && (
           <ol className="messages" aria-label="대화 기록">
-            {history.map((message) => (
-              <li key={message.id} className={`message ${message.role === "USER" ? "from-user" : "from-ai"}`}>
+            {history.map((message, index) => (
+              <li key={message.id}
+                  className={`message ${message.role === "USER" ? "from-user" : "from-ai"}${message.role === "USER" && index > 0 ? " turn-start" : ""}`}>
                 <span className="message-role">{message.role === "USER" ? "나" : "AI"}</span>
                 {message.role === "USER" || !message.result ? (
                   <p className="prewrap">{message.content}</p>
@@ -100,15 +127,6 @@ export function AiSearchPage() {
             ))}
           </ol>
         )}
-        {ask.isPending && (
-          <Loading message={`"${lastQuestion}" — 공고 조건과 공고문을 확인하고 있습니다. 1분 가까이 걸릴 수 있습니다.`} />
-        )}
-        {ask.isError && <AiErrorNotice error={ask.error} onRetry={() => ask.mutate(lastQuestion)} />}
-        {/* 새 대화의 첫 응답은 메시지 목록을 다시 읽기 전까지 응답 결과로 바로 보여 준다. */}
-        {ask.data && history.every((message) => message.id !== ask.data.assistantMessage.id) && (
-          <AiQueryResultView result={ask.data.result} />
-        )}
-        {messages.isError && <ErrorMessage error={messages.error} />}
       </section>
 
       <aside className="ai-side card">

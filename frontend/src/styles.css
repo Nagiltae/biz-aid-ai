@@ -660,6 +660,15 @@ a:focus-visible {
   border-left: 3px solid var(--primary);
 }
 
+/* 최근 순으로 쌓인 질문 묶음 사이를 띄워 어느 답변이 어느 질문의 것인지 구분한다. */
+.message.turn-start {
+  margin-top: 1rem;
+}
+
+.search-time-note {
+  margin: 0.5rem 0 0;
+}
+
 .message-role {
   font-size: 0.78rem;
   font-weight: 700;

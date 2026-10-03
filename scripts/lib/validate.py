@@ -231,6 +231,10 @@ def compose():
                 or environment.get("BIZAID_DOCLING_ARTIFACTS_PATH") != "/models"
                 or backend["environment"].get("AI_BASE_URL") != "http://fastapi:8000"):
             raise ValueError("FastAPI container boundary drift")
+        # nginx가 시작 시점의 backend IP를 계속 쓰지 않도록 backend가 바뀌면 frontend도 다시 시작한다.
+        frontend_backend = result["services"]["frontend"].get("depends_on", {}).get("backend", {})
+        if frontend_backend.get("restart") is not True:
+            raise ValueError("frontend must restart with backend (stale nginx upstream IP)")
 
 
 def setup_check():

@@ -1,5 +1,13 @@
 # Harness 변경 이력
 
+## 2026-10-03 — AI 검색 화면: 대기 안내와 최근 질문 우선 표시
+
+사용자 요청: 검색 입력칸 아래에 "답변까지 시간이 걸릴 수 있다"는 안내를 추가했다. 대화 기록은 "질문 + 답변" 묶음 단위로 최근 묶음이 맨 위에 오게 바꿨다(묶음 안은 질문 → 답변). 진행 중 표시·오류·첫 응답도 기록 위에 둔다. `AiSearchPage.tsx`, `styles.css`, 테스트 1개 추가. 서버 API·저장 순서는 그대로다.
+
+## 2026-10-03 — Compose frontend가 backend와 함께 재시작
+
+IMP-017 적용 중 backend 컨테이너가 새 IP로 다시 만들어진 뒤 nginx가 예전 IP로 보내 로그인이 502가 됐다. `frontend.depends_on.backend.restart: true`로 backend 재시작·재생성 때 frontend도 다시 시작하고, validator에 같은 검사를 추가했다. 규칙 변경 없음.
+
 ## 2026-10-03 — IMP-017 FastAPI Compose 통합(+IMP-005)
 
 사용자 결정: FastAPI를 질문 처리 전용 이미지로 Compose app profile에 넣고 `scripts/dev.sh`로 개발 환경 전체를 다룬다. 파싱·인덱싱은 host.
