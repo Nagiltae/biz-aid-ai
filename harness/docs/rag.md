@@ -20,7 +20,7 @@ CLI는 먼저 `candidates.ProgramCandidateService`로 MySQL 후보 pblanc_id(활
 Eligibility v1(`eligibility/`, [계약](../../contracts/schemas/eligibility.contract.json)): 공고 1개 + 기업 Profile snapshot → 고정 질의로 그 공고만 hybrid top5 →
 LLM criterion(MET·NOT_MET·UNKNOWN, evidence id, profile field) → application 검증·최종 상태(ELIGIBLE·INELIGIBLE·NEEDS_MORE_INFO·INSUFFICIENT_EVIDENCE)·citation.
 
-내부 HTTP API([계약](../../contracts/schemas/internal-api.contract.json)): `scripts/run_api.py`로 127.0.0.1:8000에 띄우며 /internal/v1/query·/internal/v1/eligibility가
+내부 HTTP API([계약](../../contracts/schemas/internal-api.contract.json)): Compose `fastapi` 컨테이너(`scripts/dev.sh up`, 127.0.0.1:8000) 또는 host `scripts/run_api.py`로 띄우며 /internal/v1/query·/internal/v1/eligibility가
 CLI와 같은 `ServiceRuntime`을 호출한다.
 
 V2-0에서 기존 `LlmProvider` 안의 Ollama 호출에 LangChain을 적용했고, V2-3에서 반복·분기가 필요한 맞춤 추천에만 LangGraph를 적용했다. V1 목록/문서 질문 route와 Retriever는 기존 직접 구현을 유지한다. 다음 품질 후보는 provider 비교, 표 직렬화, Reranker이며 같은 기준선으로 필요성을 검증한 뒤 결정한다.

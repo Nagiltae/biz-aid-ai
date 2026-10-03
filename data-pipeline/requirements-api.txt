@@ -1,0 +1,16 @@
+# 질문 처리(FastAPI) 전용 의존성. Docker 이미지(data-pipeline/Dockerfile)가 이것만 설치한다.
+# 파싱 전용(docling-slim·docling-ibm-models·paddle·opencv·python-docx/pptx)은 넣지 않는다. 파이프라인 전체는 requirements.txt.
+# torch·transformers 버전은 embedding_key 입력이라 host 파이프라인 환경과 같게 고정한다(다르면 다른 collection을 찾는다).
+pydantic==2.13.5
+SQLAlchemy==2.0.52
+PyMySQL[rsa]==1.2.3
+docling-core==2.99.0
+qdrant-client==1.19.1
+fastapi==0.142.2
+uvicorn==0.54.0
+langchain-core==1.6.6
+langchain-ollama==1.1.0
+langsmith==0.14.2
+langgraph==1.2.12
+torch==2.14.0
+transformers==5.17.0

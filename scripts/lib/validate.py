@@ -202,11 +202,11 @@ def compose():
         qdrant = result["services"]["qdrant"]
         ports = qdrant.get("ports", [])
         # BOUNDARY: 개발 vector index는 dev profile에서 loopback으로만 열고 인증 없는 Qdrant를 외부에 노출하지 않는다.
-        if (qdrant["profiles"] != ["dev-vector"] or len(ports) != 1 or ports[0].get("host_ip") != "127.0.0.1"
+        if (qdrant["profiles"] != ["dev-vector", "app"] or len(ports) != 1 or ports[0].get("host_ip") != "127.0.0.1"
                 or str(ports[0]["published"]) != "6333" or ports[0]["target"] != 6333):
             raise ValueError("dev Qdrant local boundary drift")
         # BOUNDARY: 서비스 V1(app profile)은 같은 dev MySQL을 쓰고 loopback으로만 연다. React 컨테이너는 Spring만 proxy한다.
-        for name, target in (("backend", 8080), ("frontend", 80)):
+        for name, target in (("backend", 8080), ("frontend", 80), ("fastapi", 8000)):
             service = result["services"].get(name, {})
             ports = service.get("ports", [])
             if (service.get("profiles") != ["app"] or len(ports) != 1 or ports[0].get("host_ip") != "127.0.0.1"
@@ -218,6 +218,19 @@ def compose():
                 or Path(mounts[0]["source"]).resolve() != ROOT / "migrations"
                 or backend["environment"].get("FLYWAY_LOCATIONS") != "filesystem:/migrations"):
             raise ValueError("service V1 backend must use common Flyway migrations and the compose MySQL")
+        # BOUNDARY(IMP-017): FastAPI 컨테이너는 질문 처리 전용이다. 코드·계약·모델을 읽기 전용으로만 붙이고, 데이터는 compose의
+        # MySQL·Qdrant만 쓰며, Ollama는 host를 부른다. Spring은 compose 안에서 이 컨테이너를 부른다.
+        fastapi = result["services"]["fastapi"]
+        environment = fastapi.get("environment", {})
+        mounts = {item["target"]: item for item in fastapi.get("volumes", [])}
+        if (set(mounts) != {"/app/data-pipeline/src", "/app/contracts", "/models"} or not all(item.get("read_only") for item in mounts.values())
+                or Path(mounts["/app/data-pipeline/src"]["source"]).resolve() != ROOT / "data-pipeline/src"
+                or Path(mounts["/app/contracts"]["source"]).resolve() != ROOT / "contracts"
+                or environment.get("MYSQL_HOST") != "mysql" or environment.get("QDRANT_URL") != "http://qdrant:6333"
+                or environment.get("OLLAMA_BASE_URL") != "http://host.docker.internal:11434"
+                or environment.get("BIZAID_DOCLING_ARTIFACTS_PATH") != "/models"
+                or backend["environment"].get("AI_BASE_URL") != "http://fastapi:8000"):
+            raise ValueError("FastAPI container boundary drift")
 
 
 def setup_check():

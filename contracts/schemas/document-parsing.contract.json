@@ -174,6 +174,11 @@
         "provisioning": "explicit step outside test runtime: scripts/provision_docling_artifacts.py provision --allow-network downloads models[].files at resolved_snapshot into a staging folder and moves it only after identity verification; CI restores it from the GitHub Actions cache keyed by artifacts_cache_key",
         "cache_key_schema": 1,
         "expected_manifest_sha256": "280e9f578e2f3a93a4b04b6914c2583a87911a83529aa80176b3321bf4713c88",
+        "expected_scope_manifest_sha256": {
+          "chunking": "8142665c51a478c1e141f20a70ec67037a408a6712d6ab3d14e7a7a328a8698d",
+          "embedding": "0ae1374fd483e7b5084128e588d64df80e7e6c684e1eed575a73492de5ce6d2e"
+        },
+        "scope_verification": "the query server (FastAPI ServiceRuntime) verifies only the chunking (tokenizer) and embedding (BGE-M3 weights) scope files against expected_scope_manifest_sha256 and never hashes or requires the parsing models (IMP-005, 2026-10-03); parsing, chunking and indexing batches keep the full expected_manifest_sha256 check; the scope values are the same scoped manifests that already enter chunk and embedding identity, so no key changes",
         "scope": "Docling layout model, the six PP-TableMagic table models and the two PP-OCRv5 OCR models share one pinned artifacts directory, identity and CI cache; TableFormer weights are not listed",
         "scope_rule": "models without scope are parsing models; parse_key uses the manifest of parsing-scope files only, chunk identity uses the chunking-scope files and embedding identity uses the embedding-scope files, while provisioning, verification and the CI cache cover every listed file"
       },

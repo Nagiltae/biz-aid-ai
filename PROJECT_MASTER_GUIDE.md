@@ -74,7 +74,7 @@
 | 공고 1개 지원 자격 판정 | 완료 |
 | FastAPI 내부 API | 완료 |
 | React + Spring Boot 서비스 V1(로그인·기업정보·지원사업 목록/상세·대화 저장·AI 화면) | 완료 |
-| Spring Boot ↔ FastAPI 실제 연결(AI E2E V1: 화면에서 AI 목록·답변·자격 판정·근거) | 완료(FastAPI는 호스트 실행) |
+| Spring Boot ↔ FastAPI 실제 연결(AI E2E V1: 화면에서 AI 목록·답변·자격 판정·근거) | 완료(2026-10-03부터 FastAPI도 Compose 컨테이너, `scripts/dev.sh up`) |
 | FastAPI Compose 통합, 운영 배포 | **예정** |
 | LangChain(LLM 호출 계층만) | 적용(V2-0) |
 | LangGraph(추천 흐름 단계·분기, State는 MySQL ai_workflows) | 적용(V2-3) |
@@ -180,7 +180,7 @@ Spring Boot ─HttpAiGateway(공유 키)─► FastAPI(위의 질문 처리·자
 
 ### 아직 남은 작업
 
-- FastAPI Compose 통합(IMP-017), 운영 배포
+- 운영 배포(FastAPI Compose 통합은 2026-10-03 완료, IMP-017)
 - 표를 LLM이 읽기 어려운 문제(IMP-002), 다른 LLM provider(Bedrock 등 후보)와 동일 기준선 비교(IMP-003)
 - 전체 지원 형식 2,926개 처리. V1 검증 범위는 100개였고 현재 V2 서비스 범위 2,541개 파싱이 진행 중이다.
 
@@ -269,7 +269,7 @@ React(화면) ─► Spring Boot(서비스 서버) ─► FastAPI(내부 AI 서�
 | --- | --- | --- | --- |
 | React | 사용자 화면 | 사용자는 화면으로 쓴다. FastAPI를 직접 부르지 않는다 | V1 화면 + V2 맞춤 추천 구현(`frontend/`) |
 | Spring Boot | 회원·인증·기업정보·대화·workflow의 원본 관리(Source of Truth), 지원사업 조회, FastAPI 호출 경계 | 서비스 데이터와 인증·요청 사이 State는 AI 서버가 아니라 서비스 서버가 책임진다 | V1 서비스 + V2 workflow 구현(`backend/`), FastAPI 연결(HttpAiGateway) |
-| FastAPI | 내부 AI API와 추천 단계 실행 | Spring Boot가 AI 기능을 HTTP로 부르고, 한 요청에서 workflow 한 단계를 실행한다 | v1·v2 구현, 호스트 실행 |
+| FastAPI | 내부 AI API와 추천 단계 실행 | Spring Boot가 AI 기능을 HTTP로 부르고, 한 요청에서 workflow 한 단계를 실행한다 | v1·v2 구현, Compose 컨테이너(질문 처리 전용 이미지) |
 | Python AI 서비스 | 후보 필터·검색·답변·자격 판정 | 실제 AI 로직 | 구현 |
 | Python 데이터 파이프라인 | 수집·다운로드·파싱·조각·적재 | 요청 처리와 분리된 배치 작업 | 구현 |
 | MySQL(Docker, dev) | 공고 정형 정보, 문서 출처, 파싱 상태, 서비스 데이터(회원·기업·대화) | 정확한 조건 검색 | 구현 |
@@ -1005,7 +1005,7 @@ final_result = {recommended: [...], excluded: [...], unresolved: [...], counts, 
 
 - 브라우저 접근 허용(CORS)은 없다. 내부 API라서다. 사용자 로그인은 없고 서비스 간 공유 키만 확인한다.
 - Spring Boot가 `HttpAiGateway`로 호출한다(§14). `/internal/v1/*`는 공유 키(`X-Internal-Api-Key`)가 필요하고 `/health`는 열려 있다. 배포는 예정이다.
-- 실행: `scripts/run_api.py`(127.0.0.1:8000), 자동 API 문서 `/docs`
+- 실행: `scripts/dev.sh up`의 fastapi 컨테이너(127.0.0.1:8000). host 실행 `scripts/run_api.py`도 가능. 자동 API 문서 `/docs`
 
 
 ### V2-5 React V2 맞춤 추천 화면
@@ -1206,7 +1206,7 @@ docker compose --env-file .env.dev --profile app up --build
 React ──/api/ai/query──────────────► Spring AiQueryService ─ ① 질문(USER) 저장
                                          │
                                          ▼ ② HttpAiGateway ─ POST /internal/v1/query (X-Internal-Api-Key)
-                                      FastAPI(호스트 127.0.0.1:8000) → 조건 추출·MySQL 후보·Qdrant 검색·Qwen
+                                      FastAPI(컨테이너 127.0.0.1:8000) → 조건 추출·MySQL 후보·Qdrant 검색·Qwen
                                          │
                                          ▼ ③ 계약 검증(고치지 않음) → ④ 성공 시에만 AI 답변(ASSISTANT) 저장
 React ◄── {conversationId, userMessage, assistantMessage, result} ──┘
@@ -1257,7 +1257,7 @@ React ◄── {conversationId, userMessage, assistantMessage, result} ──�
 #### 실행 구조
 
 - FastAPI는 컨테이너가 아니라 **호스트에서** 기존 방식(`scripts/run_api.py`, 127.0.0.1:8000)으로 실행한다. Compose의 Spring 컨테이너가 `host.docker.internal:8000`으로 부른다(Docker Desktop은 호스트 loopback 서비스로 연결해 준다는 것을 먼저 확인했다).
-- 이유(사용자 결정): FastAPI 이미지를 만들려면 torch·paddle·docling(수 GB)과 모델 artifact 3.7GB mount, "Qdrant는 loopback 주소만" 규칙 변경이 필요하다. 기능 연결을 인프라 작업이 막지 않도록 호스트 연결로 먼저 완성하고 Compose 통합은 IMP-017로 남겼다.
+- 이유(사용자 결정): FastAPI 이미지를 만들려면 torch·paddle·docling(수 GB)과 모델 artifact 3.7GB mount, "Qdrant는 loopback 주소만" 규칙 변경이 필요하다. 기능 연결을 인프라 작업이 막지 않도록 호스트 연결로 먼저 완성하고 Compose 통합은 IMP-017로 남겼다. (2026-10-03 IMP-017 완료: 질문 처리 전용 이미지·BGE-M3 범위 검증·`http://qdrant:6333` 허용으로 Compose에 넣었다. 16.25 참고)
 - Ollama(Qwen)는 기존 로컬 runtime을 그대로 쓰고 모델을 다시 받거나 이미지에 넣지 않았다.
 
 ### V1 코드 마감 — 구조 정리·환경 분리·활동 기록 (10-01)
@@ -1524,6 +1524,7 @@ com.bizaid
 ### 16.25 FastAPI는 호스트에서 실행, Compose 통합은 뒤로 (사용자 결정)
 - 문제: FastAPI 컨테이너화에는 수 GB 의존성 설치, 3.7GB 모델 mount, Qdrant loopback 규칙 변경이 필요했다.
 - 선택: 호스트 FastAPI + Compose backend가 `host.docker.internal:8000`으로 호출. Compose 통합은 IMP-017.
+- 후속(2026-10-03, IMP-017 해결): FastAPI를 질문 처리 전용 이미지(CPU torch, 파싱 의존성 없음, 1.91GB)로 만들어 Compose app profile에 넣었다. 코드·계약·모델은 읽기 전용 mount, Qdrant는 `http://qdrant:6333`만 추가 허용, Ollama는 host. host와 컨테이너의 검색 순위·API 응답이 같음을 확인했다(`2026-10-03-fastapi-compose-imp017.md`).
 - 결과: 모델·Ollama·Qdrant 정책을 바꾸지 않고 기능 연결을 끝냈다.
 
 ### 16.26 동기 RestClient, 긴 응답 제한시간, 자동 재시도 없음
@@ -2028,7 +2029,7 @@ V2의 모델·Prompt·검색 방식을 바꾼 뒤 좋아졌다고 말하려면, 
 ### 아직 할 수 없거나 전체 검증하지 않은 것
 
 - 기업정보를 반영한 개인화 **순위·점수**. 현재는 기업정보가 후보 필터에만 반영되고 Top 3 순위는 질문 기준이다(IMP-019).
-- FastAPI까지 Compose 한 명령으로 올리기(IMP-017, 지금은 호스트에서 먼저 실행), 운영 배포
+- 운영 배포(FastAPI까지 Compose 한 명령 실행은 2026-10-03 완료: `scripts/dev.sh up`)
 - 전체 지원 형식 2,926개 처리. 현재 V2 서비스 범위 2,541개 파싱이 진행 중이며 전체 Qdrant 적재·전환은 미완료다.
 - ZIP·XLSX 등 305개 파일, 그림·차트 내용 해석
 - 과거 대화 문맥을 이용한 후속 질문. LangChain 호출 경계와 LangGraph 맞춤 추천 workflow 자체는 구현됐다.
@@ -2046,7 +2047,7 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | IMP-002 | 표를 "열, n = 값" 형태로 풀어 써서 검색 순위가 낮고 LLM이 표를 못 읽음(G06). 62개 문서 358 영역은 표 구조 없음 | 표 질문 답변 | V1 이후, provider 변경 뒤에도 실패할 때 |
 | IMP-003 | 로컬 Qwen만 확인. 조건·기간 누락, 과장 해석, 중국어 토큰 혼입, 긴 응답 시간(25~36초) | 답변 품질·속도 | V2 collection 전환·동일 평가 입력 준비 뒤 provider 비교 |
 | IMP-004 | 같은 문서의 개요 조각이 근거 조각보다 앞서는 경우 | 근거 순위 | 더 큰 Gold에서 반복될 때 |
-| IMP-005 | 모델 검증이 전체 3.7GB 단위라 질문만 처리하는 서버도 파싱 모델까지 필요 | 배포 이미지 크기·시작 시간 | 서비스 배포 전 |
+| IMP-005 | 모델 검증이 전체 3.7GB 단위라 질문만 처리하는 서버도 파싱 모델까지 필요 | 배포 이미지 크기·시작 시간 | RESOLVED 2026-10-03(질문 서버는 BGE-M3 범위만 검증) |
 | IMP-006 | 조각 생성이 파싱 환경(Docker·paddle 버전)에서 현재 parse_key를 다시 계산 | 환경 분리 | 전체 적재 전 |
 | IMP-007 | 전체 2,926개는 순차로 수십 시간, 큰 PDF 10분, 메모리 7GB, AWS 세션 만료 | 전체 처리 | 전체 실행 결정 시 |
 | IMP-009 | ZIP·XLSX·OTHER·UNKNOWN 305개 미지원 | 정보 누락 가능 | 해당 형식에만 정보가 있는 사례가 나올 때 |
@@ -2054,7 +2055,7 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | IMP-011 | 신청기간 날짜가 1,554건 중 951건 없음("예산 소진시까지") → "모집 중" 필터가 대부분 판정 불가(67건 중 64건) | "지금 신청 가능" 정확도 | 모집 여부가 제품 요구로 확정될 때 |
 | IMP-015 | Spring 내장 Flyway가 "MySQL 8.4는 검증 안 됨"을 경고(동작은 정상) | migration 도구 호환 | RDS 이전·Spring 업그레이드 때 |
 | IMP-016 | refresh_tokens의 폐기·만료 row를 지우는 정책이 없어 로그인마다 row가 쌓임 | 테이블 크기 | 운영 배포 전 |
-| IMP-017 | FastAPI가 Compose app profile에 없음(호스트에서 먼저 실행) | 한 명령 실행 | 배포 설계 때 |
+| IMP-017 | FastAPI가 Compose app profile에 없음(호스트에서 먼저 실행) | 한 명령 실행 | RESOLVED 2026-10-03(`scripts/dev.sh`) |
 | IMP-018 | V2 collection은 기준일에 종료 전이던 공고로 만든다. 이후 끝난 공고 point는 자동으로 빠지지 않음 | 검색 범위 신선도 | V2 전환 후 주기 갱신 필요 시 |
 | IMP-019 | 개인화 검색에서 기업정보는 후보 필터에만 쓰이고 Top 3 순위에는 반영되지 않음 | 개인화 체감 | V2 collection 전환·cases-v2 뒤 |
 | IMP-021 | ai_workflows 보관·정리 정책 없음, 중단된 단계 점유는 5분 뒤 재점유 | 운영 데이터 관리 | 운영 배포 전 |
@@ -2078,7 +2079,7 @@ Backlog에는 **실제로 관찰했지만 기능 진행을 위해 의도적으�
 | --- | --- |
 | V1 마감 전 해결 | IMP-013(완료) |
 | V2 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019 (IMP-020 해결) |
-| 운영/AWS | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017, IMP-021, IMP-022, IMP-023 |
+| 운영/AWS | IMP-005(RESOLVED), IMP-006, IMP-007, IMP-015, IMP-016, IMP-017(RESOLVED), IMP-021, IMP-022, IMP-023 |
 | 장기 | IMP-009, IMP-010 |
 
 ---
@@ -2364,7 +2365,7 @@ DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았�
 1. **V2 파싱·적재 완료와 검증**: 재개된 2,541개 파싱이 끝난 뒤 순차 batch가 indexing으로 전환했는지 확인하고, 별도 Qdrant indexing의 source·point·provenance 완전성을 검증한다. V1 collection은 건드리지 않으며 인덱싱을 중복 실행하지 않는다.
 2. **V2 collection 전환**: 검증 뒤에만 설정을 V2 collection으로 바꾸고 맞춤 추천 전체 흐름을 확인한다(React V2 화면은 V2-5 완료).
 3. **V2 품질 평가**: V1 기준선 10건과 새 개인화 사례를 사용해 V2 전체 데이터·provider·Prompt·검색 변경 전후를 비교한다(IMP-002·003·004·011·019).
-4. **운영 준비**: FastAPI Compose 통합, workflow 보관, DB COMMENT, LangSmith 범위와 개인정보·보존 정책을 결정한다(IMP-017·021·022·023).
+4. **운영 준비**: workflow 보관(FastAPI Compose 통합은 2026-10-03 완료), DB COMMENT, LangSmith 범위와 개인정보·보존 정책을 결정한다(IMP-017·021·022·023).
 
 ---
 

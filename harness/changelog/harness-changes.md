@@ -1,5 +1,15 @@
 # Harness 변경 이력
 
+## 2026-10-03 — IMP-017 FastAPI Compose 통합(+IMP-005)
+
+사용자 결정: FastAPI를 질문 처리 전용 이미지로 Compose app profile에 넣고 `scripts/dev.sh`로 개발 환경 전체를 다룬다. 파싱·인덱싱은 host.
+**규칙 변경(사용자 결정)**: Qdrant 주소는 loopback에 더해 Compose 서비스 `http://qdrant:6333`만 허용한다(`qdrant_store.qdrant_url`, 계약 `document-indexing.qdrant.server`). 다른 원격 주소는 계속 거부한다.
+**식별값 계산 변경(구현 중 결정, 보고)**: `embedding_identity`의 torch·transformers 버전에서 PEP 440 local label(`+cpu`)을 뺀다(계약 `identity.runtime_version_rule`). 이미지가 CUDA 없는 `torch==2.14.0+cpu`를 써도 기존 embedding_key(`228acdd12220`)가 같다. host 값에는 label이 없어 기존 key 279/279가 그대로다.
+IMP-005: 계약에 `expected_scope_manifest_sha256`(chunking·embedding)을 추가하고, 질문 서버는 BGE-M3 범위만 검증한다(배치는 전체 검증 그대로).
+코드·파일: `requirements-api.txt` 분리(`requirements.txt`가 포함), `data-pipeline/Dockerfile`·`.dockerignore`, `parsing/__init__.py` 지연 import(질문 경로에서 boto3 제거), compose `fastapi` 서비스·qdrant app profile·backend `COMPOSE_AI_BASE_URL`, `scripts/dev.sh`.
+Harness: validator의 compose 경계 검사를 강화했다(fastapi mount 읽기 전용·주소·포트 loopback·backend 주소). Registry에 compose 서비스·실행 파일을 등록했다. IMP-005·IMP-017 RESOLVED.
+검증: host와 컨테이너의 검색 순위(3질문×3모드 상위 10)와 API 응답 body가 같다. 이미지 1.91GB, 비밀값 노출 0.
+
 ## 2026-10-03 — IMP-028 후속: 짧은 안내문 5원본 복원
 
 삭제한 45원본 중 공고 본문 성격의 짧은 안내문 5원본(60 point)을 보관된 파싱 결과로 재적재(재파싱 없음). 복원 point 60/60이 삭제 전과 같은 ID·hash. 기존 point·V1 변경 0. V2 2,776원본·64,041 point. 제외 목록 40·재적재 목록 130 갱신. 보고서의 "10 point 이하 14개"를 12개로 정정. 규칙 변경 없음.

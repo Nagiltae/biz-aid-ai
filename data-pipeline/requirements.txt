@@ -1,6 +1,5 @@
-pydantic==2.13.5
-SQLAlchemy==2.0.52
-PyMySQL[rsa]==1.2.3
+# 파이프라인 전체(수집·파싱·청킹·인덱싱·질문 처리). 질문 처리 의존성은 requirements-api.txt에서 함께 설치한다.
+-r requirements-api.txt
 boto3[crt]==1.43.103
 docling-core[chunking]==2.99.0
 defusedxml==0.7.1
@@ -12,10 +11,3 @@ docling-ibm-models[opencv-python-headless]==4.0.3
 opencv-python-headless==4.10.0.84
 paddlepaddle==3.3.1
 paddlex[ocr]==3.7.2
-qdrant-client==1.19.1
-fastapi==0.142.2
-uvicorn==0.54.0
-langchain-core==1.6.6
-langchain-ollama==1.1.0
-langsmith==0.14.2
-langgraph==1.2.12

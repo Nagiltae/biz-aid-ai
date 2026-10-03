@@ -35,7 +35,9 @@ class ServiceRuntime:
                 from biz_aid_pipeline.indexing.embedder import BgeM3Embedder, indexing_contract
                 from biz_aid_pipeline.retrieval.retriever import Retriever
                 contract = indexing_contract()
-                self._retriever = Retriever(BgeM3Embedder(contract), self.qdrant, contract, namespace=self.collection_namespace)
+                # 질문 서버는 BGE-M3 범위 모델만 검증한다(IMP-005). 파싱 모델이 없는 컨테이너에서도 같은 embedding_key를 쓴다.
+                self._retriever = Retriever(BgeM3Embedder(contract, scope_only=True), self.qdrant, contract,
+                                            namespace=self.collection_namespace)
             return self._retriever
 
     def answer_query(self, query, as_of=None, manual_filter=None):

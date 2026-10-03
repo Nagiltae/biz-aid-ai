@@ -51,10 +51,11 @@
       "transformers_version"
     ],
     "embedding_config_sha256": "SHA-256 of the embedding section of this contract",
-    "rule": "a model, revision, artifact, inference setting or runtime version change yields a new embedding_key and therefore a new collection; vectors of different embedding keys never share a collection"
+    "rule": "a model, revision, artifact, inference setting or runtime version change yields a new embedding_key and therefore a new collection; vectors of different embedding keys never share a collection",
+    "runtime_version_rule": "torch_version and transformers_version are public PEP 440 versions: a local label such as +cpu is dropped (2026-10-03, IMP-017) because the query container installs the CPU-only torch build of the same release; the host pipeline versions carry no label so existing embedding keys do not change"
   },
   "qdrant": {
-    "server": "dev Compose service qdrant (qdrant/qdrant:v1.19.1) on 127.0.0.1:6333; QDRANT_URL may override but only a loopback host is accepted",
+    "server": "dev Compose service qdrant (qdrant/qdrant:v1.19.1) on 127.0.0.1:6333; QDRANT_URL may override but only a loopback host or, inside Compose, exactly http://qdrant:6333 (2026-10-03 user decision, IMP-017) is accepted; every other host is qdrant_url_not_loopback",
     "client": "qdrant-client==1.19.1",
     "profile": "dev only",
     "schema_version": 1,

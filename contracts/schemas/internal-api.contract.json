@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "scope": "internal HTTP interface for the service layer (Spring Boot); dev, loopback, no browser clients, no CORS; /internal/v1/* requires the shared service key",
+  "scope": "internal HTTP interface for the service layer (Spring Boot); dev, loopback, no browser clients, no CORS; /internal/v1/* requires the shared service key; the dev server runs as the Compose service fastapi (published only on 127.0.0.1:8000, called by the Compose backend as http://fastapi:8000) or on the host via scripts/run_api.py",
   "server": "scripts/run_api.py → uvicorn biz_aid_pipeline.api.app:app on 127.0.0.1:8000 (BIZAID_API_PORT), one worker",
   "auth": {
     "header": "X-Internal-Api-Key",

@@ -91,20 +91,22 @@ def pipeline_identity(contract):
 
 
 def artifact_files(contract, scope=None):
-    """Contract의 모델 파일 목록. scope를 주면 그 단계(parsing / chunking)가 쓰는 모델만 고른다."""
+    """Contract의 모델 파일 목록. scope(문자열 또는 묶음)를 주면 그 단계(parsing / chunking / embedding)가 쓰는 모델만 고른다."""
     spec = contract["dependencies"]["docling"]["model_artifacts"]
+    scopes = None if scope is None else {scope} if isinstance(scope, str) else set(scope)
     return tuple((model["folder"], name) for model in spec["models"]
-                 if scope is None or model.get("scope", "parsing") == scope for name in model["files"])
+                 if scopes is None or model.get("scope", "parsing") in scopes for name in model["files"])
 
 
-def docling_artifacts_path(contract, environ=None):
+def docling_artifacts_path(contract, environ=None, scope=None):
     # BOUNDARY: test·실행 중 모델 자동 다운로드를 막기 위해 미리 준비한 명시적 경로만 쓰고 없으면 변환 전에 멈춘다.
+    # scope를 주면 그 단계 모델 파일만 있어도 된다(질문 서버). 기본값은 전체 목록이다.
     spec = contract["dependencies"]["docling"]["model_artifacts"]
     value = (os.environ if environ is None else environ).get(spec["artifacts_path_env"], "").strip()
     if not value:
         raise PipelineError("docling_artifacts_path_required:" + spec["artifacts_path_env"])
     path = Path(value).expanduser().resolve()
-    missing = [f"{folder}/{name}" for folder, name in artifact_files(contract) if not (path / folder / name).is_file()]
+    missing = [f"{folder}/{name}" for folder, name in artifact_files(contract, scope) if not (path / folder / name).is_file()]
     if missing:
         raise PipelineError("docling_artifacts_missing:" + ",".join(missing))
     return path
@@ -134,6 +136,20 @@ def scoped_artifacts_sha256(contract, scope):
     # WHY: 같은 artifact 경로에 chunking tokenizer를 추가해도 parse_key가 바뀌지 않게 identity를 단계별로 나눈다.
     model_artifacts_sha256(contract)
     return artifacts_manifest_sha256(str(docling_artifacts_path(contract)), artifact_files(contract, scope))
+
+
+def verified_scope_artifacts_sha256(contract, scope, environ=None):
+    """질문 서버용: 한 단계(scope) 모델 파일만 있는지 보고 그 manifest가 계약의 단계별 기대값과 같은지 확인한다.
+
+    WHY(IMP-005): 질문 처리는 BGE-M3 tokenizer·가중치만 쓴다. 파싱 모델까지 전체 hash하면 시작이 느리고 컨테이너에 쓰지 않는 모델이 필요하다.
+    돌려주는 값은 scoped_artifacts_sha256과 같은 단계별 manifest라 chunk·embedding identity는 바뀌지 않는다.
+    """
+    path = docling_artifacts_path(contract, environ, scope)
+    actual = artifacts_manifest_sha256(str(path), artifact_files(contract, scope))
+    # RISK: 단계별 기대값이 없으면 가중치를 검증하지 못한 채 실행하게 되므로 실패한다.
+    if actual != contract["dependencies"]["docling"]["model_artifacts"]["expected_scope_manifest_sha256"].get(scope):
+        raise PipelineError("docling_artifacts_scope_identity_mismatch:" + scope)
+    return actual
 
 
 def artifacts_cache_key(contract):

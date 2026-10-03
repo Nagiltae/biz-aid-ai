@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
 | V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025, IMP-026, IMP-027, IMP-028 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
-| 운영/AWS 단계 | IMP-005, IMP-006, IMP-007, IMP-015, IMP-016, IMP-017, IMP-021, IMP-022, IMP-023 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
+| 운영/AWS 단계 | IMP-005(RESOLVED), IMP-006, IMP-007, IMP-015, IMP-016, IMP-017(RESOLVED), IMP-021, IMP-022, IMP-023 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
 | 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
 
 ## IMP-001 chunk에 문서 제목·사업명 context 없음
@@ -79,7 +79,8 @@
 - Why deferred: 지금은 한 dev 머신에서 모든 단계를 실행하고, 서비스 container가 없다.
 - Revisit trigger: RAG를 FastAPI 등 별도 서비스·container로 배포할 때
 - Side effect: scope별 검증 경로나 파일 digest cache를 도입하더라도 parse_key·chunk·embedding identity 계산은 바뀌면 안 된다.
-- Status: OPEN
+- Resolution(2026-10-03, IMP-017과 함께): 계약 `model_artifacts.expected_scope_manifest_sha256`(chunking·embedding)을 추가하고, 질문 서버(ServiceRuntime의 BGE-M3)는 그 두 범위 파일만 검증한다(`verified_scope_artifacts_sha256`, `BgeM3Embedder(scope_only=True)`). 파싱 모델이 없어도 동작하며 전체 3.7GB를 hash하지 않는다(범위 검증 1.4초). 파싱·청킹·인덱싱 배치는 전체 manifest 검증 그대로다. embedding_key는 같다(테스트·실측 `228acdd12220`). 기록 `2026-10-03-fastapi-compose-imp017.md`.
+- Status: RESOLVED
 
 ## IMP-006 현재 parse_key를 실행 환경에서 다시 계산
 
@@ -225,7 +226,8 @@
 - Why deferred: 핵심 목표(Spring ↔ FastAPI 기능 연결)를 인프라 변경이 막지 않게 하고, Qdrant·모델 정책 변경은 따로 검토가 필요하다.
 - Revisit trigger: 배포 환경 설계(AWS) 또는 한 명령 실행이 필요할 때
 - Side effect: 컨테이너 안 Qdrant 주소(qdrant:6333) 허용은 기존 loopback 경계 규칙 변경이라 사용자 승인이 필요하다. 모델 artifact identity(해시)는 mount만 하고 바꾸지 않아야 한다.
-- Status: OPEN
+- Resolution(2026-10-03, 사용자 결정): FastAPI를 질문 처리 전용 이미지(`data-pipeline/Dockerfile`, `requirements-api.txt`, CPU torch 2.14.0, 파싱 의존성 없음, 1.91GB)로 만들어 Compose app profile의 `fastapi`로 넣었다. 코드·계약·모델 artifact는 읽기 전용 mount, `uvicorn --reload`로 코드 변경 시 자동 재시작, Qdrant는 `http://qdrant:6333`만 추가 허용(규칙 변경), Ollama는 host, Spring은 `http://fastapi:8000`. 조작은 `scripts/dev.sh`. host와 컨테이너의 검색 순위(3질문×3모드 상위 10)와 API 응답(3질문 전체 body)이 같다. 기록 `2026-10-03-fastapi-compose-imp017.md`.
+- Status: RESOLVED
 
 ## IMP-018 V2 서비스 collection의 기준일 이후 종료 공고 정리
 

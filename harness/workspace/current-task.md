@@ -1,27 +1,32 @@
-# Current Task — 미지원 첨부 형식 4단계: 일반 ZIP
+# Current Task — IMP-017 FastAPI Compose 통합(+IMP-005)
 
 ## Goal / Context
 
-2026-10-02 사용자 요청: 일반 ZIP 첨부의 내부 파일을 각각 문서로 펼친다(깊이 1). 구현·미리보기 → V10 적용·S3 저장·표본 파싱·판정 확인 → (2026-10-03 승인) 범위 B 전체 파싱·인덱싱 → IMP-028 a(참고자료 45원본 point 삭제) → 짧은 안내문 5원본 복원까지 했다.
-사용자 결정: 내부 파일 표 신설(migration, 한국어 COMMENT), data-source-rules ZIP 조항 변경, 압축 안 압축은 상태만, 이름은 UTF-8 플래그 없으면 CP949(실패 시 원래 byte), 내부 파일은 원본과 같은 S3 prefix·SHA key(덮어쓰기 금지), 공고 relation은 압축에서 상속, 처리 제외(Thumbs.db·빈·자리표시 txt·압축 안 압축·HWPML·XLSX·DOC·XLS·PPT)는 상태만, 단독 첨부와 같은 SHA는 연결만, 실제 PDF인 `.ai`는 PDF route, 파싱은 기존 route 그대로, document_role은 내부 파일명 기준.
-근거: `2026-10-02-office-stage3.md`, `2026-10-02-imp009-unsupported-formats.md` §2, `2026-10-02-unsupported-formats-foundation.md`.
-FORM 원본 파싱·적재, 기존 point 변경·재적재·payload 수정, 변환 이미지 수정, natural.py·router 판단 로직 수정, `.env.dev`, V1 collection·baseline, commit/push는 범위가 아니다.
+2026-10-03 사용자 요청: FastAPI를 Docker 이미지로 만들어 기존 Compose에 넣고 명령 하나(`scripts/dev.sh`)로 개발 환경 전체를 올리고 내린다. 데이터(MySQL·Qdrant·S3)는 바꾸지 않는다.
+사용자 결정:
+1. 이미지는 질문 처리 전용이다. requirements를 질문 처리용(`requirements-api.txt`)과 파이프라인 전체용(`requirements.txt`, 앞 파일 포함)으로 나누고, 파싱·인덱싱 배치는 host에서 실행한다.
+2. 모델 artifact는 host 폴더를 읽기 전용 mount하고, 질문 서버는 BGE-M3 범위만 검증한다(IMP-005).
+3. Qdrant 주소는 loopback에 `http://qdrant:6333`만 추가 허용한다(규칙 변경).
+4. Ollama는 host(`host.docker.internal:11434`)를 쓴다.
+5. 개발 모드는 소스 읽기 전용 mount + `uvicorn --reload`이고, 의존성을 바꿨을 때만 재빌드한다.
+6. `scripts/dev.sh`로 up / down / restart / logs / status / build를 제공한다.
+Ollama 컨테이너화, 파싱 의존성을 이미지에 넣기, Qdrant·MySQL 데이터 변경, 재파싱·재적재, V1 collection·baseline, `.env.dev` 읽기·수정, commit/push는 범위가 아니다.
 
 ## Next Steps
 
-미리보기 → V10 적용 + S3 저장 + 표본 파싱(완료) → 범위 B 전체 파싱·인덱싱(완료) → IMP-028 a 삭제(완료, 재발 방지 미정) → 5 화면 완주 + cases-v2 기준점(IMP-024·025) → 6 XLSX(IMP-009 결정으로 의도적 제외 상태) → 7 옛 오피스(ODT 포함).
+검토 → 5 화면 완주 + cases-v2 기준점(IMP-024·025·IMP-028 재발 방지 포함) → 6 XLSX(의도적 제외 상태) → 7 옛 오피스. 운영 배포 이미지(코드 포함·reload 없음)는 AWS 설계 때 정한다.
 
 ## Read First
 
-[AGENTS](../../AGENTS.md) → [Source 규칙](../rules/data-source-rules.md)(일반 ZIP) → [DB 규칙](../rules/database-rules.md) → `contracts/schemas/document-parsing.contract.json`(routes.ZIP·generic_zip) → `migrations/V10__document_archive_members.sql` → [Backlog](../docs/improvement-backlog.md)(IMP-009·026).
+[AGENTS](../../AGENTS.md) → [Architecture](../docs/architecture.md) → `docker-compose.yml`·`data-pipeline/Dockerfile`·`scripts/dev.sh` → [Backlog](../docs/improvement-backlog.md)(IMP-005·017).
 
 ## Scope / Acceptance
 
-1. V10은 승인 뒤 공통 `migrations/`에서 dev·test에 적용했고 Spring backend Flyway validate가 통과한다.
-2. 기존 PDF·HWP·HWPX·IMAGE_OCR·DOCX·PPTX 원본의 parse_key·chunk_set_key·embedding_key가 그대로다.
-3. 범위 B: FORM이 아닌 내부 파일만 적재하고 기존 V2·V1 point hash가 그대로다. document_role 규칙 개정은 식별값을 바꾸지 않는다.
+1. 컨테이너 FastAPI의 /health·내부 키 인증·질문 결과가 host 실행과 같다. 같은 질문 3개의 상위 검색 순위를 비교해 보고한다.
+2. 기존 원본의 parse_key·chunk_set_key·embedding_key가 그대로이고 컨테이너도 같은 V2 collection(embedding_key `228acdd12220`)을 읽는다.
+3. 비밀값은 이미지·로그에 남지 않고 컨테이너에는 필요한 설정만 전달한다.
 AGY 독립 Review / 사용자 검토는 pending이다.
 
 ## Validation / Reports
 
-[Final Report](reports/development/2026-10-02-generic-zip-stage4.md). 마지막에 `./scripts/check-all.sh`를 1회 실행한다.
+[Final Report](reports/development/2026-10-03-fastapi-compose-imp017.md). 마지막에 `./scripts/check-all.sh`를 1회 실행한다.

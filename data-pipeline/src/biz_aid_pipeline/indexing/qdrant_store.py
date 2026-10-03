@@ -7,6 +7,8 @@ from biz_aid_pipeline.config.settings import ROOT, PipelineError, profile_values
 
 DEFAULT_URL = "http://127.0.0.1:6333"
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+# 2026-10-03 사용자 결정(IMP-017): Compose 안의 FastAPI가 같은 dev Qdrant를 서비스 이름으로 부르는 주소 하나만 더 허용한다.
+COMPOSE_QDRANT_URL = "http://qdrant:6333"
 
 
 def qdrant_url(profile, root=ROOT, environ=None):
@@ -14,9 +16,9 @@ def qdrant_url(profile, root=ROOT, environ=None):
     if profile != "dev":
         raise PipelineError("indexing_requires_dev_profile")
     url = profile_values(root, profile, {"QDRANT_URL"}, os.environ if environ is None else environ).get("QDRANT_URL") or DEFAULT_URL
-    if urlparse(url).hostname not in LOOPBACK:
+    if urlparse(url).hostname not in LOOPBACK and url.rstrip("/") != COMPOSE_QDRANT_URL:
         raise PipelineError("qdrant_url_not_loopback")
-    return url
+    return url.rstrip("/") if url.rstrip("/") == COMPOSE_QDRANT_URL else url
 
 
 NAMESPACE_PATTERN = re.compile(r"^[a-z][a-z0-9]{0,15}$")

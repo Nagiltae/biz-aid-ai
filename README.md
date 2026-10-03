@@ -156,16 +156,25 @@ python3.11 -m venv .venv
 export BIZAID_DOCLING_ARTIFACTS_PATH="$HOME/.cache/biz-aid/docling-artifacts"
 
 ./scripts/setup.sh
-docker compose --env-file .env.dev --profile dev-vector up -d qdrant
-.venv/bin/python -B scripts/run_api.py
-docker compose --env-file .env.dev --profile app up --build
-
 ./scripts/check-all.sh
+```
+
+개발 환경(MySQL·Qdrant·FastAPI·Spring·React)은 명령 하나로 다룹니다. Ollama는 host에서 따로 실행합니다(`ollama serve`).
+
+```bash
+scripts/dev.sh up                 # 전체 시작(이미지가 없을 때만 빌드)
+scripts/dev.sh status             # 상태
+scripts/dev.sh logs fastapi       # 로그(mysql·qdrant·fastapi·backend·frontend)
+scripts/dev.sh restart backend    # 서비스 다시 시작
+scripts/dev.sh build fastapi      # 의존성을 바꿨을 때만 다시 빌드
+scripts/dev.sh down               # 전체 중지(데이터 volume은 지우지 않음)
 ```
 
 - Frontend: `http://127.0.0.1:3000`
 - Spring Boot: `http://127.0.0.1:8080`
-- FastAPI: 호스트 `127.0.0.1:8000`에서 별도 실행
+- FastAPI: `http://127.0.0.1:8000`(컨테이너, 질문 처리 전용 이미지). `data-pipeline/src`를 읽기 전용으로 붙여 코드가 바뀌면 자동으로 다시 시작합니다
+- 모델은 `BIZAID_DOCLING_ARTIFACTS_PATH`(기본 `~/.cache/biz-aid/docling-artifacts`)를 읽기 전용으로 붙입니다
+- 파싱·인덱싱 배치는 지금처럼 host의 `.venv`(`data-pipeline/requirements.txt`)에서 실행합니다
 
 ## 문서 안내
 

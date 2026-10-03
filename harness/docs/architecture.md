@@ -10,7 +10,7 @@
 | 대상 | 설계상 책임 | 현재 상태 |
 | --- | --- | --- |
 | React | UI, 서버 상태 캐시(TanStack Query), 로그인 사용자 상태 | V1 화면과 V2 맞춤 추천(`/recommend`) 구현. 서버 `nextAction`만 따라 단계 진행·복원하며 Spring만 호출 |
-| Spring Boot | 인증·기업정보·대화·추천 State Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | JWT·기업정보·지원사업·대화·활동 기록과 `ai_workflows` JSON 저장·동시 진행 제어. `HttpAiGateway`로 호스트 FastAPI 연결 |
+| Spring Boot | 인증·기업정보·대화·추천 State Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | JWT·기업정보·지원사업·대화·활동 기록과 `ai_workflows` JSON 저장·동시 진행 제어. `HttpAiGateway`로 FastAPI 연결(Compose 안에서는 `http://fastapi:8000`) |
 | FastAPI | 질문 구조화·검색·비교·답변·Citation 검증·추천 단계 실행 | 내부 API v1과 V2 개인화 검색·Top 3 판정·LangGraph workflow 구현. 회원·기업 State를 소유하지 않음 |
 | MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | 공고·문서·parse(V1~V5), 회원·기업·대화·AI 결과·활동·workflow(V6~V9), 일반 ZIP 내부 파일(V10) 구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | V1 기준선 collection 동결. V2 서비스 범위 별도 collection은 3문서 Smoke 후 전체 파싱·적재 진행 중 |
@@ -19,16 +19,17 @@
 | Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
 
 React는 Spring Boot를 통해 AI를 호출한다. Frontend는 DB에 접근하지 않는다.
-Spring Boot → FastAPI는 연결됐다. FastAPI는 컨테이너가 아니라 호스트에서 `scripts/run_api.py`(127.0.0.1:8000)로 실행하고 Compose의 backend가 `host.docker.internal:8000`으로 호출한다(FastAPI Compose 통합은 IMP-017).
+Spring Boot → FastAPI는 연결됐다. 2026-10-03(IMP-017)부터 FastAPI는 Compose `app` profile의 `fastapi` 컨테이너(127.0.0.1:8000)이고 Compose의 backend가 `http://fastapi:8000`으로 호출한다. host 실행(`scripts/run_api.py`)도 남아 있다.
 FastAPI는 서비스 DB의 소유자가 아니다. 정확한 조건은 일반 코드와 MySQL이 결정한다.
 MySQL 활성 공고 후보 pblanc_id로 Qdrant 검색 범위를 제한하며 후보 밖 결과는 Retriever와 application 검증에서 거부한다.
 
 ## 현재 실행 구성
 
-`docker-compose.yml`은 `phase0`, 승인된 dev-db Profile의 MySQL / Flyway, dev-vector Profile의 loopback Qdrant를 제공한다.
-`app` Profile은 같은 dev MySQL(volume 재사용) + backend(Spring, 127.0.0.1:8080) + frontend(nginx, 127.0.0.1:3000)를 올린다.
-실행: `docker compose --env-file .env.dev --profile app up --build`. backend 컨테이너만 `MYSQL_HOST=mysql`, `MYSQL_PORT=3306`을 쓴다.
-ai 컨테이너는 없다. FastAPI는 Compose 서비스가 아니며 호스트에서 먼저 띄운다(Ollama·BGE-M3 artifact·Qdrant 정책 유지, IMP-017). 제품 Pipeline은 `data-pipeline/`이다.
+`docker-compose.yml`은 `phase0`, 승인된 dev-db Profile의 MySQL / Flyway, dev-vector·app Profile의 loopback Qdrant를 제공한다.
+`app` Profile은 같은 dev MySQL(volume 재사용) + Qdrant(같은 volume) + fastapi(127.0.0.1:8000) + backend(Spring, 127.0.0.1:8080) + frontend(nginx, 127.0.0.1:3000)를 올린다.
+실행: `scripts/dev.sh up|down|restart|logs|status|build`(내부는 `docker compose --env-file .env.dev --profile app`). 컨테이너는 `MYSQL_HOST=mysql`, FastAPI는 `QDRANT_URL=http://qdrant:6333`을 쓴다.
+fastapi는 질문 처리 전용 이미지(`data-pipeline/Dockerfile`, `requirements-api.txt`, CPU torch)다. 코드·계약·모델 artifact는 읽기 전용 mount이고 질문 서버는 BGE-M3 범위 모델만 검증한다(IMP-005). Ollama는 host(`host.docker.internal:11434`)다.
+파싱·청킹·인덱싱 배치는 host `.venv`(`requirements.txt`)에서 실행한다. 제품 Pipeline은 `data-pipeline/`이다.
 Docker Compose는 개발환경 기준이며 운영 인프라는 미결정이다.
 MongoDB·Langfuse는 도입하지 않는다. LangSmith는 V2 workflow의 선택적·개인정보 제외 추적에만 사용한다([observability.md](observability.md)).
 Phase 2.5에서 문서 binary의 영구 저장소는 고정 dev S3이고 MySQL은 provenance와 검증 metadata를 소유한다.
@@ -93,5 +94,5 @@ parsing(S3 원본 → DoclingDocument, S3 + V5 row) ← chunking(현재 parse_ke
 | MySQL | 공고(pblanc_id)·source relation·parse 상태·identity·artifact pointer | Flyway schema, 데이터는 Pipeline |
 | Qdrant | FinalChunk point(id=chunk_id, dense+sparse, payload=FinalChunk.payload) | S3 parsed artifact + V5 row에서 다시 만들 수 있는 파생 index |
 
-MySQL과 Qdrant는 `pblanc_id`·`source_sha256`으로만 연결한다. collection은 embedding_key별이고 dev loopback Compose Qdrant만 쓴다.
+MySQL과 Qdrant는 `pblanc_id`·`source_sha256`으로만 연결한다. collection은 embedding_key별이고 dev Compose Qdrant만 쓴다(host는 loopback, Compose 안의 FastAPI는 `http://qdrant:6333`만 허용).
 `retrieval/`은 같은 embedder로 query를 만들어 현재 embedding_key collection을 읽기만 한다(dense·sparse·RRF hybrid). `candidates/`가 MySQL 후보를 만들고 RAG가 그 pblanc_id 범위 안에서만 검색한다. [AI 경계](../rules/ai-boundary-rules.md)와 [파일 경계](../rules/file-boundaries.md)를 따른다.

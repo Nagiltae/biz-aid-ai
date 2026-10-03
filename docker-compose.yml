@@ -51,7 +51,7 @@ services:
     command: ["validate"]
   qdrant:
     image: qdrant/qdrant:v1.19.1
-    profiles: [dev-vector]
+    profiles: [dev-vector, app]
     ports:
       - "127.0.0.1:6333:6333"
     volumes:
@@ -73,7 +73,8 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
       JWT_SECRET: ${JWT_SECRET:-}
       FLYWAY_LOCATIONS: filesystem:/migrations
-      AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:8000}
+      # compose 안에서는 FastAPI 컨테이너를 부른다. host FastAPI를 쓰려면 COMPOSE_AI_BASE_URL=http://host.docker.internal:8000.
+      AI_BASE_URL: ${COMPOSE_AI_BASE_URL:-http://fastapi:8000}
       AI_CONNECT_TIMEOUT: ${AI_CONNECT_TIMEOUT:-3s}
       AI_RESPONSE_TIMEOUT: ${AI_RESPONSE_TIMEOUT:-90s}
       INTERNAL_AI_API_KEY: ${INTERNAL_AI_API_KEY:-}
@@ -81,6 +82,44 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./migrations:/migrations:ro
+  fastapi:
+    # 질문 처리 전용 이미지(IMP-017). 코드·계약·모델은 읽기 전용 mount, 코드가 바뀌면 uvicorn --reload가 다시 시작한다.
+    build: ./data-pipeline
+    profiles: [app]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8000:8000"
+    # .env.dev 전체를 넘기지 않고 질문 처리에 필요한 값만 넘긴다. 주소는 컨테이너 네트워크 기준으로 고정한다.
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-biz_aid_dev}
+      MYSQL_USER: ${MYSQL_USER:-biz_aid}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION_NAMESPACE: ${QDRANT_COLLECTION_NAMESPACE:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-300}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-10m}
+      INTERNAL_AI_API_KEY: ${INTERNAL_AI_API_KEY:-}
+      BIZAID_TRACING_ENABLED: ${BIZAID_TRACING_ENABLED:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-}
+      BIZAID_DOCLING_ARTIFACTS_PATH: /models
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data-pipeline/src:/app/data-pipeline/src:ro
+      - ./contracts:/app/contracts:ro
+      # 모델은 이미지에 넣지 않고 host artifact 폴더를 읽기 전용으로 붙인다. 질문 서버는 BGE-M3 범위만 검증한다(IMP-005).
+      - ${BIZAID_DOCLING_ARTIFACTS_PATH:-${HOME}/.cache/biz-aid/docling-artifacts}:/models:ro
   frontend:
     build: ./frontend
     profiles: [app]

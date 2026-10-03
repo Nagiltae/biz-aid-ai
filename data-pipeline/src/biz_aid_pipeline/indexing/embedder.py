@@ -6,7 +6,8 @@ from functools import lru_cache
 
 from biz_aid_pipeline.chunking.chunker import canonical_sha256
 from biz_aid_pipeline.config.settings import ROOT, PipelineError, read_json
-from biz_aid_pipeline.parsing.models import docling_artifacts_path, installed_version, parsing_contract, scoped_artifacts_sha256
+from biz_aid_pipeline.parsing.models import (docling_artifacts_path, installed_version, parsing_contract, scoped_artifacts_sha256,
+                                             verified_scope_artifacts_sha256)
 
 CONTRACT_PATH = ROOT / "contracts/schemas/document-indexing.contract.json"
 
@@ -15,20 +16,32 @@ def indexing_contract(path=CONTRACT_PATH):
     return read_json(path)
 
 
-def embedding_identity(contract, parse_contract=None):
+def embedding_identity(contract, parse_contract=None, scope_only=False):
     """embedding 결과에 영향을 주는 모델·artifact·설정·runtime 버전. 바뀌면 새 embedding_key와 새 collection이다.
 
     embedding_key는 vector 공간의 identity라 parse_key·chunk_set_key를 넣지 않는다. 그 변화는 chunk_id로 point 단위에서 드러난다.
+    scope_only(질문 서버)는 BGE-M3 tokenizer·가중치 파일만 단계별 기대값으로 검증한다. 계산되는 값과 embedding_key는 같다.
     """
     parse_contract = parse_contract or parsing_contract()
     spec = contract["embedding"]
+    scoped = verified_scope_artifacts_sha256 if scope_only else scoped_artifacts_sha256
     identity = {"model_repo_id": spec["model_repo_id"], "model_revision": spec["model_revision"],
                 "embedding_version": spec["embedding_version"], "embedding_config_sha256": canonical_sha256(spec),
-                "embedding_artifacts_sha256": scoped_artifacts_sha256(parse_contract, spec["weights_artifact_scope"]),
-                "tokenizer_artifacts_sha256": scoped_artifacts_sha256(parse_contract, "chunking"),
-                "torch_version": installed_version("torch"), "transformers_version": installed_version("transformers")}
+                "embedding_artifacts_sha256": scoped(parse_contract, spec["weights_artifact_scope"]),
+                "tokenizer_artifacts_sha256": scoped(parse_contract, "chunking"),
+                "torch_version": public_version(installed_version("torch")),
+                "transformers_version": public_version(installed_version("transformers"))}
     selected = {name: identity[name] for name in contract["identity"]["embedding_key_inputs"]}
     return dict(selected, embedding_key=canonical_sha256(selected))
+
+
+def public_version(version):
+    """PEP 440 local label(+cpu 등)을 뺀 공개 버전. 같은 소스·같은 버전의 CPU 전용 build를 같은 runtime으로 본다.
+
+    WHY(IMP-017): 질문 컨테이너는 CUDA 라이브러리가 없는 CPU 전용 torch(2.14.0+cpu)를 쓴다. CPU 추론 코드는 PyPI build와 같고,
+    label을 그대로 넣으면 embedding_key가 달라져 이미 적재한 collection을 찾지 못한다. host 값(label 없음)은 그대로다.
+    """
+    return version.split("+", 1)[0] if version else version
 
 
 def sparse_vector(token_ids, weights, mask, excluded):
@@ -56,12 +69,12 @@ def _model(weights_path, tokenizer_path, dtype):
 
 
 class BgeM3Embedder:
-    def __init__(self, contract=None, parse_contract=None):
+    def __init__(self, contract=None, parse_contract=None, scope_only=False):
         self.contract = contract or indexing_contract()
         parse_contract = parse_contract or parsing_contract()
         spec = self.contract["embedding"]
-        self.identity = embedding_identity(self.contract, parse_contract)
-        root = docling_artifacts_path(parse_contract)
+        self.identity = embedding_identity(self.contract, parse_contract, scope_only)
+        root = docling_artifacts_path(parse_contract, scope=(spec["weights_artifact_scope"], "chunking") if scope_only else None)
         self.spec = spec
         self.tokenizer, self.model, self.sparse = _model(str(root / spec["weights_artifact_folder"]),
                                                          str(root / spec["tokenizer_artifact_folder"]), spec["dtype"])

@@ -174,8 +174,12 @@ RAG 답변: `scripts/run_rag_answer.py --profile dev --query "..." [--category �
 자연어 조건: `scripts/run_rag_answer.py --profile dev --natural-filter [--as-of 2026-09-30] --query "..."` (수동 필터와 함께 쓸 수 없음)
 단일 공고 자격 판단: `scripts/run_eligibility.py --profile dev --pblanc-id <id> --company-profile company.json [--as-of YYYY-MM-DD]` (Profile JSON은 저장하지 않음)
 
-내부 AI API: `BIZAID_DOCLING_ARTIFACTS_PATH=... OLLAMA_MODEL=qwen3.5:9b .venv/bin/python -B scripts/run_api.py` → `http://127.0.0.1:8000`
-(`GET /health`, `POST /internal/v1/query`, `POST /internal/v1/eligibility`, 문서 `/docs`). Spring Boot가 호출하는 내부 API이며 브라우저에서 직접 쓰지 않는다.
+내부 AI API: 기본은 컨테이너다. 저장소 루트에서 `scripts/dev.sh up`(또는 `scripts/dev.sh restart fastapi`) → `http://127.0.0.1:8000`
+(`GET /health`, `POST /internal/v1/query`, `POST /internal/v1/eligibility`, `/internal/v2/*`, 문서 `/docs`). Spring Boot가 호출하는 내부 API이며 브라우저에서 직접 쓰지 않는다.
+- 이미지(`data-pipeline/Dockerfile`)는 질문 처리 전용이다. `requirements-api.txt`만 설치하고(CPU 전용 torch 2.14.0, 파싱 의존성 없음) 코드·계약·모델 artifact는 읽기 전용 mount다. 의존성을 바꿨을 때만 `scripts/dev.sh build fastapi`
+- 질문 서버는 BGE-M3 범위 모델(tokenizer·가중치)만 계약의 단계별 기대값으로 검증한다(IMP-005). 파싱·청킹·인덱싱 배치는 전체 artifact 검증 그대로다
+- host 실행도 계속 쓸 수 있다: `BIZAID_DOCLING_ARTIFACTS_PATH=... .venv/bin/python -B scripts/run_api.py`(8000을 컨테이너와 같이 쓰지 않도록 `BIZAID_API_PORT`로 바꾸거나 `scripts/dev.sh down` 뒤 실행)
+- 설치 파일: `requirements-api.txt`(질문 처리) ⊂ `requirements.txt`(파이프라인 전체, `-r requirements-api.txt` 포함). 파이프라인 설치 명령은 그대로 `pip install -r data-pipeline/requirements.txt`
 
 Bounded corpus indexing: `scripts/run_corpus_indexing.py --profile dev --run-id <id> --sources-file <sha 목록>` (`--status --run-id <id>`로 진행률·ETA).
 먼저 모든 target의 current parse_key PARSED gate를 확인하고, 이미 INDEXED인 source는 같은 run에서 건너뛴다. 결과는 ignored `data/parsed/index-runs/<id>/`.

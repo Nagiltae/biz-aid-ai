@@ -18,7 +18,8 @@
     "flyway",
     "qdrant",
     "backend",
-    "frontend"
+    "frontend",
+    "fastapi"
   ],
   "forbidden_top_level_modules": [
     "ai"
@@ -162,6 +163,7 @@
     "scripts/check-harness.sh",
     "scripts/check-integration.sh",
     "scripts/check-lint.sh",
+    "scripts/dev.sh",
     "scripts/lib/validate.py",
     "scripts/migrate_documents_to_s3.py",
     "scripts/phase0.py",
@@ -197,6 +199,7 @@
     "tests/contract/test_document_retrieval.py",
     "tests/contract/test_document_role.py",
     "tests/contract/test_eligibility.py",
+    "tests/contract/test_fastapi_container.py",
     "tests/contract/test_full_sync.py",
     "tests/contract/test_generic_zip.py",
     "tests/contract/test_harness_policy.py",
@@ -231,7 +234,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-10-02-generic-zip-stage4.md",
+  "report": "harness/workspace/reports/development/2026-10-03-fastapi-compose-imp017.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -348,7 +351,10 @@
     "contracts/schemas/rag-answer.contract.json",
     "contracts/schemas/raw-snapshot.contract.json",
     "contracts/schemas/structured-data-quality.contract.json",
+    "data-pipeline/.dockerignore",
+    "data-pipeline/Dockerfile",
     "data-pipeline/README.md",
+    "data-pipeline/requirements-api.txt",
     "data-pipeline/requirements.txt",
     "data-pipeline/src/biz_aid_pipeline/__init__.py",
     "data-pipeline/src/biz_aid_pipeline/api/__init__.py",
@@ -554,6 +560,7 @@
     "scripts/check-harness.sh",
     "scripts/check-integration.sh",
     "scripts/check-lint.sh",
+    "scripts/dev.sh",
     "scripts/lib/validate.py",
     "scripts/migrate_documents_to_s3.py",
     "scripts/phase0.py",
@@ -590,6 +597,7 @@
     "tests/contract/test_document_retrieval.py",
     "tests/contract/test_document_role.py",
     "tests/contract/test_eligibility.py",
+    "tests/contract/test_fastapi_container.py",
     "tests/contract/test_full_sync.py",
     "tests/contract/test_generic_zip.py",
     "tests/contract/test_harness_policy.py",
