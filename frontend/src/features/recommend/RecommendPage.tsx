@@ -4,6 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../shared/api/client";
 import { ErrorMessage, Loading } from "../../shared/components/StateViews";
 import { AiErrorNotice } from "../ai/AiErrorNotice";
+import { UsageBadge } from "../usage/UsageBadge";
+import { USAGE_KEY } from "../usage/usageApi";
 import { AI_ERROR_TITLE } from "../ai/aiApi";
 import { FinalResultView, MissingInfoForm, ProgressView, SearchSummary, TemporaryFacts, programName } from "./WorkflowViews";
 import { WORKFLOW_ERROR_TITLE, workflowApi, type AnswerValue, type WorkflowResponse } from "./workflowApi";
@@ -79,6 +81,8 @@ export function RecommendPage() {
         queryClient.invalidateQueries({ queryKey: ["workflow"] });
       }
     } finally {
+      // 하루 사용 횟수는 추천 시작에서만 줄어든다(다음 단계 진행은 세지 않음).
+      if (kind === "start") queryClient.invalidateQueries({ queryKey: USAGE_KEY });
       inFlight.current = false;
       setRunning(null);
     }
@@ -132,6 +136,7 @@ export function RecommendPage() {
                 {running === "start" ? "공고 찾는 중..." : "추천 받기"}
               </button>
             </form>
+            <UsageBadge />
             <div className="examples">
               {EXAMPLES.map((example) => (
                 <button key={example} type="button" className="chip" onClick={() => setText(example)}>{example}</button>

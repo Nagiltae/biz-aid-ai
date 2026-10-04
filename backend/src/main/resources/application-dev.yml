@@ -7,6 +7,10 @@ spring:
     locations: ${FLYWAY_LOCATIONS:filesystem:../migrations}
 
 bizaid:
+  # 로컬 개발은 체험하기를 켠다(운영은 기본 끔).
+  usage:
+    trial:
+      enabled: ${BIZAID_TRIAL_ENABLED:true}
   refresh-cookie:
     # 로컬은 http라 Secure Cookie를 쓰면 브라우저가 Cookie를 보내지 않는다.
     secure: ${REFRESH_COOKIE_SECURE:false}

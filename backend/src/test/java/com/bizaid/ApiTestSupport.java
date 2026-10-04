@@ -21,7 +21,7 @@ public abstract class ApiTestSupport {
 
     protected String signup(String email) throws Exception {
         String body = mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\",\"displayName\":\"테스터\"}"))
+                        .content("{\"email\":\"" + email + "\",\"password\":\"password123\",\"displayName\":\"테스터\",\"agreeTerms\":true,\"agreePrivacy\":true}"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         return "Bearer " + read(body).get("accessToken").asText();
     }

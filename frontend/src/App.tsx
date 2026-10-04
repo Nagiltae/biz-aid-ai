@@ -1,4 +1,9 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { useAuth } from "./features/auth/AuthContext";
+import { LandingPage } from "./features/landing/LandingPage";
+import { PrivacyPage } from "./features/legal/PrivacyPage";
+import { TermsPage } from "./features/legal/TermsPage";
+import { Loading } from "./shared/components/StateViews";
 import { AiSearchPage } from "./features/ai/AiSearchPage";
 import { AccountPage } from "./features/auth/AccountPage";
 import { LoginPage } from "./features/auth/LoginPage";
@@ -18,12 +23,22 @@ const RECOMMEND_NOTICE = {
   description: "맞춤 추천은 등록한 기업정보(기업 규모·영업 상태 등)로 공고를 고르고 지원 자격을 확인합니다. 회사명만 넣어도 시작할 수 있고, 모르는 항목은 비워 두세요.",
 };
 
+/** 첫 화면: 로그인하지 않았으면 서비스 소개, 로그인했으면 기존 첫 화면(AI 검색). */
+function Home() {
+  const { user, initializing } = useAuth();
+  if (initializing) return <Loading message="로그인 상태를 확인하고 있습니다." />;
+  return user ? <Navigate to="/ai" replace /> : <LandingPage />;
+}
+
 export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<Layout />}>
-        <Route path="/" element={<Navigate to="/ai" replace />} />
+        <Route path="/" element={<Home />} />
+        {/* 약관·개인정보처리방침은 로그인 없이 볼 수 있다(가입 전 확인). */}
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/ai" element={<RequireAuth><AiSearchPage /></RequireAuth>} />
         {/* 주소의 workflowId로 새로고침해도 진행 상태를 복원한다(같은 화면이 유지되도록 선택 경로 하나로 둔다). */}
         <Route path="/recommend/:workflowId?" element={<RequireAuth><RequireCompany notice={RECOMMEND_NOTICE}><RecommendPage /></RequireCompany></RequireAuth>} />
@@ -31,7 +46,7 @@ export function App() {
         <Route path="/programs/:pblancId" element={<ProgramDetailPage />} />
         <Route path="/company" element={<RequireAuth><CompanyPage /></RequireAuth>} />
         <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
-        <Route path="*" element={<Navigate to="/ai" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );

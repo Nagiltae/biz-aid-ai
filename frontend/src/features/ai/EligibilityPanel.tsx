@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../shared/api/client";
 import { Loading } from "../../shared/components/StateViews";
 import { useAuth } from "../auth/AuthContext";
+import { USAGE_KEY } from "../usage/usageApi";
 import { AiErrorNotice } from "./AiErrorNotice";
 import { aiApi } from "./aiApi";
 import { EligibilityResultView } from "./EligibilityResultView";
@@ -17,7 +18,10 @@ export function EligibilityPanel({ pblancId }: { pblancId: string }) {
   const location = useLocation();
   const [creditScore, setCreditScore] = useState("");
   const [taxDelinquent, setTaxDelinquent] = useState("");
+  const queryClient = useQueryClient();
   const mutation = useMutation({
+    // 단일 자격 판정도 하루 AI 사용 1회를 쓴다.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: USAGE_KEY }),
     mutationFn: () =>
       aiApi.eligibility(pblancId, {
         creditScore: creditScore.trim() === "" ? null : Number(creditScore),

@@ -5,7 +5,8 @@ MongoDB는 실제 필요성 확인과 ADR 없이 도입하지 않는다. 회원�
 영구 기업정보는 companies, AI 흐름에서 사용자가 답한 임시 기업정보는 ai_workflows.state_json에만 둔다(companies 자동 반영 금지). ai_workflows의 status·current_step은 state_json에서 복사한 값이며 따로 바꾸지 않는다.
 
 Flyway를 사용한다. 적용된 V1~Vn 수정 금지, schema 변경은 신규 Migration으로 작성한다.
-Spring Boot도 공통 `migrations/`와 같은 `flyway_schema_history`를 쓴다(V6: users·refresh_tokens·companies·conversations·messages, V7: ASSISTANT 메시지 AI 결과 column, V8: activity_logs, V9: ai_workflows, V12: login_throttles·활동 기록 COMMENT). 두 번째 migration 체계를 만들지 않는다.
+Spring Boot도 공통 `migrations/`와 같은 `flyway_schema_history`를 쓴다(V6: users·refresh_tokens·companies·conversations·messages, V7: ASSISTANT 메시지 AI 결과 column, V8: activity_logs, V9: ai_workflows, V12: login_throttles·활동 기록 COMMENT, V13: users.account_type·user_consents·ai_usage_counters). 두 번째 migration 체계를 만들지 않는다.
+체험 계정(TRIAL)은 생성 24시간 뒤 탈퇴와 같은 규칙(UserDataPurger)으로 지운다. 하루 사용 횟수는 key(USER:id·TRIAL_POOL·TRIAL_IP:SHA-256)×한국 날짜 행의 조건부 UPDATE로만 늘리고 7일 지난 행은 정리한다. 동의 기록은 문서 종류·버전·시각만 둔다.
 회원 탈퇴(2026-10-04 사용자 결정)는 users·companies·conversations·messages·ai_workflows·refresh_tokens를 즉시 지우고 activity_logs는 user_id·대상 id를 지운 형태로만 남긴다. login_throttles는 이메일·IP 원문 대신 SHA-256 key만 저장한다.
 보관 정리(`MaintenanceJob`): 만료·폐기 30일 뒤 refresh_tokens 삭제, 14일 방치한 진행 중 workflow는 삭제하지 않고 FAILED(workflow_expired), 끝난 workflow는 90일 뒤 삭제한다.
 Spring Boot의 DB 접근은 Spring Data JPA이며 일반 CRUD는 Repository 메서드로, 여러 조건이 조합되는 지원사업 검색만 QueryDSL로 작성한다. MyBatis는 쓰지 않는다.

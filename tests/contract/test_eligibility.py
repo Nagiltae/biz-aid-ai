@@ -134,6 +134,8 @@ class EligibilityContractTests(unittest.TestCase):
         # 생성 단계 상한: criteria 최대 개수(maxItems)와 출력 token 수(num_predict)를 함께 보낸다. 요청의 prompt도 확인한다.
         self.assertEqual(request.output_schema["properties"]["criteria"]["maxItems"], limits["max_criteria"])
         self.assertEqual(request.max_output_tokens, limits["max_output_tokens"])
+        # 2026-10-04 묶음5-1 결정: 출력 예산만 2560으로 늘리고 criteria 상한 15는 그대로 둔다(Ollama·Bedrock 공통 요청 값).
+        self.assertEqual((limits["max_output_tokens"], limits["max_criteria"]), (2560, 15))
         self.assertEqual(request.system, SYSTEM_PROMPT)
         self.assertIn("제출 서류·신청 절차·작성 항목", request.system)
         self.assertIn("같은 조건을 두 번 쓰지 않는다", request.system)

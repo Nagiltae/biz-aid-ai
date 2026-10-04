@@ -44,11 +44,14 @@ public class CompanyController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CompanyResponse create(@AuthenticationPrincipal AuthUser user, @Valid @RequestBody CompanyRequest request) {
+        // 체험 계정은 합성 기업정보를 그대로 쓴다(등록·수정 불가).
+        user.requireMember();
         return companyService.create(user.id(), request.toDetails());
     }
 
     @PutMapping
     public CompanyResponse update(@AuthenticationPrincipal AuthUser user, @Valid @RequestBody CompanyRequest request) {
+        user.requireMember();
         return companyService.update(user.id(), request.toDetails());
     }
 }

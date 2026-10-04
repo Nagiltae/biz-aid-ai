@@ -23,10 +23,22 @@ bizaid:
     # 테스트에서는 스케줄이 저절로 돌지 않게 하고(cron "-"), 정리 메서드를 직접 호출해 검사한다.
     cron: "-"
     stale-step-cron: "-"
+    trial-cron: "-"
     refresh-token-retention: 30d
     login-throttle-retention: 1d
     workflow-inactive-expiry: 14d
     finished-workflow-retention: 90d
+    usage-counter-retention: 7d
+  usage:
+    daily-limit: 30
+    trial:
+      enabled: true
+      ttl: 24h
+      daily-pool-limit: 200
+      max-creates-per-ip-per-day: 1000
+  legal:
+    terms-version: "2026-10-04"
+    privacy-version: "2026-10-04"
   # 테스트는 backend/에서 실행하므로 저장소의 공통 계약을 그대로 읽는다(복사본 없음).
   contracts-path: ../contracts
   jwt:

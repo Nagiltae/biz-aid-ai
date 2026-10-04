@@ -969,3 +969,127 @@ input:disabled,
   flex-direction: column;
   gap: 0.4rem;
 }
+
+/* 묶음5-1: 소개 화면·체험 표시·하단 출처·약관·남은 횟수 */
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+/* WHY: 세로 flex 안에서 margin auto는 늘이기를 끄므로 폭을 직접 채운다(본문이 짧아도 하단이 바닥에 붙게). */
+.app .main {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+}
+.trial-badge {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.trial-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.footer {
+  border-top: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  font-size: 13px;
+}
+.footer-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.footer-inner p {
+  margin: 4px 0;
+}
+.footer-links {
+  display: flex;
+  gap: 16px;
+}
+.usage-badge {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+.usage-badge.empty {
+  color: var(--bad);
+}
+.landing {
+  display: grid;
+  gap: 32px;
+}
+.landing-hero {
+  padding: 32px 0 8px;
+}
+.landing-hero h1 {
+  font-size: 28px;
+  line-height: 1.35;
+  margin: 0 0 12px;
+}
+.landing .lead {
+  font-size: 17px;
+  line-height: 1.7;
+  max-width: 760px;
+}
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0 8px;
+}
+.button.large {
+  padding: 12px 22px;
+  font-size: 16px;
+}
+.landing-steps,
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.step-number {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+}
+.legal h2 {
+  font-size: 18px;
+  margin-top: 24px;
+}
+.legal li {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+.consents {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin: 0 0 12px;
+}
+.consents legend {
+  font-size: 14px;
+  padding: 0 4px;
+}
+.auth-links {
+  text-align: center;
+  margin-top: 12px;
+}

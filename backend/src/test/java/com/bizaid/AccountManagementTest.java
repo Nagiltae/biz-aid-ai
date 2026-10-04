@@ -50,7 +50,7 @@ class AccountManagementTest extends ApiTestSupport {
     @Test
     void withdrawalDeletesServiceDataAnonymizesLogsAndInvalidatesTokens() throws Exception {
         MvcResult signup = mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"leave@example.com\",\"password\":\"password123\",\"displayName\":\"탈퇴자\"}"))
+                        .content("{\"email\":\"leave@example.com\",\"password\":\"password123\",\"displayName\":\"탈퇴자\",\"agreeTerms\":true,\"agreePrivacy\":true}"))
                 .andExpect(status().isOk()).andReturn();
         String token = "Bearer " + read(signup.getResponse().getContentAsString()).get("accessToken").asText();
         Cookie refresh = signup.getResponse().getCookie("bizaid_refresh");
@@ -92,7 +92,7 @@ class AccountManagementTest extends ApiTestSupport {
     @Test
     void recentWorkflowsAreListedForTheOwnerOnly() throws Exception {
         MvcResult signup = mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"history@example.com\",\"password\":\"password123\",\"displayName\":\"기록\"}"))
+                        .content("{\"email\":\"history@example.com\",\"password\":\"password123\",\"displayName\":\"기록\",\"agreeTerms\":true,\"agreePrivacy\":true}"))
                 .andExpect(status().isOk()).andReturn();
         String token = "Bearer " + read(signup.getResponse().getContentAsString()).get("accessToken").asText();
         long userId = read(signup.getResponse().getContentAsString()).get("user").get("id").asLong();
@@ -176,7 +176,7 @@ class AccountManagementTest extends ApiTestSupport {
     @Test
     void passwordChangeRequiresCurrentPasswordAndRevokesOtherSessions() throws Exception {
         MvcResult signup = mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"change@example.com\",\"password\":\"password123\",\"displayName\":\"변경\"}"))
+                        .content("{\"email\":\"change@example.com\",\"password\":\"password123\",\"displayName\":\"변경\",\"agreeTerms\":true,\"agreePrivacy\":true}"))
                 .andExpect(status().isOk()).andReturn();
         String token = "Bearer " + read(signup.getResponse().getContentAsString()).get("accessToken").asText();
         Cookie oldRefresh = signup.getResponse().getCookie("bizaid_refresh");
@@ -198,7 +198,7 @@ class AccountManagementTest extends ApiTestSupport {
     @Test
     void maintenanceDeletesOldTokensExpiresIdleWorkflowsAndKeepsActiveOnes() throws Exception {
         long userId = read(mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"maint@example.com\",\"password\":\"password123\",\"displayName\":\"정리\"}"))
+                        .content("{\"email\":\"maint@example.com\",\"password\":\"password123\",\"displayName\":\"정리\",\"agreeTerms\":true,\"agreePrivacy\":true}"))
                 .andReturn().getResponse().getContentAsString()).get("user").get("id").asLong();
         Instant old = Instant.now().minus(Duration.ofDays(120));
         jdbc.update("insert into refresh_tokens (user_id, token_hash, expires_at, revoked_at, created_at) values (?, ?, ?, ?, ?)",

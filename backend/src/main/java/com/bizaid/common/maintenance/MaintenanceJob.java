@@ -2,9 +2,11 @@ package com.bizaid.common.maintenance;
 
 import com.bizaid.ai.domain.AiWorkflow;
 import com.bizaid.ai.infrastructure.AiWorkflowRepository;
+import com.bizaid.auth.application.TrialService;
 import com.bizaid.auth.infrastructure.AuthProperties;
 import com.bizaid.auth.infrastructure.LoginThrottleRepository;
 import com.bizaid.auth.infrastructure.RefreshTokenRepository;
+import com.bizaid.usage.infrastructure.UsageCounterStore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Clock;
@@ -22,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>IMP-016: 만료·폐기된 지 보관 기간이 지난 Refresh Token 삭제</li>
  *   <li>IMP-021: 실행 중 서버가 멈춰 남은 오래된 단계 점유 해제, 오래 방치된 진행 중 흐름 만료(FAILED), 끝난 흐름 보관 기간 뒤 삭제</li>
  *   <li>잠금이 끝난 로그인 시도 제한 행 삭제</li>
+ *   <li>묶음5-1: 생성 24시간이 지난 체험 계정과 그 데이터 삭제(매시), 7일 지난 하루 사용 횟수 행 삭제</li>
  * </ul>
  * BOUNDARY: 진행 중(IN_PROGRESS·WAITING_FOR_USER) 흐름은 지우지 않고 만료 상태로만 바꾼다. 기업정보·대화는 건드리지 않는다.
  */
@@ -38,9 +41,14 @@ public class MaintenanceJob {
     private final AuthProperties authProperties;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final TrialService trials;
+    private final UsageCounterStore usageCounters;
 
     public MaintenanceJob(RefreshTokenRepository refreshTokens, LoginThrottleRepository loginThrottles, AiWorkflowRepository workflows,
-                          MaintenanceProperties properties, AuthProperties authProperties, ObjectMapper objectMapper, Clock clock) {
+                          MaintenanceProperties properties, AuthProperties authProperties, ObjectMapper objectMapper, Clock clock,
+                          TrialService trials, UsageCounterStore usageCounters) {
+        this.trials = trials;
+        this.usageCounters = usageCounters;
         this.refreshTokens = refreshTokens;
         this.loginThrottles = loginThrottles;
         this.workflows = workflows;
@@ -68,11 +76,23 @@ public class MaintenanceJob {
         int throttles = loginThrottles.deleteIdleBefore(now.minus(properties.loginThrottleRetention()));
         int expired = expireInactive(now);
         int finished = workflows.deleteFinishedBefore(now.minus(properties.finishedWorkflowRetention()));
-        Summary summary = new Summary(tokens, throttles, expired, finished, releaseStaleClaims(now));
-        log.info("maintenance done refreshTokensDeleted={} loginThrottlesDeleted={} workflowsExpired={} workflowsDeleted={} staleClaims={}",
+        int trialUsers = trials.purgeExpired(now);
+        int usageRows = usageCounters.deleteBefore(now.atZone(clock.getZone()).toLocalDate().minus(properties.usageCounterRetention()));
+        Summary summary = new Summary(tokens, throttles, expired, finished, releaseStaleClaims(now), trialUsers, usageRows);
+        log.info("maintenance done refreshTokensDeleted={} loginThrottlesDeleted={} workflowsExpired={} workflowsDeleted={} staleClaims={} "
+                        + "trialUsersDeleted={} usageRowsDeleted={}",
                 summary.refreshTokensDeleted(), summary.loginThrottlesDeleted(), summary.workflowsExpired(),
-                summary.workflowsDeleted(), summary.staleClaimsReleased());
+                summary.workflowsDeleted(), summary.staleClaimsReleased(), summary.trialUsersDeleted(), summary.usageRowsDeleted());
         return summary;
+    }
+
+    /** 매시: 생성 ttl(24시간)이 지난 체험 계정을 지운다. 하루 1회만 돌면 최대 48시간까지 남을 수 있어 따로 자주 돈다. */
+    @Scheduled(cron = "${bizaid.maintenance.trial-cron}", zone = "${bizaid.service-zone}")
+    public void scheduledTrialCleanup() {
+        int deleted = trials.purgeExpired(clock.instant());
+        if (deleted > 0) {
+            log.info("trial cleanup done trialUsersDeleted={}", deleted);
+        }
     }
 
     /** 5분마다: 점유 시간이 지난 단계 점유를 푼다. 늦게 끝난 이전 요청은 version 불일치로 저장을 거부하므로 안전하다. */
@@ -112,6 +132,6 @@ public class MaintenanceJob {
     }
 
     public record Summary(int refreshTokensDeleted, int loginThrottlesDeleted, int workflowsExpired, int workflowsDeleted,
-                          int staleClaimsReleased) {
+                          int staleClaimsReleased, int trialUsersDeleted, int usageRowsDeleted) {
     }
 }

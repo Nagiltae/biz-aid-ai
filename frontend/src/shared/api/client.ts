@@ -26,7 +26,8 @@ export class ApiError extends Error {
 export interface TokenResponse {
   accessToken: string;
   expiresIn: number;
-  user: { id: number; email: string; displayName: string };
+  /** trial=true면 "체험하기"로 만든 임시 계정이다(24시간 뒤 삭제, 수정 기능 잠금). */
+  user: { id: number; email: string; displayName: string; trial?: boolean };
 }
 
 let accessToken: string | null = null;

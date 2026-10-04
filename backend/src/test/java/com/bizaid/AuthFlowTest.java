@@ -29,7 +29,7 @@ class AuthFlowTest extends ApiTestSupport {
     @Test
     void loginRefreshRotationAndLogout() throws Exception {
         mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"Owner@Example.com\",\"password\":\"password123\",\"displayName\":\"대표\"}"))
+                        .content("{\"email\":\"Owner@Example.com\",\"password\":\"password123\",\"displayName\":\"대표\",\"agreeTerms\":true,\"agreePrivacy\":true}"))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"owner@example.com\",\"password\":\"wrong-password\"}"))

@@ -96,4 +96,6 @@ export const AI_ERROR_TITLE: Record<string, string> = {
   ai_service_auth_failed: "AI 서비스 연결 설정 오류",
   ai_response_invalid: "AI 응답을 표시할 수 없습니다",
   ai_service_error: "AI 서비스 오류",
+  ai_daily_limit_reached: "오늘 사용 횟수를 모두 썼어요",
+  ai_trial_pool_exhausted: "오늘 체험 사용량이 모두 찼어요",
 };

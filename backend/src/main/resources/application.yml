@@ -44,10 +44,26 @@ bizaid:
   maintenance:
     cron: "0 30 4 * * *"
     stale-step-cron: "0 */5 * * * *"
+    # 체험 계정 정리(생성 24시간 지난 계정 삭제)는 매시 15분에 돈다.
+    trial-cron: "0 15 * * * *"
     refresh-token-retention: 30d
     login-throttle-retention: 1d
     workflow-inactive-expiry: 14d
     finished-workflow-retention: 90d
+    usage-counter-retention: 7d
+  # 하루 AI 사용 제한·체험 계정(2026-10-04 묶음5-1 사용자 결정). 한국 시간 자정에 새로 센다.
+  usage:
+    daily-limit: ${BIZAID_AI_DAILY_LIMIT:30}
+    trial:
+      # 운영 on/off. 기본은 끔이고 dev profile만 켠다. 운영은 BIZAID_TRIAL_ENABLED=true로 켠다.
+      enabled: ${BIZAID_TRIAL_ENABLED:false}
+      ttl: 24h
+      daily-pool-limit: ${BIZAID_TRIAL_DAILY_POOL_LIMIT:200}
+      max-creates-per-ip-per-day: ${BIZAID_TRIAL_MAX_CREATES_PER_IP:20}
+  # 이용약관·개인정보처리방침 현재 버전(시행일). 화면 frontend/src/features/legal/legalVersions.ts와 같아야 한다.
+  legal:
+    terms-version: "2026-10-04"
+    privacy-version: "2026-10-04"
   # 공통 계약 폴더(기업 지역 표준명 등). IntelliJ(working dir backend/)는 ../contracts, Compose는 /contracts mount.
   contracts-path: ${BIZAID_CONTRACTS_PATH:../contracts}
   jwt:

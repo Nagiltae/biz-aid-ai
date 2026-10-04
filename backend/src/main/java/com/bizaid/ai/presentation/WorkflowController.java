@@ -3,6 +3,7 @@ package com.bizaid.ai.presentation;
 import com.bizaid.ai.application.AiDtos;
 import com.bizaid.ai.application.RecommendationWorkflowService;
 import com.bizaid.auth.domain.AuthUser;
+import com.bizaid.usage.application.AiUsageService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
@@ -26,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkflowController {
 
     private final RecommendationWorkflowService workflowService;
+    private final AiUsageService usage;
 
-    public WorkflowController(RecommendationWorkflowService workflowService) {
+    public WorkflowController(RecommendationWorkflowService workflowService, AiUsageService usage) {
         this.workflowService = workflowService;
+        this.usage = usage;
     }
 
     public record AnswersRequest(
@@ -40,7 +43,8 @@ public class WorkflowController {
     @ResponseStatus(HttpStatus.CREATED)
     public AiDtos.WorkflowResponse start(@AuthenticationPrincipal AuthUser user,
                                          @Valid @RequestBody AiRequests.PersonalizedSearchRequest request) {
-        return workflowService.start(user.id(), request.query());
+        // 하루 사용 횟수는 추천 시작에서만 1 쓴다. 다음 단계 진행·부족 정보 답변은 같은 추천의 일부라 세지 않는다.
+        return usage.run(user, () -> workflowService.start(user.id(), request.query()));
     }
 
     @GetMapping

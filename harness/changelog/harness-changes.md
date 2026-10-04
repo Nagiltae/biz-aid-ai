@@ -1,5 +1,13 @@
 # Harness 변경 이력
 
+## 2026-10-04 — 묶음5-1 공개 서비스 기능(Claude)
+
+사용자 승인: 새 Flyway migration(V13)을 `migrations/`에 추가하고 dev DB에 적용. 기존 migration 수정 없음.
+판정 출력 상한 1280→2560(eligibility 계약, Ollama·Bedrock 공통, 15개·75초·fail-closed 유지). Bedrock 120174 단일 판정 1회 확인.
+기능: 비로그인 첫 화면 소개(/), 체험 계정(설정 on/off·IP별 생성 제한·합성 기업정보·수정/비밀번호/탈퇴 불가·24시간 뒤 매시 정리), 하루 AI 사용 제한(사용자 30·체험 합산 200, 429 고정 코드, 결과 없는 요청은 되돌림, GET /api/ai/usage), /privacy·/terms(초안, 사용자 검토 필요)와 가입 필수 동의 기록, 모든 화면 하단 데이터 출처·AI 참고용 안내.
+DB: V13(users.account_type, user_consents, ai_usage_counters, activity_logs.action COMMENT에 TRIAL_START).
+Harness: 사용자 지정 handoff `bundle5-1-handoff.md` non-gating 등록, 판정 1회 스크립트를 regression-set/run.py와 같은 STATIC_CONTROL로 등록, 화면·서버 약관 버전 일치 계약 검사 추가. 규칙 완화 없음.
+
 ## 2026-10-04 — 묶음4 Bedrock·V2 동결 시험·목록/표 context
 
 사용자 승인으로 provider 경계에 Bedrock ConverseStream/forced tool JSON을 추가했다. 기본 Ollama·75초 기한·기존 판정 상한·fail-closed는 유지한다. credential chain만 사용하고 Compose 사용자 AWS 설정을 read-only로 제공한다. Registry/Compose 검증은 mount 경계와 신규 SDK 최소 의존성을 반영하며 키·자동 재시도는 추가하지 않는다.

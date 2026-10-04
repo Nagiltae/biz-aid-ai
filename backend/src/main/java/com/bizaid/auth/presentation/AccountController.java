@@ -28,6 +28,7 @@ public class AccountController {
     /** 회원 탈퇴. 성공하면 Refresh Cookie도 지운다(브라우저에 남은 Cookie로 재발급되지 않게). */
     @PostMapping("/withdraw")
     public ResponseEntity<Void> withdraw(@AuthenticationPrincipal AuthUser user, @Valid @RequestBody AuthDtos.WithdrawRequest request) {
+        user.requireMember();
         accountService.withdraw(user.id(), request.password());
         return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, cookies.cleared()).build();
     }
@@ -36,6 +37,7 @@ public class AccountController {
     @PutMapping("/password")
     public ResponseEntity<AuthDtos.TokenResponse> changePassword(@AuthenticationPrincipal AuthUser user,
                                                                  @Valid @RequestBody AuthDtos.PasswordChangeRequest request) {
+        user.requireMember();
         return cookies.withRefreshCookie(accountService.changePassword(user.id(), request.currentPassword(), request.newPassword()));
     }
 }

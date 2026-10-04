@@ -42,6 +42,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(String.valueOf(user.getId()))
                 .claim("email", user.getEmail())
+                .claim("trial", user.isTrial())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(settings.accessTokenTtl())))
                 .signWith(key)
@@ -57,7 +58,8 @@ public class JwtTokenProvider {
         try {
             Claims claims = Jwts.parser().verifyWith(key).clock(() -> Date.from(clock.instant())).build()
                     .parseSignedClaims(token).getPayload();
-            return Optional.of(new AuthUser(Long.valueOf(claims.getSubject()), claims.get("email", String.class)));
+            return Optional.of(new AuthUser(Long.valueOf(claims.getSubject()), claims.get("email", String.class),
+                    Boolean.TRUE.equals(claims.get("trial", Boolean.class))));
         } catch (JwtException | IllegalArgumentException exception) {
             return Optional.empty();
         }

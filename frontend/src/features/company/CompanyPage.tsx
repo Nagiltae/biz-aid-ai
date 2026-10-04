@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../shared/api/client";
 import { ErrorMessage, FieldMessage, Loading, fieldMessage } from "../../shared/components/StateViews";
 import { COMPANY_SIZES, companyApi, type Company, type CompanyInput } from "./companyApi";
+import { useAuth } from "../auth/AuthContext";
 import { MY_COMPANY_KEY, useMyCompany } from "./useMyCompany";
 
 // 입력 form은 문자열로 다루고 저장할 때만 숫자·boolean·null로 바꾼다. 빈 칸은 "입력하지 않음(null)"이다.
@@ -60,6 +61,8 @@ export function CompanyPage() {
   const state = location.state as { from?: string; needCompany?: boolean } | null;
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
+  // 체험 계정은 미리 넣은 예시 회사 정보만 쓴다(서버도 trial_account_restricted로 막는다).
+  const trial = useAuth().user?.trial === true;
 
   if (query.isPending) return <Loading />;
   if (query.isError) return <ErrorMessage error={query.error} onRetry={() => query.refetch()} />;
@@ -69,7 +72,7 @@ export function CompanyPage() {
     <div className="page narrow">
       <div className="page-head">
         <h1>내 기업정보</h1>
-        {company && !editing && (
+        {company && !editing && !trial && (
           <button type="button" className="button" onClick={() => { setSaved(false); setEditing(true); }}>수정</button>
         )}
       </div>
@@ -92,6 +95,11 @@ export function CompanyPage() {
       ) : (
         <>
           {saved && <p className="alert success" role="status">저장했습니다.</p>}
+          {trial && (
+            <p className="alert info" role="status">
+              체험 계정은 아래 예시 회사 정보로만 이용할 수 있어요. 우리 회사 정보로 확인하려면 회원가입해 주세요.
+            </p>
+          )}
           <CompanyView company={company} />
         </>
       )}

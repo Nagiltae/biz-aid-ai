@@ -9,6 +9,22 @@ import { useAuth } from "./AuthContext";
 /** 계정 관리: 비밀번호 변경과 회원 탈퇴. 둘 다 현재 비밀번호를 다시 확인한다. */
 export function AccountPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  if (user?.trial) {
+    // 체험 계정은 비밀번호가 없고 24시간 뒤 자동 삭제되므로 비밀번호 변경·탈퇴가 없다(서버도 막는다).
+    return (
+      <div className="page narrow">
+        <h1>계정 관리</h1>
+        <section className="card" aria-label="체험 계정 안내">
+          <p>체험 계정은 비밀번호 변경과 탈퇴 기능이 없어요. 만든 뒤 24시간이 지나면 대화와 기록이 모두 자동으로 지워집니다.</p>
+          <button type="button" className="button primary"
+                  onClick={() => navigate("/login", { state: { mode: "signup" } })}>
+            회원가입하고 계속 쓰기
+          </button>
+        </section>
+      </div>
+    );
+  }
   return (
     <div className="page narrow">
       <h1>계정 관리</h1>

@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | V1 마감 전 해결 | IMP-013(RESOLVED) | 다음 작업인 V1 AI 평가 기준선을 직접 막음 |
 | V2에서 해결 | IMP-002, IMP-003, IMP-004, IMP-011, IMP-018, IMP-019, IMP-020(RESOLVED), IMP-024, IMP-025, IMP-026(RESOLVED), IMP-027, IMP-028, IMP-029, IMP-030, IMP-031, IMP-032 | 답변·검색 품질 개선. 기준선 고정 뒤 비교해야 효과를 잴 수 있음 |
-| 운영/AWS 단계 | IMP-005(RESOLVED), IMP-006, IMP-007, IMP-015(RESOLVED), IMP-016(RESOLVED), IMP-017(RESOLVED), IMP-021(RESOLVED), IMP-022(RESOLVED), IMP-023(RESOLVED) | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
+| 운영/AWS 단계 | IMP-005(RESOLVED), IMP-006, IMP-007, IMP-015(RESOLVED), IMP-016(RESOLVED), IMP-017(RESOLVED), IMP-021(RESOLVED), IMP-022(RESOLVED), IMP-023(RESOLVED), IMP-033, IMP-034 | 배포 이미지·실행 환경·대량 처리·DB 운영 정책 |
 | 장기 개선 | IMP-009, IMP-010 | 미지원 형식·Parser 품질. 실제 실패 사례가 반복될 때 |
 
 ## IMP-001 chunk에 문서 제목·사업명 context 없음
@@ -64,6 +64,8 @@
 - Status: OPEN. 출력 계약 오류는 줄었지만 provider·생성 완결성 비교는 수행하지 않았다.
 
 - Bundle4 Evidence(2026-10-04): 동일 동결 V2 20건 provider당1회, Bedrock19 PASS/1 출력상한 FAIL. Ollama15 PASS/3 품질 FAIL/2 채점 오류(추천 실제 결과 보존 실패, 재호출 없음). QA7/7 대5/7, 판정2/2 대1/2. Bedrock PBLN_000000000120174는1280token 상한에서 fail-closed. 제한된 비용과 시간·미검증 항목은 [Report](../workspace/reports/development/2026-10-04-bundle4-quality.md). 출력 완결성 문제가 남아 OPEN 유지.
+
+- Bundle5-1 Evidence(2026-10-04): 사용자 결정으로 eligibility 출력 상한을 1280→2560(Ollama·Bedrock 공통, 15개·75초·fail-closed 유지). 같은 120174 단일 판정 Bedrock 1회: COMPLETED/NEEDS_MORE_INFO, 10조건, 출력 1,446 token, 15.8초. provider 비교 자체는 수행하지 않아 OPEN 유지. [Report](../workspace/reports/development/2026-10-04-bundle5-1-features.md).
 
 ## IMP-004 Retrieval 후처리(baseline 이후)
 
@@ -416,6 +418,8 @@
 
 - Bundle4 Evidence(2026-10-04): 123260 단일 판정은 Ollama·Bedrock 모두 NEEDS_MORE_INFO로 완료. Bedrock 추천에서는120174가1280token 상한에 도달해 fail-closed(시험/10문항 회귀 각1회 관찰). 기준을 반복 조정하지 않았으며 provider별 출력 예산 후속 결정이 필요하다. [Report](../workspace/reports/development/2026-10-04-bundle4-quality.md).
 
+- Bundle5-1 Evidence(2026-10-04): 출력 상한 2560 적용 뒤 120174 Bedrock 단일 판정 1회 완료(10조건, 1,446 token). 1280 상한이 원인이었음을 1건으로 확인했을 뿐 과분할 문제 전체 해결은 아니어서 OPEN 유지. [Report](../workspace/reports/development/2026-10-04-bundle5-1-features.md).
+
 ## IMP-030 여러 지역 대상인데 소관이 한 광역인 공고가 다른 지역 기업 후보에서 빠짐
 
 - Area: V2 맞춤 추천 후보(기업 지역 필터)
@@ -450,4 +454,24 @@
 - Why deferred: 원본을 임의 정정하지 않고 데이터 품질 관찰로 보존한다. 이번에 filter/DB source를 변경하지 않는다.
 - Revisit trigger: IMP-031 근거 기반 지역 추출 또는 원본 공급자 확인 Task.
 - Side effect: source 원문과 별도의 검증 결과를 구분해야 한다.
+- Status: OPEN
+
+## IMP-033 V13 이전 가입 회원에게 약관 동의 기록이 없음
+
+- Area: 서비스 계정·약관
+- Issue: 묶음5-1부터 가입·체험 시 이용약관·개인정보처리방침 동의를 user_consents에 남긴다. V13 전에 가입한 회원은 동의 행이 없고, 다음 로그인 때 다시 동의를 받는 화면도 없다.
+- Evidence: V13은 기존 users에 account_type 기본값 MEMBER만 더하고 동의 행을 만들지 않았다(동의하지 않은 기록을 지어내지 않음). [Report](../workspace/reports/development/2026-10-04-bundle5-1-features.md).
+- Why deferred: 이번 범위는 신규 가입 필수 동의다. 현재 사용자는 개발·시험 계정뿐이고 약관 문구도 초안이라 재동의 흐름은 문구 확정 뒤에 정한다.
+- Revisit trigger: 공개 배포 전 약관 문구 확정, 또는 약관 버전을 올릴 때(버전 변경 시 재동의 흐름이 같이 필요).
+- Side effect: 재동의 화면은 로그인 직후 모든 화면을 막는 보호 routing이 된다. 동의 거부 시 처리(로그아웃·탈퇴 안내)를 함께 정한다.
+- Status: OPEN
+
+## IMP-034 공공데이터 이용허락 조건 문구 미확정
+
+- Area: 데이터 출처 표시
+- Issue: 화면 하단·소개·약관에 "기업마당(중소벤처기업부) 공공데이터 활용"과 원문 링크만 적었다. 공공데이터포털에 표시된 이 API의 이용허락범위(출처표시 유형 등)는 이번에 공식 페이지로 확인하지 못해 문구에 넣지 않았다.
+- Evidence: 수집 코드의 원천은 `apis.data.go.kr/1421000/bizinfo/pblancBsnsService`. 검색으로 찾은 data.go.kr 페이지는 다른 기관(한국콘텐츠진흥원) 데이터셋이었다. [Report](../workspace/reports/development/2026-10-04-bundle5-1-features.md).
+- Why deferred: 확인하지 않은 조건을 화면에 쓰면 틀린 고지가 된다. 사용자가 포털 활용신청 화면에서 직접 확인하는 편이 정확하다.
+- Revisit trigger: 공개 배포 전, 사용자가 이용허락범위를 확인해 알려 줄 때.
+- Side effect: 출처표시 의무 유형에 따라 하단 문구·공고 상세 표기를 바꿔야 할 수 있다(legalVersions.ts DATA_SOURCE 한 곳).
 - Status: OPEN

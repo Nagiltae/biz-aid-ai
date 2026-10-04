@@ -42,10 +42,12 @@ public class AuthService {
     private final Clock clock;
     private final ActivityLogService activityLog;
     private final LoginThrottleService loginThrottle;
+    private final ConsentService consents;
 
     public AuthService(UserRepository users, RefreshTokenRepository refreshTokens, PasswordEncoder passwordEncoder,
                        JwtTokenProvider tokenProvider, AuthProperties properties, Clock clock, ActivityLogService activityLog,
-                       LoginThrottleService loginThrottle) {
+                       LoginThrottleService loginThrottle, ConsentService consents) {
+        this.consents = consents;
         this.users = users;
         this.refreshTokens = refreshTokens;
         this.passwordEncoder = passwordEncoder;
@@ -56,7 +58,7 @@ public class AuthService {
         this.loginThrottle = loginThrottle;
     }
 
-    /** 가입 직후 바로 서비스를 쓰도록 로그인과 같은 토큰을 발급한다. */
+    /** 가입 직후 바로 서비스를 쓰도록 로그인과 같은 토큰을 발급한다. 필수 동의(약관·개인정보)는 요청 DTO가 확인하고 여기서 버전과 시각을 기록한다. */
     @Transactional
     public IssuedTokens signup(String rawEmail, String password, String displayName) {
         String email = normalize(rawEmail);
@@ -65,6 +67,7 @@ public class AuthService {
             throw new ApiException(ErrorCode.AUTH_EMAIL_TAKEN);
         }
         User user = users.save(new User(email, passwordEncoder.encode(password), displayName.trim(), clock.instant()));
+        consents.recordRequired(user.getId(), clock.instant());
         IssuedTokens tokens = issue(user);
         activityLog.success(ActivityAction.SIGNUP, user.getId(), "USER", user.getId(), null);
         return tokens;
@@ -145,7 +148,7 @@ public class AuthService {
         return issue(user);
     }
 
-    private IssuedTokens issue(User user) {
+    IssuedTokens issue(User user) {
         Instant now = clock.instant();
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);

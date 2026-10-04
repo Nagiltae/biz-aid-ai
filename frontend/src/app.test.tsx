@@ -30,9 +30,16 @@ const noCompany: Handler = (url, init) =>
 // 지역 선택지는 서버가 공통 계약(company-region)에서 읽어 준다. 테스트 서버는 그 일부만 흉내 낸다.
 const REGIONS = ["서울특별시", "부산광역시", "경기도", "전남광주통합특별시"];
 const regions: Handler = (url) => (url === "/api/company/regions" ? { status: 200, body: { regions: REGIONS } } : undefined);
+// 하루 사용 현황·체험하기 상태는 거의 모든 화면이 읽는다. 테스트가 따로 주지 않으면 기본값을 돌려준다.
+const usage: Handler = (url) =>
+  url === "/api/ai/usage" ? { status: 200, body: { dailyLimit: 30, used: 2, remaining: 28, resetsAt: "2026-10-04T15:00:00Z" } } : undefined;
+const trialStatus: Handler = (url, init) =>
+  url === "/api/auth/trial" && (init.method ?? "GET") === "GET" ? { status: 200, body: { enabled: true } } : undefined;
+// AI 기능 요청인지(사용 현황 조회는 AI 호출이 아니다).
+const isAiCall = (url: string) => url.startsWith("/api/ai/") && url !== "/api/ai/usage";
 
 function mockFetch(...requestHandlers: Handler[]) {
-  const handlers = [...requestHandlers, regions];
+  const handlers = [...requestHandlers, regions, usage, trialStatus];
   const calls: { url: string; init: RequestInit }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit = {}) => {
     calls.push({ url, init });
@@ -523,7 +530,13 @@ test("가입 직후 기업정보가 없으면 등록 화면으로 가고, 등록
   await userEvent.type(screen.getByLabelText("이메일"), "new@example.com");
   await userEvent.type(screen.getByLabelText(/비밀번호/), "password123");
   await userEvent.type(screen.getByLabelText("이름"), "대표");
-  await userEvent.click(screen.getByRole("button", { name: "가입하고 시작하기" }));
+  // 필수 동의 두 개를 모두 체크해야 가입 버튼이 열린다.
+  const join = screen.getByRole("button", { name: "가입하고 시작하기" });
+  expect(join).toBeDisabled();
+  await userEvent.click(screen.getByRole("checkbox", { name: /이용약관에 동의/ }));
+  expect(join).toBeDisabled();
+  await userEvent.click(screen.getByRole("checkbox", { name: /개인정보처리방침에 동의/ }));
+  await userEvent.click(join);
   // 가입하면 원래 기본 화면(AI 검색) 대신 기업정보 등록 화면으로 간다. AI 메뉴는 잠기고 지원사업 메뉴는 열려 있다.
   expect(await screen.findByRole("form", { name: "기업정보 등록" })).toBeInTheDocument();
   // 메뉴는 잠그지 않는다(AI 검색·맞춤 추천은 화면 안에서 입력 안내).
@@ -548,7 +561,7 @@ test("기업정보 없는 AI 검색은 전체 지역 입력을 허용하고, 맞
   expect(inline).toHaveTextContent("기업정보가 없어 전체 지역에서 검색합니다.");
   expect(screen.getByLabelText("지원사업 질문")).toBeEnabled();
   expect(screen.getByRole("button", { name: "찾기" })).toBeDisabled();
-  expect(calls.some((call) => call.url.startsWith("/api/ai/"))).toBe(false);
+  expect(calls.some((call) => isAiCall(call.url))).toBe(false);
   await userEvent.click(within(inline).getByRole("link", { name: "기업정보 입력하기" }));
   expect(await screen.findByRole("form", { name: "기업정보 등록" })).toBeInTheDocument();
 
@@ -557,7 +570,7 @@ test("기업정보 없는 AI 검색은 전체 지역 입력을 허용하고, 맞
   expect(notice).toHaveTextContent("기업정보를 먼저 입력해 주세요.");
   // 추천 질문 입력칸은 보이지 않고, AI 요청도 보내지 않는다.
   expect(screen.queryByLabelText("추천 질문")).not.toBeInTheDocument();
-  expect(calls.some((call) => call.url.startsWith("/api/ai/"))).toBe(false);
+  expect(calls.some((call) => isAiCall(call.url))).toBe(false);
   await userEvent.click(screen.getByRole("link", { name: "기업정보 입력하기" }));
   expect(await screen.findByRole("form", { name: "기업정보 등록" })).toBeInTheDocument();
 });
@@ -631,4 +644,112 @@ test("AI 검색 목록에 기업 지역 제외 안내를 표시한다", async ()
   await userEvent.type(await screen.findByLabelText("지원사업 질문"), "사업 찾아줘");
   await userEvent.click(screen.getByRole("button", { name: "찾기" }));
   expect(await screen.findByText("서울특별시 기준으로 다른 지역 공고를 제외했습니다")).toBeInTheDocument();
+});
+
+// 묶음5-1: 소개 화면·약관·체험 계정·하루 사용 제한
+test("로그인하지 않은 첫 화면은 서비스 소개와 체험하기·로그인·회원가입, 하단 데이터 출처를 보여 준다", async () => {
+  mockFetch(loggedOut);
+  renderAt("/");
+  expect(await screen.findByRole("heading", { name: /공고문 근거로 확인하세요/ })).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "가입 없이 체험하기" })).toBeInTheDocument();
+  expect(screen.getAllByRole("link", { name: "로그인" }).length).toBeGreaterThan(0);
+  expect(screen.getByRole("link", { name: "회원가입" })).toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "사용 방법" })).toHaveTextContent("공고문으로 확인");
+  const footer = screen.getByRole("contentinfo");
+  expect(footer).toHaveTextContent("기업마당(중소벤처기업부) 공공데이터 활용");
+  expect(footer).toHaveTextContent("AI 판정은 참고용입니다.");
+  expect(within(footer).getByRole("link", { name: "기업마당(중소벤처기업부)" })).toHaveAttribute("href", "https://www.bizinfo.go.kr");
+});
+
+test("로그인한 사용자의 첫 화면은 기존처럼 AI 검색이다", async () => {
+  mockFetch(loggedIn, hasCompany, (url) => (url === "/api/conversations" ? { status: 200, body: [] } : undefined));
+  renderAt("/");
+  expect(await screen.findByRole("heading", { name: "기업에 맞는 지원사업을 찾아보세요" })).toBeInTheDocument();
+  expect(await screen.findByRole("status", { name: "오늘 남은 AI 사용 횟수" })).toHaveTextContent("오늘 남은 AI 사용 28 / 30회");
+});
+
+test("개인정보처리방침·이용약관은 로그인 없이 볼 수 있다", async () => {
+  mockFetch(loggedOut);
+  renderAt("/privacy");
+  const privacy = await screen.findByRole("article", { name: "개인정보처리방침" });
+  expect(privacy).toHaveTextContent("Amazon Bedrock");
+  expect(privacy).toHaveTextContent("탈퇴 시 계정·기업정보·AI 대화");
+  expect(screen.queryByRole("tab", { name: "로그인" })).not.toBeInTheDocument();
+  await userEvent.click(within(screen.getByRole("contentinfo")).getByRole("link", { name: "이용약관" }));
+  expect(await screen.findByRole("article", { name: "이용약관" })).toHaveTextContent("AI 판정은 참고용이며, 최종 자격은 공고문과 주관기관에 확인해야 합니다.");
+});
+
+test("체험하기를 누르면 체험 계정으로 들어가 '체험 중' 표시가 보이고 기업정보·계정은 바꿀 수 없다", async () => {
+  const TRIAL = { accessToken: "trial-1", expiresIn: 900, user: { id: 50, email: "trial-x@trial.bizaid.invalid", displayName: "체험 사용자", trial: true } };
+  const calls = mockFetch(loggedOut, hasCompany, (url, init) => {
+    if (url === "/api/auth/trial" && init.method === "POST") return { status: 200, body: TRIAL };
+    if (url === "/api/conversations") return { status: 200, body: [] };
+    if (url === "/api/auth/logout") return { status: 204 };
+    if (url === "/api/auth/signup") return { status: 200, body: TOKEN };
+    return undefined;
+  });
+  renderAt("/");
+  await userEvent.click(await screen.findByRole("button", { name: "가입 없이 체험하기" }));
+  expect(await screen.findByRole("heading", { name: "기업에 맞는 지원사업을 찾아보세요" })).toBeInTheDocument();
+  const banner = screen.getByRole("status", { name: "체험 중 안내" });
+  expect(banner).toHaveTextContent("24시간 뒤 대화와 기록이 모두 지워집니다");
+  expect(within(banner).getByRole("button", { name: "회원가입" })).toBeInTheDocument();
+  expect(calls.filter((call) => call.url === "/api/auth/trial" && call.init.method === "POST")).toHaveLength(1);
+
+  await userEvent.click(screen.getByRole("link", { name: "내 기업정보" }));
+  expect(await screen.findByText(/체험 계정은 아래 예시 회사 정보로만/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "수정" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("link", { name: "계정" }));
+  expect(await screen.findByRole("region", { name: "체험 계정 안내" })).toBeInTheDocument();
+  expect(screen.queryByRole("form", { name: "회원 탈퇴" })).not.toBeInTheDocument();
+
+  // 배너의 회원가입은 가입 탭을 열고, 가입을 보낼 때 체험 세션을 먼저 끝낸다.
+  await userEvent.click(within(screen.getByRole("status", { name: "체험 중 안내" })).getByRole("button", { name: "회원가입" }));
+  expect(await screen.findByRole("tab", { name: "회원가입", selected: true })).toBeInTheDocument();
+  expect(screen.getByText(/가입하면 체험이 끝나고 새 계정으로 시작합니다/)).toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText("이메일"), "real@example.com");
+  await userEvent.type(screen.getByLabelText(/비밀번호/), "password123");
+  await userEvent.type(screen.getByLabelText("이름"), "대표");
+  await userEvent.click(screen.getByRole("checkbox", { name: /이용약관에 동의/ }));
+  await userEvent.click(screen.getByRole("checkbox", { name: /개인정보처리방침에 동의/ }));
+  await userEvent.click(screen.getByRole("button", { name: "가입하고 시작하기" }));
+  expect(await screen.findByRole("heading", { name: "기업에 맞는 지원사업을 찾아보세요" })).toBeInTheDocument();
+  const logoutAt = calls.findIndex((call) => call.url === "/api/auth/logout");
+  expect(logoutAt).toBeGreaterThan(-1);
+  expect(logoutAt).toBeLessThan(calls.findIndex((call) => call.url === "/api/auth/signup"));
+  expect(screen.queryByRole("status", { name: "체험 중 안내" })).not.toBeInTheDocument();
+});
+
+test("하루 사용 횟수를 다 쓰면 서버 안내 문구를 보여 주고 다시 시도 버튼은 없다", async () => {
+  mockFetch(loggedIn, hasCompany, (url, init) => {
+    if (url === "/api/conversations" && init.method === "POST") return { status: 201, body: { id: 9, title: "질문", createdAt: "", updatedAt: "" } };
+    if (url === "/api/conversations") return { status: 200, body: [] };
+    if (url === "/api/conversations/9/messages") return { status: 200, body: [] };
+    if (url === "/api/ai/query") {
+      return { status: 429, body: { error: { code: "ai_daily_limit_reached", message: "오늘 사용 가능한 횟수를 모두 사용했어요. 내일 다시 이용해 주세요." } } };
+    }
+    return undefined;
+  });
+  renderAt("/ai");
+  await userEvent.type(await screen.findByLabelText("지원사업 질문"), "금융 지원사업");
+  await userEvent.click(screen.getByRole("button", { name: "찾기" }));
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("오늘 사용 횟수를 모두 썼어요");
+  expect(alert).toHaveTextContent("오늘 사용 가능한 횟수를 모두 사용했어요. 내일 다시 이용해 주세요.");
+  expect(within(alert).queryByRole("button", { name: "다시 시도" })).not.toBeInTheDocument();
+});
+
+test("가입 요청에는 필수 동의 두 개가 함께 간다", async () => {
+  const calls = mockFetch(loggedOut, noCompany, (url) => (url === "/api/auth/signup" ? { status: 200, body: TOKEN } : undefined));
+  renderAt("/login");
+  await userEvent.click(await screen.findByRole("tab", { name: "회원가입" }));
+  await userEvent.type(screen.getByLabelText("이메일"), "a@example.com");
+  await userEvent.type(screen.getByLabelText(/비밀번호/), "password123");
+  await userEvent.type(screen.getByLabelText("이름"), "대표");
+  await userEvent.click(screen.getByRole("checkbox", { name: /이용약관에 동의/ }));
+  await userEvent.click(screen.getByRole("checkbox", { name: /개인정보처리방침에 동의/ }));
+  await userEvent.click(screen.getByRole("button", { name: "가입하고 시작하기" }));
+  await screen.findByRole("form", { name: "기업정보 등록" });
+  const body = JSON.parse(String(calls.find((call) => call.url === "/api/auth/signup")?.init.body));
+  expect(body).toMatchObject({ agreeTerms: true, agreePrivacy: true });
 });

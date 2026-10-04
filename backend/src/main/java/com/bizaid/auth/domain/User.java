@@ -2,6 +2,8 @@ package com.bizaid.auth.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -26,6 +28,10 @@ public class User {
     @Column(name = "display_name", nullable = false)
     private String displayName;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_type", nullable = false, length = 10)
+    private AccountType accountType = AccountType.MEMBER;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -36,6 +42,11 @@ public class User {
     }
 
     public User(String email, String passwordHash, String displayName, Instant now) {
+        this(email, passwordHash, displayName, AccountType.MEMBER, now);
+    }
+
+    public User(String email, String passwordHash, String displayName, AccountType accountType, Instant now) {
+        this.accountType = accountType;
         this.email = email;
         this.passwordHash = passwordHash;
         this.displayName = displayName;
@@ -62,5 +73,13 @@ public class User {
 
     public String getDisplayName() {
         return displayName;
+    }
+
+    public boolean isTrial() {
+        return accountType == AccountType.TRIAL;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
     }
 }

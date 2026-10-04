@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ErrorMessage, Loading } from "../../shared/components/StateViews";
 import { useMyCompany } from "../company/useMyCompany";
+import { UsageBadge } from "../usage/UsageBadge";
+import { USAGE_KEY } from "../usage/usageApi";
 import { AiErrorNotice } from "./AiErrorNotice";
 import { AiQueryResultView } from "./AiQueryResultView";
 import { aiApi } from "./aiApi";
@@ -55,6 +57,7 @@ export function AiSearchPage() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["messages"] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: USAGE_KEY });
     },
   });
 
@@ -113,6 +116,7 @@ export function AiSearchPage() {
           <p className="muted small search-time-note">
             AI가 질문을 해석하고 공고 조건과 공고문 근거를 확인하므로 답변까지 시간이 걸릴 수 있습니다(보통 수십 초, 길면 1분 가까이).
           </p>
+          <UsageBadge />
           <div className="examples">
             {EXAMPLES.map((example) => (
               <button key={example} type="button" className="chip" disabled={locked} onClick={() => setText(example)}>{example}</button>

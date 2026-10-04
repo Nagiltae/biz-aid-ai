@@ -21,6 +21,17 @@ public enum ErrorCode {
             "로그인 실패가 반복되어 잠시 로그인할 수 없습니다. 10분 뒤에 다시 시도해 주세요."),
     // 회원 탈퇴·비밀번호 변경의 비밀번호 재확인 실패. 401이면 화면이 토큰 재발급을 시도하므로 400으로 돌려준다.
     AUTH_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "auth_password_mismatch", "현재 비밀번호가 올바르지 않습니다."),
+    // 체험 계정 제한(묶음5-1). 체험 계정은 합성 기업정보로만 쓰고 계정·기업정보를 바꾸지 못한다.
+    TRIAL_ACCOUNT_RESTRICTED(HttpStatus.FORBIDDEN, "trial_account_restricted",
+            "체험 계정에서는 이 기능을 쓸 수 없어요. 회원가입하면 이용할 수 있어요."),
+    TRIAL_DISABLED(HttpStatus.FORBIDDEN, "trial_disabled", "지금은 체험하기를 이용할 수 없어요. 회원가입 후 이용해 주세요."),
+    TRIAL_CREATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "trial_create_limited",
+            "오늘 이 접속 환경에서 만들 수 있는 체험 계정 수를 모두 사용했어요. 회원가입 후 이용해 주세요."),
+    // 하루 AI 사용 제한(묶음5-1). 한국 시간 자정에 다시 사용할 수 있다.
+    AI_DAILY_LIMIT_REACHED(HttpStatus.TOO_MANY_REQUESTS, "ai_daily_limit_reached",
+            "오늘 사용 가능한 횟수를 모두 사용했어요. 내일 다시 이용해 주세요."),
+    AI_TRIAL_POOL_EXHAUSTED(HttpStatus.TOO_MANY_REQUESTS, "ai_trial_pool_exhausted",
+            "오늘 체험용 AI 사용량이 모두 찼어요. 회원가입하면 계속 이용할 수 있어요."),
     COMPANY_NOT_REGISTERED(HttpStatus.NOT_FOUND, "company_not_registered", "등록된 기업정보가 없습니다. 먼저 기업정보를 등록해 주세요."),
     COMPANY_ALREADY_REGISTERED(HttpStatus.CONFLICT, "company_already_registered", "이미 기업정보가 등록되어 있습니다. 수정 기능을 사용해 주세요."),
     PROGRAM_NOT_FOUND(HttpStatus.NOT_FOUND, "program_not_found", "지원사업을 찾을 수 없거나 더 이상 게시되지 않는 공고입니다."),

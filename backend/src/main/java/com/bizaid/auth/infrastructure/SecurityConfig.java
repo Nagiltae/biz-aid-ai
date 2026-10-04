@@ -37,7 +37,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login", "/api/auth/refresh",
-                                "/api/auth/logout").permitAll()
+                                "/api/auth/logout", "/api/auth/trial").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/trial").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/programs", "/api/programs/filter-options",
                                 "/api/programs/{pblancId}").permitAll()
                         .requestMatchers("/error").permitAll()
