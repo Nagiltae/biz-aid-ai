@@ -5,14 +5,19 @@ provider는 공통 LlmRequest(system, user, 출력 JSON schema)를 받아 LlmRes
 BOUNDARY: LangChain은 이 파일(LLM 호출 계층)에서만 쓴다. 후보 필터·검색·RRF·근거 연결·자격 상태 계산은 LangChain이 소유하지 않는다.
 """
 import json
+import logging
 import os
+import queue
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Protocol
 
 from biz_aid_pipeline.config.settings import ROOT, PipelineError, profile_values, read_json
 
-SETTING_NAMES = {"LLM_PROVIDER", "OLLAMA_BASE_URL", "OLLAMA_MODEL", "OLLAMA_TIMEOUT_SECONDS", "OLLAMA_KEEP_ALIVE"}
+SETTING_NAMES = {"LLM_PROVIDER", "OLLAMA_BASE_URL", "OLLAMA_MODEL", "OLLAMA_TIMEOUT_SECONDS", "OLLAMA_KEEP_ALIVE",
+                 "BEDROCK_MODEL_ID", "BEDROCK_REGION", "AWS_PROFILE"}
+BEDROCK_MODEL = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
 
 
 @dataclass(frozen=True)
@@ -67,6 +72,9 @@ class OllamaLlmProvider:
         self.prompt, self.chat = chat_prompt(), chat
 
     def generate(self, request):
+        return traced_generation(self, request, self._generate)
+
+    def _generate(self, request):
         messages = self.prompt.format_messages(system=request.system, user=request.user)
         # BOUNDARY: options를 넘기면 ChatOllama는 객체의 다른 생성 설정을 쓰지 않으므로 context·출력 상한도 여기에 함께 넣는다.
         options = {"temperature": request.temperature}
@@ -101,6 +109,132 @@ class OllamaLlmProvider:
         return LlmResponse(content, self.name, metadata.get("model", self.model), round(elapsed, 2), usage)
 
 
+def traced_generation(provider, request, call):
+    """추적에는 provider·model·token 개수만 기록한다. prompt·기업정보·모델 본문은 보내지 않는다."""
+    from biz_aid_pipeline.observability.tracing import step
+    with step("llm.generate", provider=provider.name, model=provider.model) as span:
+        response = call(request)
+        span.record(provider=response.provider, model=response.model,
+                    input_tokens=response.usage.get("input_tokens", response.usage.get("prompt_eval_count")),
+                    output_tokens=response.usage.get("output_tokens", response.usage.get("eval_count")))
+        return response
+
+
+class BedrockLlmProvider:
+    """ConverseStream의 지정 tool input만 JSON으로 받는다. AWS 인증은 SDK credential chain에 맡긴다."""
+
+    name = "bedrock"
+
+    def __init__(self, model=BEDROCK_MODEL, region="ap-northeast-2", timeout_seconds=75, aws_profile=None, client=None):
+        self.model, self.region, self.timeout_seconds = model, region, timeout_seconds
+        self.client = client
+        self.aws_profile = aws_profile or None
+
+    def _client(self):
+        if self.client is None:
+            import boto3
+            from botocore.config import Config
+            # BOUNDARY: EC2에서는 profile을 지정하지 않고 인스턴스 역할을 쓴다. 키 값·목록 조회·자동 재시도는 없다.
+            self.client = boto3.Session(profile_name=self.aws_profile).client("bedrock-runtime", region_name=self.region,
+                config=Config(connect_timeout=5, read_timeout=self.timeout_seconds, retries={"total_max_attempts": 1}))
+        return self.client
+
+    def generate(self, request):
+        return traced_generation(self, request, self._generate)
+
+    def _generate(self, request):
+        from jsonschema import Draft202012Validator
+        started = time.monotonic()
+        deadline = started + self.timeout_seconds
+        events, stopped, streams = queue.Queue(maxsize=8), threading.Event(), []
+        max_tokens = request.max_output_tokens or 2048
+        parameters = {"modelId": self.model, "system": [{"text": request.system}],
+                      "messages": [{"role": "user", "content": [{"text": request.user}]}],
+                      "inferenceConfig": {"maxTokens": max_tokens, "temperature": request.temperature},
+                      "toolConfig": {"tools": [{"toolSpec": {"name": "emit_result", "description": "Return the required JSON result",
+                                      "inputSchema": {"json": request.output_schema}}}],
+                                     "toolChoice": {"tool": {"name": "emit_result"}}}}
+
+        def send(kind, value):
+            while not stopped.is_set():
+                try:
+                    events.put((kind, value), timeout=.05)
+                    return
+                except queue.Full:
+                    continue
+
+        def receive():
+            stream = None
+            try:
+                stream = self._client().converse_stream(**parameters)["stream"]
+                streams.append(stream)
+                for event in stream:
+                    if stopped.is_set():
+                        break
+                    send("event", event)
+                send("end", None)
+            except Exception as error:
+                send("error", error)
+            finally:
+                if stream is not None:
+                    stream.close()
+
+        # WHY: SDK의 read timeout은 token마다 초기화된다. transport 대기까지 포함한 전체 기한은 소비자가 직접 잰다.
+        threading.Thread(target=receive, daemon=True, name="bedrock-single-call").start()
+        pieces, tool_index, stop_reason, usage, size = [], None, None, {}, 0
+        try:
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise PipelineError("llm_timeout")
+                try:
+                    kind, value = events.get(timeout=remaining)
+                except queue.Empty:
+                    raise PipelineError("llm_timeout") from None
+                if time.monotonic() > deadline:
+                    raise PipelineError("llm_timeout")
+                if kind == "error":
+                    # RISK: SDK 예외 원문에는 요청 상세가 섞일 수 있다. 응답·추적에는 고정 코드만, 로컬 로그에는 종류만 남긴다.
+                    logging.getLogger(__name__).warning("Bedrock invocation failed (%s)", type(value).__name__)
+                    raise PipelineError("llm_provider_unavailable") from None
+                if kind == "end":
+                    break
+                if any(key.endswith("Exception") for key in value):
+                    raise PipelineError("llm_provider_unavailable")
+                block = value.get("contentBlockStart", {})
+                if block.get("start", {}).get("toolUse"):
+                    if tool_index is not None or block["start"]["toolUse"].get("name") != "emit_result":
+                        raise PipelineError("llm_output_schema_mismatch")
+                    tool_index = block["contentBlockIndex"]
+                block = value.get("contentBlockDelta", {})
+                if "toolUse" in block.get("delta", {}):
+                    if block.get("contentBlockIndex") != tool_index:
+                        raise PipelineError("llm_output_schema_mismatch")
+                    text = block["delta"]["toolUse"].get("input", "")
+                    size += len(text.encode("utf-8"))
+                    if size > 1024 * 1024:
+                        raise PipelineError("llm_output_limit_reached")
+                    pieces.append(text)
+                stop_reason = value.get("messageStop", {}).get("stopReason", stop_reason)
+                usage.update(value.get("metadata", {}).get("usage", {}))
+            if stop_reason == "max_tokens" or usage.get("outputTokens", 0) >= max_tokens:
+                raise PipelineError("llm_output_limit_reached")
+            if stop_reason != "tool_use" or tool_index is None:
+                raise PipelineError("llm_output_schema_mismatch")
+            try:
+                output = json.loads("".join(pieces))
+                Draft202012Validator(request.output_schema).validate(output)
+            except Exception:
+                raise PipelineError("llm_output_schema_mismatch") from None
+            usage = {"input_tokens": usage.get("inputTokens"), "output_tokens": usage.get("outputTokens"),
+                     "done_reason": stop_reason}
+            return LlmResponse(json.dumps(output, ensure_ascii=False), self.name, self.model, round(time.monotonic() - started, 2), usage)
+        finally:
+            stopped.set()
+            for stream in streams:
+                stream.close()
+
+
 def error_code(error):
     """LangChain·Ollama client 예외를 고정 코드로 바꾼다. 원문 메시지(주소·모델 상세)는 응답·로그에 싣지 않는다."""
     status = getattr(error, "status_code", None)
@@ -133,4 +267,9 @@ def provider_from_settings(profile, root=ROOT, environ=None):
         timeout = min(float(settings.get("OLLAMA_TIMEOUT_SECONDS") or deadline), deadline)
         return OllamaLlmProvider(settings.get("OLLAMA_BASE_URL") or "http://127.0.0.1:11434", model, timeout,
                                  settings.get("OLLAMA_KEEP_ALIVE") or "10m", num_ctx=num_ctx)
+    if provider == "bedrock":
+        deadline, _ = llm_call_limits(root)
+        return BedrockLlmProvider(settings.get("BEDROCK_MODEL_ID") or BEDROCK_MODEL,
+                                 settings.get("BEDROCK_REGION") or "ap-northeast-2", deadline,
+                                 settings.get("AWS_PROFILE"))
     raise PipelineError("llm_provider_unsupported:" + provider)

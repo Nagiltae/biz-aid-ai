@@ -48,3 +48,7 @@ Source Hit@1·Source Hit@5·Evidence Hit@5를 계산한다. Gold hash가 동결 
 ## 묶음1 기능 회귀
 
 `bundle1-quality-questions.json`은 검색4·문서QA3·추천3의 작은 고정 실행 입력이다. V1 frozen baseline/Gold 정답 평가와 구분하며 자연어 답변 정답률을 주장하지 않는다. 재사용 runner는 `harness/workspace/artifacts/development/regression-set/run.py`에 strict 등록했다. 출력 JSON/log는 non-gating이고 동일 질문을 다음 묶음에서 비교한다.
+
+## V2 작은 provider 시험
+
+[Cases-v2](cases-v2/README.md): 실제 V2 MySQL/Qdrant 근거로 동결한 20건. 검색·QA·맞춤 추천·자격 판정을 같은 입력으로 provider당 한 번 실행한다. V1 baseline과 입력·결과를 분리하고 대규모 평가나 반복 튜닝으로 확대하지 않는다.

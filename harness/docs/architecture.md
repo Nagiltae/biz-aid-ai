@@ -102,3 +102,8 @@ MySQL과 Qdrant는 `pblanc_id`·`source_sha256`으로만 연결한다. collectio
 기업 지역 후보는 company-region 계약의 제목 표시/소관기관 규칙으로 계산하며 개인화 검색과 AI 검색이 공유한다. Spring은 optional 기업 region만 내부 요청에 전달한다. 회사 없는 AI 검색·대화는 인증/소유권 검증으로 제공하고, 맞춤 추천·자격 판정의 기업 등록 요구는 유지한다. 직접 질문한 다른 지역 공고는 답변 대상에서 숨기지 않고 경고한다.
 
 기간 파생은 existing period normalizer의 명시 날짜 범위를 보강한다. dev MySQL1554행 중603→604행에 날짜가 생겼고 다른 source/lifecycle column은 보존됐다. V2 마감 정리는 snapshot 로컬 byte 검증 후 pblanc_id로 삭제하며 원본·MySQL row·V1은 보존한다. 2026-10-04 이전 마감62공고3679point 정리 후 V2는60362point, V1은3849point다. 신규 원본 admission은 공고당 원본200point, 식별된 대형 참고자료60point/점유율 경계로 embedding 전 전체 source를 보류하며 기존 적재에는 적용하지 않는다. 상세 계약 및 이번 Report를 참조한다.
+
+## LLM 실행 선택 (묶음4)
+
+`rag/llm.py`의 공통 provider 경계에서 Ollama(기본) 또는 Bedrock ConverseStream/tool JSON을 선택한다. MySQL 후보·BGE-M3·Qdrant·RRF·판정 최종 상태 계산은 provider와 독립적이다. Bedrock은 SDK chain(로컬 `bizaid-dev`, 서버 IAM 역할)만 쓰며 실제 키를 image/env example에 넣지 않는다. 출력 schema·75초 전체기한·출력상한 실패 처리를 공통 계약으로 유지한다.
+V2 비교 입력은 `evals/cases-v2/`에 별도 동결해 V1 baseline과 분리한다. 목록 중복은 순위 후처리, 표 표현은 모델 context 단계만 바꾸며 저장된 vector/key는 불변이다.

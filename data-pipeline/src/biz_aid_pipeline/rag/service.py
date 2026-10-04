@@ -5,6 +5,7 @@ LLM은 request-local evidence id(E1..En)만 고른다. citation의 chunk_id·pbl
 """
 import copy
 import json
+import re
 from dataclasses import asdict, dataclass, field
 
 from biz_aid_pipeline.config.settings import ROOT, PipelineError, read_json
@@ -68,6 +69,22 @@ def location(result):
     return ("HWPX " + ", ".join(sections)) if sections else "위치 정보 없음"
 
 
+def readable_evidence(text):
+    """triplet 표를 평평한 cell 목록으로 표시한다. row/span을 새로 추정하거나 저장된 chunk를 바꾸지 않는다."""
+    spec = rag_contract().get("context_table_presentation", {})
+    if not spec.get("enabled"):
+        return text
+    pattern = r"([^\n.]+?),\s*(\d+)\s*=\s*(.*?)(?=\.\s*[^\n.]+?,\s*\d+\s*=|$)"
+    rows = list(re.finditer(pattern, text, flags=re.S))
+    # BOUNDARY: 원문 전체가 triplet 표임을 확인할 때만 표시를 바꾼다. 자유문장 일부를 임의로 표 구조로 만들지 않는다.
+    if len(rows) < 2 or text[:rows[0].start()].strip():
+        return text
+    lines = ["표 cell 목록 (행·병합 구조는 추정하지 않음):"]
+    for row in rows:
+        lines.append(f"- {row.group(1).strip()} / 열 {row.group(2)}: {row.group(3).strip()}")
+    return "\n".join(lines)
+
+
 def build_context(results):
     """검색 결과를 [E1]..[En] 블록으로 만든다. 식별자·점수·원본 payload는 넣지 않는다."""
     blocks, index = [], {}
@@ -75,7 +92,7 @@ def build_context(results):
         evidence_id = f"E{number}"
         index[evidence_id] = result
         heading = " > ".join(result.heading_path) if result.heading_path else "-"
-        blocks.append(f"[{evidence_id}]\n공고: {result.title or '-'}\n위치: {location(result)}\n문단 제목: {heading}\n내용:\n{result.text}")
+        blocks.append(f"[{evidence_id}]\n공고: {result.title or '-'}\n위치: {location(result)}\n문단 제목: {heading}\n내용:\n{readable_evidence(result.text)}")
     return "\n\n".join(blocks), index
 
 

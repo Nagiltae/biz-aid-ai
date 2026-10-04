@@ -12,7 +12,7 @@ AI 실행 추적(Tracing)은 **LangSmith**로 확정했고 V2-6에서 V2 추천 
 
 ## 외부 전송 경계
 
-전송 가능: 단계 이름, 시간, 상태, 개수, 고정 오류 코드, 공개 공고 ID, 기업정보 field ID, 사용자와 무관한 무작위 trace key.
+전송 가능: 단계 이름, 시간, 상태, 개수, 고정 오류 코드, 공개 공고 ID, 기업정보 field ID, 사용자와 무관한 무작위 trace key, provider/model identity와 입력·출력 token 개수.
 
 전송 금지: 사용자 질문, 기업정보와 임시 답변 값, 문서 원문·검색 조각, prompt·모델 입력/출력, 비밀값, 예외 메시지 원문. 코드의 요약 함수와 형식 검사가 이 경계를 이중으로 확인한다.
 
@@ -26,3 +26,5 @@ AI 실행 추적(Tracing)은 **LangSmith**로 확정했고 V2-6에서 V2 추천 
 - V2-6 진단 중 이름 착오로 자동 생성된 `biz_aid` 프로젝트는 사용자가 삭제했다. 없는 프로젝트 이름으로 보내면 LangSmith가 새 프로젝트를 자동으로 만들므로 `LANGSMITH_PROJECT`는 실제 이름과 같아야 한다.
 
 구현 경계는 `data-pipeline/src/biz_aid_pipeline/observability/tracing.py`, 계약은 `contracts/schemas/internal-api.contract.json`, 개인정보 규칙은 [AI 경계](../rules/ai-boundary-rules.md)를 따른다.
+
+묶음4의 `llm.generate` 자식 단계는 명시적 추적이 활성화된 요청 안에서 provider·model·token 개수만 기록한다. Prompt·기업정보·생성 본문은 계속 전송하지 않는다. 자동 LangChain/Bedrock tracing은 켜지 않는다.

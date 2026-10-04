@@ -1,6 +1,5 @@
 # 파이프라인 전체(수집·파싱·청킹·인덱싱·질문 처리). 질문 처리 의존성은 requirements-api.txt에서 함께 설치한다.
 -r requirements-api.txt
-boto3[crt]==1.43.103
 docling-core[chunking]==2.99.0
 defusedxml==0.7.1
 docling-slim[convert-core,format-pdf,models-local,format-docx,format-pptx]==2.130.0

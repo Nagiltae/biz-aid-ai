@@ -7,7 +7,7 @@
 Retrieval Evaluation(gold-v1, 12문항, top_k 5) 결과 baseline은 Hybrid RRF다(dense와 동률, sparse보다 우세).
 
 답변 v1([RAG 계약](../../contracts/schemas/rag-answer.contract.json)): `rag/service.py`의 `RagService`가 Hybrid top5를 [E1]..[E5] context로 만들고
-`rag/llm.py`의 `LlmProvider`(현재 `OllamaLlmProvider`)에 공통 prompt와 JSON schema를 보낸다. 모델은 answer·evidence_ids·insufficient_evidence만 돌려주고,
+`rag/llm.py`의 `LlmProvider`(기본 `OllamaLlmProvider`, 선택 `BedrockLlmProvider`)에 공통 prompt와 JSON schema를 보낸다. 모델은 answer·evidence_ids·insufficient_evidence만 돌려주고,
 citation(chunk_id·pblanc_id·page·source·provenance)은 application이 이번 요청의 SearchResult에서 resolve한다. 유효 근거가 없으면 고정 확인 불가 문장을 돌려준다.
 진입점은 dev CLI `scripts/run_rag_answer.py`와 FastAPI 내부 API다. Spring Boot는 `HttpAiGateway`를 통해 같은 `ServiceRuntime`을 호출한다.
 CLI는 먼저 `candidates.ProgramCandidateService`로 MySQL 후보 pblanc_id(활성 공고 + 선택 필터 category·target·jurisdiction·not_closed_on)를 정하고,
@@ -29,3 +29,9 @@ RAG 답변 경로는 지원 자격의 최종 상태를 결정하지 않는다. E
 V1 종료 기준선은 `evals/v1_baseline/cases-v1.json` 10건이다. 최초 1회 결과는 검색 4/4, DOCUMENT_QA 2/3,
 Eligibility 1/3으로 전체 7/10 PASS였다. QA 1건은 12개월 조건을 빠뜨렸고 Eligibility 2건은 model field 이름이 계약과 달라
 application 검증에서 실패했다. 생산 route를 고치지 않은 현재 상태이며 V2 provider·prompt·retrieval 변경은 같은 baseline으로 비교한다.
+
+## Provider와 작은 고정 비교
+
+`LLM_PROVIDER=ollama|bedrock`이며 기본 Ollama다. Bedrock은 ConverseStream의 지정 tool JSON을 schema로 재검증한다. 두 provider의 전체 호출 기한은 75초이며 잘린 출력은 판정하지 않는다. AWS 인증은 SDK credential chain만 사용한다. 로컬 Compose는 사용자 AWS 설정을 read-only로 제공하며 EC2는 역할을 쓴다.
+검색 목록은 RRF 계산 뒤 동일 공고·정규화 사업명/소관/분야/대상 묶음의 첫 항목만 남긴다(지역 표시는 보존). 질문/판정 context의 순수 triplet 표는 cell 목록으로만 표시하고 row/span을 추정하지 않는다. 원문·chunk·vector·식별값은 바꾸지 않는다.
+[동결 V2 시험](../../evals/cases-v2/README.md)은 실제 근거로 기대값을 먼저 고정하고 provider당 순차 1회 측정한다. 기대값 수정은 새 버전으로만 하며 V1 baseline은 불변이다.

@@ -17,7 +17,7 @@ INTERNAL_KEY_HEADER = "X-Internal-Api-Key"
 
 # 모델 출력이 계약을 어긴 경우(외부 LLM 응답 문제)는 502, 의존 서비스 접속 실패는 503이다.
 MODEL_OUTPUT_ERRORS = ("filter_extraction_", "eligibility_output_", "eligibility_invalid_evidence_id",
-                       "eligibility_cross_program_evidence", "eligibility_unknown_profile_field", "rag_llm_output_")
+                       "eligibility_cross_program_evidence", "eligibility_unknown_profile_field", "rag_llm_output_", "llm_output_")
 
 
 class QueryRequest(BaseModel):
@@ -66,7 +66,7 @@ def status_for(code):
     if code.startswith(("company_profile_", "company_search_profile_")):
         return 422
     # 시간 초과(llm_timeout)도 일시적인 의존 서비스 문제다. Spring은 503을 "AI 서비스 일시 불가"로 보여 준다.
-    if code in ("llm_unavailable", "llm_timeout") or code.startswith("llm_http_error"):
+    if code in ("llm_unavailable", "llm_timeout", "llm_provider_unavailable") or code.startswith("llm_http_error"):
         return 503
     if code == "llm_empty_response":
         return 502

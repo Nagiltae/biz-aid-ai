@@ -96,7 +96,7 @@ def run(*command, capture=False):
 def workspace_category(name):
     # BOUNDARY: 사용자가 지정한 Task handoff는 실행 상태 산출물이며 current-task와 다르다.
     if name in ("harness/workspace/handoff/bundle1-handoff.md", "harness/workspace/handoff/bundle2-handoff.md",
-                "harness/workspace/handoff/bundle3-handoff.md"):
+                "harness/workspace/handoff/bundle3-handoff.md", "harness/workspace/handoff/bundle4-handoff.md"):
         return "GENERATED_CHECKPOINT"
     for category, names in STATIC_WORKSPACE_FILES.items():
         if name in names:
@@ -232,9 +232,10 @@ def compose():
         fastapi = result["services"]["fastapi"]
         environment = fastapi.get("environment", {})
         mounts = {item["target"]: item for item in fastapi.get("volumes", [])}
-        if (set(mounts) != {"/app/data-pipeline/src", "/app/contracts", "/models"} or not all(item.get("read_only") for item in mounts.values())
+        if (set(mounts) != {"/app/data-pipeline/src", "/app/contracts", "/models", "/home/bizaid/.aws"} or not all(item.get("read_only") for item in mounts.values())
                 or Path(mounts["/app/data-pipeline/src"]["source"]).resolve() != ROOT / "data-pipeline/src"
                 or Path(mounts["/app/contracts"]["source"]).resolve() != ROOT / "contracts"
+                or Path(mounts["/home/bizaid/.aws"]["source"]).resolve() != Path.home() / ".aws"
                 or environment.get("MYSQL_HOST") != "mysql" or environment.get("QDRANT_URL") != "http://qdrant:6333"
                 or environment.get("OLLAMA_BASE_URL") != "http://host.docker.internal:11434"
                 or environment.get("BIZAID_DOCLING_ARTIFACTS_PATH") != "/models"

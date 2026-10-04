@@ -267,3 +267,8 @@ NOT_MET→INELIGIBLE, 잘못된 evidence id·다른 공고 evidence·모르는 p
 ## 묶음2 최소 회귀
 
 `test_bundle2_region_data.py`는 제목 복수/권역/fail-open 후보, 명시 날짜, 백업 전 삭제 거부/V1 거부, 새 문서 whole-source admission/기존 불변, named 타지역 QA를 검증한다. `test_structured_mysql.py`는 biz_aid_test에서 파생 날짜만 갱신하고 재실행 no-op인지 확인한다. Spring fake FastAPI와 React는 optional기업지역과 안내/미등록 전체 검색을 검증하며 실제LLM은 check-all에 넣지 않는다. 고정 질문 세트는 승인된 이번 작업에서만1회 별도 실행하고 이전 결과와 비교한다.
+
+## 묶음4 provider 시험
+
+`test_bedrock_llm.py`는 fake ConverseStream으로 tool/schema·75초 전체기한·출력상한 fail-closed·권한오류 고정503·SDK chain·개인정보 없는 token 추적을 검사한다. `test_bundle4_quality.py`는 순위 후 목록 중복/지역 보존과 context cell 표현의 원문·식별값 보존을 검사한다. `test_cases_v2.py`는 동결 20건 hash·채점·비용 단위만 검사하며 실제 Bedrock/Ollama/LLM은 CI에서 호출하지 않는다.
+실제 비교는 `evals/cases-v2/README.md`처럼 승인된 dev에서 provider당 순차1회 수행한다. 평가 코드의 오류는 모델 품질 실패와 분리하고 기대값을 결과에 맞춰 바꾸지 않는다. 결과 출력이 있으면 덮어쓰지 않는다.

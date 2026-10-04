@@ -1,5 +1,11 @@
 # Harness 변경 이력
 
+## 2026-10-04 — 묶음4 Bedrock·V2 동결 시험·목록/표 context
+
+사용자 승인으로 provider 경계에 Bedrock ConverseStream/forced tool JSON을 추가했다. 기본 Ollama·75초 기한·기존 판정 상한·fail-closed는 유지한다. credential chain만 사용하고 Compose 사용자 AWS 설정을 read-only로 제공한다. Registry/Compose 검증은 mount 경계와 신규 SDK 최소 의존성을 반영하며 키·자동 재시도는 추가하지 않는다.
+cases-v2 20건은 실제 DB/Qdrant 근거로 실행 전에 동결한다. provider당1회 + 기존10질문 Bedrock1회만 실행한다. V1 baseline/collection·embedding/key는 불변. 목록 중복은 RRF 뒤 첫 결과 유지, 표는 context의 flat cell 표현만 바꾸며 구조를 추측하지 않는다. token/provider/model만 추적하고 prompt/개인정보는 보내지 않는다.
+실측: Bedrock19/20, Ollama15PASS/3품질FAIL/2채점오류. 기존1280token 상한 때문에 Bedrock120174 fail-closed. 비교·비용 측정 한계와 후속 출력예산 결정을 Report에 기록한다. 현재 Task 독립 AGY 검토는 pending이며 과거 승인을 재사용하지 않는다. 사용자 지정 bundle4-handoff만 non-gating으로 추가했다.
+
 ## 2026-10-04 — 묶음3 서비스 관리(Claude)
 
 사용자 승인: 새 Flyway migration을 `migrations/`에 추가하고 dev DB에 적용.

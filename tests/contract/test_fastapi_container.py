@@ -20,7 +20,7 @@ API_REQUIREMENTS = ROOT / "data-pipeline/requirements-api.txt"
 PIPELINE_REQUIREMENTS = ROOT / "data-pipeline/requirements.txt"
 # 파싱 전용 의존성. 질문 처리 이미지에 들어가면 이미지가 수 GB로 커지고 파싱 경계가 섞인다.
 PARSING_ONLY = ("docling-slim", "docling-ibm-models", "paddlepaddle", "paddlex", "opencv-python-headless",
-                "python-docx", "python-pptx", "xlsxwriter", "defusedxml", "boto3")
+                "python-docx", "python-pptx", "xlsxwriter", "defusedxml")
 
 
 def requirement_lines(path):
@@ -101,7 +101,7 @@ class RequirementSplitTests(unittest.TestCase):
         self.assertEqual(pipeline[0], "-r requirements-api.txt")
         self.assertFalse({package(line) for line in api} & set(PARSING_ONLY))
         for name in ("fastapi", "uvicorn", "qdrant-client", "langchain-core", "langchain-ollama", "langgraph", "langsmith",
-                     "sqlalchemy", "pymysql", "torch", "transformers"):
+                     "sqlalchemy", "pymysql", "torch", "transformers", "boto3", "jsonschema"):
             self.assertIn(name, {package(line) for line in api})
         # 파이프라인 파일에 같은 패키지를 다른 버전으로 다시 적지 않는다(extra만 더할 수 있다).
         versions = {package(line): line.split("==")[1] for line in api}
@@ -128,6 +128,11 @@ class ContainerFilesTests(unittest.TestCase):
         # 코드·모델을 이미지에 복사하지 않는다(코드는 mount, 모델은 host artifact).
         self.assertNotRegex(dockerfile, r"COPY\s+(src|\.)\s")
         self.assertIn("USER bizaid", dockerfile)
+        compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+        self.assertIn("${HOME}/.aws:/home/bizaid/.aws:ro", compose)
+        self.assertIn("AWS_PROFILE: ${AWS_PROFILE:-}", compose)
+        self.assertNotIn("AWS_ACCESS_KEY_ID:", compose)
+        self.assertNotIn("AWS_SECRET_ACCESS_KEY:", compose)
         dev = (ROOT / "scripts/dev.sh").read_text(encoding="utf-8")
         self.assertIn('docker compose --env-file "$ROOT/.env.dev" --profile app', dev)
         # 데이터 volume을 지우는 명령과 설정 값 출력은 두지 않는다.

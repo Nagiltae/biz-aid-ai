@@ -103,10 +103,12 @@ class NaturalLanguageFilterTests(unittest.TestCase):
         self.assertEqual((programs[0]["category"], programs[0]["target"], Retriever.calls), ("금융", "소상공인", [(5, ("P1", "P2"), 50)]))
         self.assertEqual(ProgramDiscoveryService(repository, retriever, contract).discover("q", ()), [])
         self.assertEqual(len(Retriever.calls), 1)
-        for ranked, code in (([chunk(1, "c1", "P9", "x")], "retrieval_scope_violation"),
-                             ([chunk(1, "c1", "P1", "x"), chunk(2, "c2", "P1", "y")], "discovery_duplicate_program")):
-            with self.assertRaisesRegex(PipelineError, code):
-                ProgramDiscoveryService(repository, Retriever(ranked), contract).discover("q", ("P1", "P2"))
+        with self.assertRaisesRegex(PipelineError, "retrieval_scope_violation"):
+            ProgramDiscoveryService(repository, Retriever([chunk(1, "c1", "P9", "x")]), contract).discover("q", ("P1", "P2"))
+        # WHY: 묶음4 승인 정책은 중복을 실패시키는 대신 기존 첫 순위를 하나만 남긴다. 후보 밖 거부는 그대로다.
+        duplicates = Retriever([chunk(1, "c1", "P1", "x"), chunk(2, "c2", "P1", "y")])
+        deduped = ProgramDiscoveryService(repository, duplicates, contract).discover("q", ("P1", "P2"))
+        self.assertEqual([(p["rank"], p["pblanc_id"], p["evidence_chunk_id"]) for p in deduped], [(1, "P1", "c1")])
 
     def test_router_uses_list_without_answer_llm_and_qa_through_existing_rag(self):
         from biz_aid_pipeline.rag.router import handle_request

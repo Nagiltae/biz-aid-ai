@@ -1,0 +1,376 @@
+{
+  "baseline_id": "cases-v2",
+  "version": 1,
+  "as_of": "2026-10-04",
+  "collection_namespace": "v2",
+  "cases": [
+    {
+      "case_id": "V2-01",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "소상공인이 받을 수 있는 금융 지원사업 찾아줘",
+      "expected": {
+        "status": "LISTED",
+        "program_ids": [
+          "PBLN_000000000120174"
+        ],
+        "max_results": 5
+      }
+    },
+    {
+      "case_id": "V2-02",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "중소기업 수출 지원사업 찾아줘",
+      "expected": {
+        "status": "LISTED",
+        "program_ids": [
+          "PBLN_000000000116741"
+        ],
+        "max_results": 5
+      }
+    },
+    {
+      "case_id": "V2-03",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "창업 기술 지원사업 추천해줘",
+      "expected": {
+        "status": "LISTED",
+        "program_ids": [
+          "PBLN_000000000116943"
+        ],
+        "max_results": 5
+      }
+    },
+    {
+      "case_id": "V2-04",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "고용 지원사업은 어떤 사업이 있어",
+      "expected": {
+        "status": "LISTED",
+        "program_ids": [
+          "PBLN_000000000117022"
+        ],
+        "max_results": 5
+      }
+    },
+    {
+      "case_id": "V2-05",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "비즈플러스카드 지원사업 찾아줘",
+      "expected": {
+        "status": "LISTED",
+        "program_ids": [
+          "PBLN_000000000119801"
+        ],
+        "max_results": 5
+      }
+    },
+    {
+      "case_id": "V2-06",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "인천 중동 상황 위기 대응 수출바우처 사업 찾아줘",
+      "expected": {
+        "status": "LISTED",
+        "program_ids": [
+          "PBLN_000000000123769"
+        ],
+        "max_results": 5
+      }
+    },
+    {
+      "case_id": "V2-07",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "안양시 소상공인 특례보증 지원사업 찾아줘",
+      "expected": {
+        "status": "LISTED",
+        "program_ids": [
+          "PBLN_000000000117920"
+        ],
+        "max_results": 5
+      }
+    },
+    {
+      "case_id": "V2-08",
+      "evaluation_type": "SEARCH_LIST",
+      "question": "강진군 소상공인 창업 임대료 지원사업 찾아줘",
+      "expected": {
+        "status": "LISTED",
+        "program_ids": [
+          "PBLN_000000000117365"
+        ],
+        "max_results": 5
+      }
+    },
+    {
+      "case_id": "V2-09",
+      "evaluation_type": "DOCUMENT_QA",
+      "question": "비즈플러스카드 지원사업에 신청하려면 신용점수와 업력 요건이 어떻게 되나요?",
+      "expected": {
+        "status": "ANSWERED",
+        "source_sha256": "046c5194828ed680b49bb9adb402eeda6eb89ce1c5d9241304a6d5769ec1d17d",
+        "evidence_chunk_indexes": [
+          2
+        ],
+        "fact_groups": [
+          [
+            "595"
+          ],
+          [
+            "964"
+          ],
+          [
+            "6개월"
+          ]
+        ],
+        "citation_required": true
+      },
+      "target_pblanc_id": "PBLN_000000000119801",
+      "selected_pblanc_id": "PBLN_000000000119801"
+    },
+    {
+      "case_id": "V2-10",
+      "evaluation_type": "DOCUMENT_QA",
+      "question": "강진군 소상공인 창업 임대료 지원금은 한 달에 얼마, 최대 얼마까지 받을 수 있나요?",
+      "expected": {
+        "status": "ANSWERED",
+        "source_sha256": "018c9ddac66107b2049aa69e9c1da8e6a54227a6fcd6859796cf9f577744265e",
+        "evidence_chunk_indexes": [
+          2
+        ],
+        "fact_groups": [
+          [
+            "20만원",
+            "200000원"
+          ],
+          [
+            "240만원",
+            "2400000원"
+          ],
+          [
+            "12개월"
+          ]
+        ],
+        "citation_required": true
+      },
+      "target_pblanc_id": "PBLN_000000000117365",
+      "selected_pblanc_id": "PBLN_000000000117365"
+    },
+    {
+      "case_id": "V2-11",
+      "evaluation_type": "DOCUMENT_QA",
+      "question": "1인 소상공인 고용보험료 지원에서 기준보수 1등급의 월 지원금액은 얼마인가요?",
+      "expected": {
+        "status": "ANSWERED",
+        "source_sha256": "06a125f2c771df38a5e48f393cade3f38e142dce5745a430f83abc527c34df07",
+        "evidence_chunk_indexes": [
+          11
+        ],
+        "fact_groups": [
+          [
+            "32760원"
+          ]
+        ],
+        "citation_required": true
+      },
+      "target_pblanc_id": "PBLN_000000000120839",
+      "selected_pblanc_id": "PBLN_000000000120839"
+    },
+    {
+      "case_id": "V2-12",
+      "evaluation_type": "DOCUMENT_QA",
+      "question": "인천 중동 상황 위기 대응 긴급 수출바우처 지원사업의 지원요건은 무엇인가요?",
+      "expected": {
+        "status": "ANSWERED",
+        "source_sha256": "591babf5e4f9e017864ec2b5634c80b81b623a680521454c44161ab0c348c59e",
+        "evidence_chunk_indexes": [
+          1,
+          9,
+          33
+        ],
+        "fact_groups": [
+          [
+            "인천"
+          ],
+          [
+            "중소기업"
+          ],
+          [
+            "수출실적",
+            "수출 실적"
+          ],
+          [
+            "피해"
+          ]
+        ],
+        "citation_required": true,
+        "region_warning_required": true
+      },
+      "target_pblanc_id": "PBLN_000000000123769",
+      "selected_pblanc_id": "PBLN_000000000123769",
+      "company_region": "서울특별시"
+    },
+    {
+      "case_id": "V2-13",
+      "evaluation_type": "DOCUMENT_QA",
+      "question": "지역산업위기대응 이차보전 지원사업의 지원대상과 신청기간 알려줘",
+      "expected": {
+        "status": "ANSWERED",
+        "source_sha256": "460976061fb4d24042cd9d4da4b10efec8256c972c53abe01e2d1f99fea75545",
+        "evidence_chunk_indexes": [
+          1
+        ],
+        "fact_groups": [
+          [
+            "산업위기지역",
+            "산업위기 지역"
+          ],
+          [
+            "중소",
+            "중견"
+          ],
+          [
+            "11월 13",
+            "11.13",
+            "11. 13"
+          ]
+        ],
+        "citation_required": true
+      },
+      "target_pblanc_id": "PBLN_000000000126190",
+      "note": "동명 1차/2차 변경 공고: 접수기간 동률이면 최신 생성 공고 선택을 확인한다."
+    },
+    {
+      "case_id": "V2-14",
+      "evaluation_type": "DOCUMENT_QA",
+      "question": "비즈플러스카드 공고 담당자가 좋아하는 음식은 무엇인가요?",
+      "expected": {
+        "status": "INSUFFICIENT_EVIDENCE",
+        "fact_groups": [],
+        "citation_required": false
+      },
+      "target_pblanc_id": "PBLN_000000000119801",
+      "selected_pblanc_id": "PBLN_000000000119801"
+    },
+    {
+      "case_id": "V2-15",
+      "evaluation_type": "DOCUMENT_QA",
+      "question": "안양시 소상공인 특례보증의 업체당 최대 대출한도와 융자기간 알려줘",
+      "expected": {
+        "status": "ANSWERED",
+        "source_sha256": "05b16519ad853d325117e061af68e4eaf82967085d0de2f8bc9a74180aaf2e19",
+        "evidence_chunk_indexes": [
+          1
+        ],
+        "fact_groups": [
+          [
+            "5천만원",
+            "5000만원",
+            "50000000원"
+          ],
+          [
+            "5년"
+          ]
+        ],
+        "citation_required": true
+      },
+      "target_pblanc_id": "PBLN_000000000117920",
+      "selected_pblanc_id": "PBLN_000000000117920"
+    },
+    {
+      "case_id": "V2-16",
+      "evaluation_type": "PERSONALIZED",
+      "question": "경기도 소상공인 금융 지원사업 찾아줘",
+      "expected": {
+        "program_ids": [
+          "PBLN_000000000117920"
+        ],
+        "search_status": "LISTED",
+        "evaluation_completed": true
+      },
+      "company_profile": {
+        "region": "경기도",
+        "company_size": "소상공인",
+        "business_status": "영업중"
+      }
+    },
+    {
+      "case_id": "V2-17",
+      "evaluation_type": "PERSONALIZED",
+      "question": "경기도 중소기업 수출 지원사업 찾아줘",
+      "expected": {
+        "program_ids": [
+          "PBLN_000000000116741"
+        ],
+        "search_status": "LISTED",
+        "evaluation_completed": true
+      },
+      "company_profile": {
+        "region": "경기도",
+        "company_size": "중소기업",
+        "business_status": "영업중"
+      }
+    },
+    {
+      "case_id": "V2-18",
+      "evaluation_type": "PERSONALIZED",
+      "question": "서울 소상공인 창업 지원사업 찾아줘",
+      "expected": {
+        "program_ids": [],
+        "search_status": "NO_CANDIDATES",
+        "evaluation_completed": true
+      },
+      "company_profile": {
+        "region": "서울특별시",
+        "company_size": "소상공인",
+        "business_status": "영업중"
+      }
+    },
+    {
+      "case_id": "V2-19",
+      "evaluation_type": "ELIGIBILITY",
+      "question": "지역산업위기대응 이차보전 1차 공고에 신청할 수 있나요?",
+      "expected": {
+        "status": "NEEDS_MORE_INFO",
+        "minimum_criteria": 1,
+        "unknown_required": true
+      },
+      "target_pblanc_id": "PBLN_000000000123260",
+      "company_profile": {
+        "company_size": "중소기업",
+        "business_status": "영업중"
+      }
+    },
+    {
+      "case_id": "V2-20",
+      "evaluation_type": "ELIGIBILITY",
+      "question": "신용점수가 기준보다 낮은 이 기업이 비즈플러스카드 지원사업에 지원 가능한가요?",
+      "expected": {
+        "status": "INELIGIBLE",
+        "criterion": {
+          "profile_field": "credit_score",
+          "result": "NOT_MET"
+        },
+        "minimum_criteria": 1
+      },
+      "target_pblanc_id": "PBLN_000000000119801",
+      "company_profile": {
+        "business_entity_type": "개인사업자",
+        "company_size": "소상공인",
+        "business_start_date": "2024-03-01",
+        "business_status": "영업중",
+        "credit_score": 500,
+        "tax_delinquent": false,
+        "additional_facts": {
+          "최근 2개월 매출(원)": 15000000,
+          "연체 중": false,
+          "보증 제한업종 해당": false
+        }
+      }
+    }
+  ],
+  "grounding": "기존 V1 Gold 공개 근거와 dev MySQL/Qdrant V2 원문을 provider 시험 전에 대조. 합성 기업정보만 사용. 기대값은 시험 후 수정하지 않는다.",
+  "source_evidence": [
+    "evals/v1_baseline/cases-v1.json",
+    "harness/workspace/reports/development/2026-10-04-bundle3-service.md",
+    "harness/workspace/artifacts/development/bundle4-quality/grounding-source.json"
+  ]
+}

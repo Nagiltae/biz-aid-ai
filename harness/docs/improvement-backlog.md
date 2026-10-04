@@ -45,6 +45,8 @@
 - Side effect: serializer 변경은 chunk identity를 바꾼다(re-chunk·re-embedding·re-indexing·Retrieval Evaluation 재확인). 표 engine 변경은 parse_key와 Source 규칙의 evidence 요구를 따른다.
 - Status: OPEN
 
+- Bundle4(2026-10-04): 모델 context만 순수 triplet을 cell 목록으로 표시했다. 원문·chunk·key·vector 및 구조 미증명 표는 불변. 표 금액 QA는 Ollama 확인 불가 / Bedrock 정답이었다. Parser/serializer 품질 전체 해결을 의미하지 않아 OPEN 유지. [Report](../workspace/reports/development/2026-10-04-bundle4-quality.md).
+
 ## IMP-003 LLM provider 비교와 생성 완결성
 
 - Area: RAG / LLM
@@ -61,6 +63,8 @@
 - Evidence(V2-0, 2026-10-01): 기업정보 field ID + enum 제한 뒤 같은 E01~E03 입력 1회씩 확인에서 계약 오류는 0/3이 됐다. 다만 E01은 값이 있는 조건에 모델이 UNKNOWN을 내 NEEDS_MORE_INFO(기대 ELIGIBLE)가 됐다. 형식 문제가 아니라 판정 품질 문제다(`2026-10-01-v2-0-foundation.md`).
 - Status: OPEN. 출력 계약 오류는 줄었지만 provider·생성 완결성 비교는 수행하지 않았다.
 
+- Bundle4 Evidence(2026-10-04): 동일 동결 V2 20건 provider당1회, Bedrock19 PASS/1 출력상한 FAIL. Ollama15 PASS/3 품질 FAIL/2 채점 오류(추천 실제 결과 보존 실패, 재호출 없음). QA7/7 대5/7, 판정2/2 대1/2. Bedrock PBLN_000000000120174는1280token 상한에서 fail-closed. 제한된 비용과 시간·미검증 항목은 [Report](../workspace/reports/development/2026-10-04-bundle4-quality.md). 출력 완결성 문제가 남아 OPEN 유지.
+
 ## IMP-004 Retrieval 후처리(baseline 이후)
 
 - Area: Retrieval
@@ -70,6 +74,8 @@
 - Revisit trigger: 더 큰 Gold에서 evidence 순위·recall 문제가 확인될 때, 또는 실제 RAG 실패가 retrieval 순위 때문에 반복될 때
 - Side effect: 후보마다 latency·모델 artifact가 늘어난다. 같은 Gold로 전후를 비교한다.
 - Status: OPEN
+
+- Bundle4(2026-10-04): 목록에서 같은 공고/같은 사업명(연도·차수 제외)+소관+분야+대상은 기존 RRF의 첫 결과만 남긴다. 지역 표시·기존 후보 필터·RRF·벡터 불변. 검색8건에서 기대 공고 포함/중복0. 원래 IMP-004의 근거 조각 순위/Reranker 문제를 해결한 것으로 바꾸지 않고 OPEN 유지. [Report](../workspace/reports/development/2026-10-04-bundle4-quality.md).
 
 ## IMP-005 모델 artifact 검증이 전체 manifest 단위
 
@@ -407,6 +413,8 @@
 - Status: OPEN
 
 - Bundle1 Evidence: 2026-10-03 evidence_ids minItems1 추가 및 application 거부 유지. 기존 로그에는 invalid_evidence_id 코드만 있고 raw response가 없어 당시 빈 배열/범위 밖 ID는 확정할 수 없다. 현재 진단은 empty/outside_count만 남긴다. 고정 workflow에서6건 판정 완료; 123260 동일 snapshot 단일 확인은 HTTP200/NEEDS_MORE_INFO·9조건·각조건1~2개근거·32.56초였다. 과거 응답은 없으므로 원인을 소급 확정하지 않는다. 묶음1 Report 참조. 조건 과분할/모델 품질 전체 해결을 의미하지 않아 OPEN 유지.
+
+- Bundle4 Evidence(2026-10-04): 123260 단일 판정은 Ollama·Bedrock 모두 NEEDS_MORE_INFO로 완료. Bedrock 추천에서는120174가1280token 상한에 도달해 fail-closed(시험/10문항 회귀 각1회 관찰). 기준을 반복 조정하지 않았으며 provider별 출력 예산 후속 결정이 필요하다. [Report](../workspace/reports/development/2026-10-04-bundle4-quality.md).
 
 ## IMP-030 여러 지역 대상인데 소관이 한 광역인 공고가 다른 지역 기업 후보에서 빠짐
 

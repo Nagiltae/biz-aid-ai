@@ -3,6 +3,8 @@
 Qdrant(Hybrid Retriever)는 후보 공고의 순위만 정한다. 목록에 보이는 정형 정보는 MySQL 값이다.
 순위 단위는 조각이 아니라 공고다. 의미·단어 검색마다 공고별 최고 조각 하나만 받아 공고 순위를 RRF로 합친다(IMP-014).
 """
+import re
+import unicodedata
 from dataclasses import asdict, dataclass
 
 from biz_aid_pipeline.config.settings import PipelineError
@@ -27,6 +29,17 @@ class ProgramListItem:
     evidence_chunk_id: str | None   # 순위 근거가 된 대표 문서 조각
 
 
+def business_identity(row):
+    """같은 소관·분야·대상의 동일 사업명만 묶는다. 지역 표시·고유 사업어는 보존하고 연도/차수만 제외한다."""
+    name = unicodedata.normalize("NFKC", row.get("name") or "").lower()
+    name = re.sub(r"(?<![0-9])20[0-9]{2}\s*년?|제?\s*[0-9]+\s*차(?=\s|$|[\]\)])", "", name)
+    name = re.sub(r"(?:변경|수정|재|추가)\s*(?:모집)?\s*공고|모집\s*공고|공고", "", name)
+    name = re.sub(r"[^가-힣a-z0-9]", "", name)
+    if len(name) < 8:
+        return (row["pblanc_id"],)
+    return (name, row.get("jurisdiction_name"), row.get("category"), row.get("target"))
+
+
 class ProgramDiscoveryService:
     def __init__(self, repository, retriever, contract):
         self.repository, self.retriever = repository, retriever
@@ -44,14 +57,18 @@ class ProgramDiscoveryService:
         allowed = set(candidates)
         if any(result.pblanc_id not in allowed for result in best):
             raise PipelineError("retrieval_scope_violation")
-        if len({result.pblanc_id for result in best}) != len(best):
-            raise PipelineError("discovery_duplicate_program")
         metadata = self.repository.program_metadata([result.pblanc_id for result in best])
-        items = []
+        items, seen_ids, seen_businesses = [], set(), set()
         for result in best:
             row = metadata.get(result.pblanc_id)
             if row is None:
                 continue
+            business = business_identity(row)
+            # WHY: 이미 계산된 순위를 그대로 훑어 가장 앞의 공고만 남긴다. RRF/후보/벡터를 다시 계산하지 않는다.
+            if result.pblanc_id in seen_ids or business in seen_businesses:
+                continue
+            seen_ids.add(result.pblanc_id)
+            seen_businesses.add(business)
             items.append(ProgramListItem(len(items) + 1, row["pblanc_id"], row["name"], row["category"], row["target"],
                                          row["jurisdiction_name"], row["executing_org_name"],
                                          str(row["application_start_date"]) if row["application_start_date"] else None,

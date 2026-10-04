@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "case_count": 20,
+  "sha256": "211b818bfe7003d9f9fd321e25b3d91ab5cff0ecc16cccff21c344b6cc4f5fb4",
+  "basis": "provider 실행 전에 동결; 기준 변경은 새 버전으로 별도 저장"
+}

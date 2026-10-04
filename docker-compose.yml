@@ -106,6 +106,9 @@ services:
       QDRANT_URL: http://qdrant:6333
       QDRANT_COLLECTION_NAMESPACE: ${QDRANT_COLLECTION_NAMESPACE:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-global.anthropic.claude-haiku-4-5-20251001-v1:0}
+      BEDROCK_REGION: ${BEDROCK_REGION:-ap-northeast-2}
+      AWS_PROFILE: ${AWS_PROFILE:-}
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-}
       OLLAMA_TIMEOUT_SECONDS: ${OLLAMA_TIMEOUT_SECONDS:-300}
@@ -119,6 +122,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
+      # BOUNDARY: 로컬 SDK credential chain만 읽는다. 서버 EC2는 이 dev mount 대신 IAM Role을 쓴다.
+      - ${HOME}/.aws:/home/bizaid/.aws:ro
       - ./data-pipeline/src:/app/data-pipeline/src:ro
       - ./contracts:/app/contracts:ro
       # 모델은 이미지에 넣지 않고 host artifact 폴더를 읽기 전용으로 붙인다. 질문 서버는 BGE-M3 범위만 검증한다(IMP-005).

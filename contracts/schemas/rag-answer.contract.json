@@ -69,8 +69,27 @@
       "OLLAMA_BASE_URL",
       "OLLAMA_MODEL",
       "OLLAMA_TIMEOUT_SECONDS",
-      "OLLAMA_KEEP_ALIVE"
-    ]
+      "OLLAMA_KEEP_ALIVE",
+      "BEDROCK_MODEL_ID",
+      "BEDROCK_REGION",
+      "AWS_PROFILE"
+    ],
+    "default": "ollama",
+    "supported": [
+      "ollama",
+      "bedrock"
+    ],
+    "bedrock": {
+      "model_default": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "region_default": "ap-northeast-2",
+      "api": "ConverseStream + forced emit_result tool input JSON schema + application validation",
+      "authentication": "boto3 credential chain only; AWS_PROFILE=bizaid-dev locally, empty on EC2 IAM role; no explicit keys/list APIs",
+      "output_limit": "request cap or local default 2048; max_tokens stop or count >= cap fails closed",
+      "deadline": "internal-api llm_call deadline_seconds; monotonic whole call/stream deadline, no prefix success",
+      "transport_retry": 0,
+      "provider_error": "llm_provider_unavailable -> HTTP 503; raw SDK exception message is not reflected to clients",
+      "basis": "2026-10-04 user-approved Bundle4; share prompt/retrieval/eligibility contracts, no V1 change"
+    }
   },
   "candidate_scope": {
     "source": "candidates.ProgramCandidateService (MySQL support_programs, read-only) decides candidate pblanc_ids before retrieval",
@@ -109,7 +128,12 @@
     },
     "group_limit_per_mode": 50,
     "fill_rule": "never add programs outside the candidate scope or without retrieved evidence to reach max_programs; fewer relevant programs are returned instead",
-    "calls": "two Qdrant group queries per request (dense, sparse); no per-candidate queries and no extra LLM call"
+    "calls": "two Qdrant group queries per request (dense, sparse); no per-candidate queries and no extra LLM call",
+    "list_deduplication": {
+      "policy": "first existing RRF-ranked occurrence per pblanc_id or normalized business title + same jurisdiction/category/target",
+      "normalization": "NFKC; year/round and announcement-status suffix removed; region tags and business words preserved; short names use pblanc_id",
+      "no_refill": "never add out-of-scope or lower unqueried candidates to fill omitted slots"
+    }
   },
   "personalized_ranking": {
     "candidate_limit": 10,
@@ -155,5 +179,10 @@
     "named_exception": "explicit selected ID or recognized announcement name => region exclusion bypassed, outside-region warning; other lifecycle/contract validation retained",
     "missing": "no company/blank/legacy region => full regional scope, not guessed",
     "identity": "no query/embedding/RRF/key/vector changes"
+  },
+  "context_table_presentation": {
+    "enabled": true,
+    "policy": "lossless flat triplet cell list at model context only; no row/span inference; mixed plain text kept; original chunks/IDs/vectors unchanged",
+    "scope": "shared build_context for DOCUMENT_QA and eligibility"
   }
 }
