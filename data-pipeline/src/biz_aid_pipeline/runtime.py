@@ -4,6 +4,10 @@ WHY: BGE-M3 모델·MySQL engine(connection pool)·Qdrant client·LLM 설정을 
 provider·repository·Qdrant client는 생성 시 한 번, BGE-M3 Retriever는 처음 필요할 때 한 번 만들어 재사용한다.
 """
 import threading
+import os
+from urllib.parse import urlparse
+
+from biz_aid_pipeline.config.settings import PipelineError
 
 from biz_aid_pipeline.config.settings import ROOT, DbConfig
 
@@ -17,12 +21,33 @@ class ServiceRuntime:
         from biz_aid_pipeline.indexing.qdrant_store import collection_namespace as configured_namespace, qdrant_url
         from biz_aid_pipeline.rag.llm import provider_from_settings
         self.profile = profile
+        self.fixed_collection = None
+        if profile == "prod":
+            if os.environ.get("BIZAID_ENV") != "prod":
+                raise PipelineError("production_environment_required")
+            self.fixed_collection = os.environ.get("QDRANT_COLLECTION")
+            url = os.environ.get("QDRANT_URL", "")
+            parsed = urlparse(url)
+            if not self.fixed_collection or parsed.scheme not in ("http", "https") or not parsed.hostname:
+                raise PipelineError("production_search_configuration_required")
+            if parsed.username or parsed.password:
+                raise PipelineError("qdrant_url_credentials_forbidden")
         # 검색 collection은 설정(QDRANT_COLLECTION_NAMESPACE)으로 전환한다. V1 baseline 평가는 None(V1 collection)을 명시해 고정한다.
-        self.collection_namespace = (configured_namespace(profile, root) if collection_namespace is FROM_SETTINGS
-                                     else collection_namespace)
+        self.collection_namespace = (configured_namespace(profile, root) if collection_namespace is FROM_SETTINGS and profile == "dev"
+                                     else (None if collection_namespace is FROM_SETTINGS else collection_namespace))
         self.provider = provider_from_settings(profile)
-        self.repository = ProgramCandidateRepository.from_config(DbConfig.load(root, profile))
-        self.qdrant = QdrantClient(url=qdrant_url(profile))
+        self.repository = ProgramCandidateRepository.from_config(DbConfig.load_service(root, profile))
+        self.qdrant = QdrantClient(url=os.environ["QDRANT_URL"] if profile == "prod" else qdrant_url(profile))
+        if self.fixed_collection:
+            try:
+                if not self.qdrant.collection_exists(self.fixed_collection):
+                    raise PipelineError("production_collection_missing")
+                if self.qdrant.count(self.fixed_collection, exact=True).count == 0:
+                    raise PipelineError("production_collection_empty")
+            except Exception:
+                self.repository.close()
+                self.qdrant.close()
+                raise PipelineError("production_collection_not_ready") from None
         self._retriever, self._lock = None, threading.Lock()
         # V2-6 실행 추적: 설정(BIZAID_TRACING_ENABLED)이 꺼져 있으면 None이고 흐름은 그대로다.
         from biz_aid_pipeline.observability.tracing import TraceSettings, build_tracer
@@ -37,7 +62,7 @@ class ServiceRuntime:
                 contract = indexing_contract()
                 # 질문 서버는 BGE-M3 범위 모델만 검증한다(IMP-005). 파싱 모델이 없는 컨테이너에서도 같은 embedding_key를 쓴다.
                 self._retriever = Retriever(BgeM3Embedder(contract, scope_only=True), self.qdrant, contract,
-                                            namespace=self.collection_namespace)
+                                            namespace=self.collection_namespace, collection=self.fixed_collection)
             return self._retriever
 
     def answer_query(self, query, as_of=None, manual_filter=None, selected_pblanc_id=None, company_region=None):

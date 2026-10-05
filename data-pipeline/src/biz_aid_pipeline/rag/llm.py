@@ -254,7 +254,7 @@ def llm_call_limits(root=ROOT):
 
 def provider_from_settings(profile, root=ROOT, environ=None):
     """설정(LLM_PROVIDER 등)으로 provider를 고른다. 새 provider는 여기에만 분기를 추가한다."""
-    if profile != "dev":
+    if profile != "dev" and not (profile == "prod" and os.environ.get("BIZAID_ENV") == "prod"):
         raise PipelineError("rag_requires_dev_profile")
     settings = profile_values(root, profile, SETTING_NAMES, os.environ if environ is None else environ)
     provider = settings.get("LLM_PROVIDER") or "ollama"

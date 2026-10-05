@@ -52,6 +52,7 @@ class HarnessPolicyTests(unittest.TestCase):
         path.write_text("handoff output  ")
         (path.parent / "bundle2-handoff.md").write_text("second task handoff  ")
         (path.parent / "bundle4-handoff.md").write_text("bundle4 handoff  ")
+        (path.parent / "bundle6-0-handoff.md").write_text("deployment kit handoff  ")
         for mode in ("format", "harness", "git-tracked"):
             self.assertEqual(self.check(mode).returncode, 0)
         (path.parent / "unregistered-control.md").write_text("not a generated checkpoint\n")

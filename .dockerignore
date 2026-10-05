@@ -1,0 +1,18 @@
+# Secret·원문·cache·개발 산출물은 운영 이미지 build context에 보내지 않는다.
+.git
+.env
+.env.*
+**/.aws
+**/.env*
+.venv
+**/__pycache__
+**/node_modules
+**/build
+**/.gradle
+frontend/dist
+data
+harness/workspace/reports
+harness/workspace/artifacts
+harness/workspace/checkpoints
+harness/workspace/handoff
+.idea

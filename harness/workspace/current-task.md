@@ -1,21 +1,37 @@
-# Current Task — 묶음5-1 공개 서비스용 기능
+# 현재 Task
 
-## Goal / Scope
+## 목표 / 승인 범위
 
-dev clean working tree에서 사용자 승인 묶음5-1을 수행한다. 판정 출력 상한 1280→2560(15개·75초·fail-closed 유지)과 Bedrock 120174 단일 판정 1회 확인.
-비로그인 소개 화면, 체험 계정(설정 on/off·합성 기업정보·수정 불가·24시간 뒤 정리·체험 합산 하루 200회), 사용자별 하루 AI 30회(한국 자정·원자적 증가), /privacy·/terms 초안과 가입 필수 동의 기록, 모든 화면 하단 데이터 출처.
-새 Flyway V13만 추가·dev 적용(기존 migration 불변). key/vector/V1·V2 collection 불변. Secret 열람, prod, commit/push 없음.
+묶음6-0 배포 준비물. [5-2 최종 기록](reports/development/2026-10-04-bundle5-2-predeploy.md)의 운영 기능을 유지하고 맥북 ARM build·Docker Hub pull·서버 실행 묶음·공고/V2/모델 복원·설명서를 준비한다.
+개발은 기존 docker-compose.yml/scripts/dev.sh/.env.dev/로컬 DB·검색 DB·dev profile 그대로다. 운영은 별도 prod Compose/RDS/서버 내부V2/image pull이다.
+
+## 상태
+
+구현·검증 후 사용자 파일/Git 검토 대기. 실제 시작은5-2 신규20 staged와 추적수정58이 남은 상태였으며 이를 보존한다(사용자의5-2 커밋 완료 설명과 실제 Git 상태 차이는 Report에 기록).
+ARM 앱3이미지 build-only 완료, 운영 기본build는 별도override로 분리한다. 실제 서버/AWS 배포는 아직 하지 않았다.
+실제 exit/count와 준비 자료checksum·크기는 최종 Report를 따른다. 이후 단계 자동 시작 금지.
 
 ## Read First
 
-AGENTS→Registry→DB 규칙/database-migration→api-contract-change. [이전 묶음4](reports/development/2026-10-04-bundle4-quality.md), Backlog IMP-003·029·033·034.
+AGENTS → Registry → workflow/git-policy → [운영 설명서](../../docs/deployment.md) →5-2 Report → [인수인계](handoff/bundle6-0-handoff.md).
+feature-development Skill, safety/file-boundaries,architecture/testing을 적용한다.
 
-## Validation / Reports
+## Acceptance / Safety
 
-Spring·React·Python 테스트 → nginx 경유 스모크 → 고정 10질문 회귀 1회(현재 provider) → 최종 check-all 1회.
-[Final Report](reports/development/2026-10-04-bundle5-1-features.md), Artifact artifacts/development/bundle5-1-features/.
-사용자 지정 handoff/bundle5-1-handoff.md는 항목 종료마다 갱신한다.
+- 개발 Compose/dev.sh/profile/기존 migration·식별 key·vector는 변경하지 않는다.
+- ARM3이미지 태그는 한 비공개저장소의 frontend/backend/fastapi로 구분. 기본 운영은pull,명시 소스build만override다.
+- 서버묶음은실행파일allowlist만 포함한다. 앱소스/test/Harness/Secret/데이터는 제외한다.
+- 복원은checksum과빈대상확인→공고transaction 개수검증→V2정확개수→모델파일checksum. 기존데이터덮어쓰기/삭제는 금지한다.
+- Agent의 docker login/push/AWS생성/S3업로드/Bedrock호출은 금지한다. 사용자 직접 명령만 준비한다.
+- Secret파일 직접 열람·출력·수정0, SDK키를코드/이미지/서버묶음에넣지않는다.
+- commit/push/branch 전환 금지. 새입력만명시staging,기존staged변경해제금지.
+- sandbox차단은우회하지않고보고한다. Git index 차단은 기존 Git 정책의 명시 도구 승인을 따른다.
 
-## Next Steps
+## Validation
 
-구현·검증 결과는 Report 참조. 약관·개인정보처리방침 문구와 문의처, 공공데이터 이용허락 조건(IMP-034)은 사용자 확인 대기. 독립 AGY 검토 대기. 사용자가 한 번에 commit한다. 자동 다음 Task 시작 금지.
+targeted 배포계약/임시bundle config/ARMbuild/데이터SHA → dev.sh up 및로그인·목록확인 → 마지막check-all1회 → Generated Report/handoff.
+실제AWS/RDS/서버성능검증은 별도로 남긴다.
+
+## Expected Report
+
+[Final Report](reports/development/2026-10-05-bundle6-0-deploy-kit.md)

@@ -32,7 +32,7 @@ const REGIONS = ["서울특별시", "부산광역시", "경기도", "전남광�
 const regions: Handler = (url) => (url === "/api/company/regions" ? { status: 200, body: { regions: REGIONS } } : undefined);
 // 하루 사용 현황·체험하기 상태는 거의 모든 화면이 읽는다. 테스트가 따로 주지 않으면 기본값을 돌려준다.
 const usage: Handler = (url) =>
-  url === "/api/ai/usage" ? { status: 200, body: { dailyLimit: 30, used: 2, remaining: 28, resetsAt: "2026-10-04T15:00:00Z" } } : undefined;
+  url === "/api/ai/usage" ? { status: 200, body: { dailyLimit: 10, used: 2, remaining: 8, resetsAt: "2026-10-04T15:00:00Z" } } : undefined;
 const trialStatus: Handler = (url, init) =>
   url === "/api/auth/trial" && (init.method ?? "GET") === "GET" ? { status: 200, body: { enabled: true } } : undefined;
 // AI 기능 요청인지(사용 현황 조회는 AI 호출이 아니다).
@@ -94,7 +94,16 @@ test("회원 탈퇴는 비밀번호 확인과 동의가 있어야 보내고, 성
   renderAt("/account");
   const form = await screen.findByRole("form", { name: "회원 탈퇴" });
   const submit = within(form).getByRole("button", { name: "회원 탈퇴" });
-  await userEvent.type(within(form).getByLabelText("비밀번호 확인"), "wrong-pass");
+  const password = within(form).getByLabelText("비밀번호 확인");
+  expect(password).toHaveAttribute("placeholder", "현재 비밀번호");
+  expect(password).toHaveAttribute("type", "password");
+  expect(password).toHaveAttribute("autocomplete", "current-password");
+  expect(submit).toBeDisabled();
+  await userEvent.click(within(form).getByText("위 내용을 확인했고 탈퇴합니다."));
+  expect(within(form).getByRole("checkbox")).toBeChecked();
+  expect(submit).toBeDisabled();
+  await userEvent.click(within(form).getByText("위 내용을 확인했고 탈퇴합니다."));
+  await userEvent.type(password, "wrong-pass");
   // 동의 전에는 보낼 수 없다.
   expect(submit).toBeDisabled();
   await userEvent.click(within(form).getByRole("checkbox"));
@@ -533,9 +542,11 @@ test("가입 직후 기업정보가 없으면 등록 화면으로 가고, 등록
   // 필수 동의 두 개를 모두 체크해야 가입 버튼이 열린다.
   const join = screen.getByRole("button", { name: "가입하고 시작하기" });
   expect(join).toBeDisabled();
-  await userEvent.click(screen.getByRole("checkbox", { name: /이용약관에 동의/ }));
+  await userEvent.click(screen.getByText((_, element) => element?.tagName === "SPAN" && element.textContent?.includes("이용약관에 동의합니다.") === true));
+  expect(screen.getByRole("checkbox", { name: /이용약관에 동의/ })).toBeChecked();
   expect(join).toBeDisabled();
-  await userEvent.click(screen.getByRole("checkbox", { name: /개인정보처리방침에 동의/ }));
+  await userEvent.click(screen.getByText((_, element) => element?.tagName === "SPAN" && element.textContent?.includes("개인정보처리방침에 동의합니다.") === true));
+  expect(screen.getByRole("checkbox", { name: /개인정보처리방침에 동의/ })).toBeChecked();
   await userEvent.click(join);
   // 가입하면 원래 기본 화면(AI 검색) 대신 기업정보 등록 화면으로 간다. AI 메뉴는 잠기고 지원사업 메뉴는 열려 있다.
   expect(await screen.findByRole("form", { name: "기업정보 등록" })).toBeInTheDocument();
@@ -656,16 +667,16 @@ test("로그인하지 않은 첫 화면은 서비스 소개와 체험하기·로
   expect(screen.getByRole("link", { name: "회원가입" })).toBeInTheDocument();
   expect(screen.getByRole("region", { name: "사용 방법" })).toHaveTextContent("공고문으로 확인");
   const footer = screen.getByRole("contentinfo");
-  expect(footer).toHaveTextContent("기업마당(중소벤처기업부) 공공데이터 활용");
+  expect(footer).toHaveTextContent("공공누리 제3유형으로 개방한");
   expect(footer).toHaveTextContent("AI 판정은 참고용입니다.");
-  expect(within(footer).getByRole("link", { name: "기업마당(중소벤처기업부)" })).toHaveAttribute("href", "https://www.bizinfo.go.kr");
+  expect(within(footer).getByRole("link", { name: "기업마당" })).toHaveAttribute("href", "https://www.bizinfo.go.kr");
 });
 
 test("로그인한 사용자의 첫 화면은 기존처럼 AI 검색이다", async () => {
   mockFetch(loggedIn, hasCompany, (url) => (url === "/api/conversations" ? { status: 200, body: [] } : undefined));
   renderAt("/");
   expect(await screen.findByRole("heading", { name: "기업에 맞는 지원사업을 찾아보세요" })).toBeInTheDocument();
-  expect(await screen.findByRole("status", { name: "오늘 남은 AI 사용 횟수" })).toHaveTextContent("오늘 남은 AI 사용 28 / 30회");
+  expect(await screen.findByRole("status", { name: "오늘 남은 AI 사용 횟수" })).toHaveTextContent("오늘 남은 AI 사용 8 / 10회");
 });
 
 test("개인정보처리방침·이용약관은 로그인 없이 볼 수 있다", async () => {
@@ -676,7 +687,7 @@ test("개인정보처리방침·이용약관은 로그인 없이 볼 수 있다"
   expect(privacy).toHaveTextContent("탈퇴 시 계정·기업정보·AI 대화");
   expect(screen.queryByRole("tab", { name: "로그인" })).not.toBeInTheDocument();
   await userEvent.click(within(screen.getByRole("contentinfo")).getByRole("link", { name: "이용약관" }));
-  expect(await screen.findByRole("article", { name: "이용약관" })).toHaveTextContent("AI 판정은 참고용이며, 최종 자격은 공고문과 주관기관에 확인해야 합니다.");
+  expect(await screen.findByRole("article", { name: "이용약관" })).toHaveTextContent("AI가 공고문을 참고해 만든 안내이며 공고 원문이 아닙니다.");
 });
 
 test("체험하기를 누르면 체험 계정으로 들어가 '체험 중' 표시가 보이고 기업정보·계정은 바꿀 수 없다", async () => {
@@ -752,4 +763,83 @@ test("가입 요청에는 필수 동의 두 개가 함께 간다", async () => {
   await screen.findByRole("form", { name: "기업정보 등록" });
   const body = JSON.parse(String(calls.find((call) => call.url === "/api/auth/signup")?.init.body));
   expect(body).toMatchObject({ agreeTerms: true, agreePrivacy: true });
+});
+
+// 배포 전 공개 문구: 실제 운영 문의처·공공누리 조건·국외 AI 처리 안내를 표시한다.
+it("shows finalized privacy policy with overseas processing and contact", async () => {
+  mockFetch(loggedOut);
+  renderAt("/privacy");
+  expect(await screen.findByRole("heading", { name: "개인정보처리방침" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "5. 국외 이전" })).toBeInTheDocument();
+  expect(screen.getByText(/해외 AWS 지역/)).toBeInTheDocument();
+  expect(screen.queryByText(/초안/)).not.toBeInTheDocument();
+  expect(screen.getByText(/개인정보 관련 문의: nagt1997@naver.com/)).toBeInTheDocument();
+});
+
+it("shows public license attribution and password loss contact", async () => {
+  mockFetch(loggedOut);
+  const view = renderAt("/login");
+  expect(await screen.findByText(/비밀번호를 잊으면 문의처/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "nagt1997@naver.com" })).toHaveAttribute("href", "mailto:nagt1997@naver.com");
+  view.unmount();
+  renderAt("/");
+  expect(await screen.findByText(/이 서비스는 중소벤처기업부/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "공공누리 제3유형" })).toHaveAttribute("href", "https://www.kogl.or.kr/info/licenseType3.do");
+});
+
+it("shows global daily limit in Korean without automatic retry", async () => {
+  mockFetch(loggedIn, hasCompany, (url, init) => {
+    if (url === "/api/conversations" && init.method === "POST") return { status: 201, body: { id: 9, title: "질문", createdAt: "", updatedAt: "" } };
+    if (url === "/api/conversations/9/messages") return { status: 200, body: [] };
+    if (url === "/api/conversations") return { status: 200, body: [] };
+    if (url === "/api/ai/query" && init.method === "POST") return { status: 429, body: {
+      error: { code: "ai_service_daily_limit_reached", message: "오늘 서비스 전체 AI 사용량이 모두 찼어요. 내일 다시 이용해 주세요." } } };
+    return undefined;
+  });
+  renderAt("/ai");
+  await userEvent.type(await screen.findByLabelText("지원사업 질문"), "금융 지원사업");
+  await userEvent.click(screen.getByRole("button", { name: "찾기" }));
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("오늘 서비스 전체 사용량이 모두 찼어요");
+  expect(within(alert).queryByRole("button", { name: "다시 시도" })).not.toBeInTheDocument();
+});
+
+
+test("기업 매출은 쉼표와 한글로 표시하고 숫자로 저장하며 취소·저장이 같은 버튼 묶음이다", async () => {
+  const company = { ...COMPANY, annualRevenueKrw: 800000000 };
+  const calls = mockFetch(loggedIn, (url, init) => url === "/api/company"
+    ? { status: 200, body: init.method === "PUT" ? { ...company, ...JSON.parse(String(init.body)) } : company } : undefined);
+  renderAt("/company");
+  await userEvent.click(await screen.findByRole("button", { name: "수정" }));
+  const revenue = screen.getByLabelText("최근 연 매출(원)");
+  expect(revenue).toHaveValue("800,000,000");
+  expect(screen.getByText("8억 원")).toBeInTheDocument();
+  const cancel = screen.getByRole("button", { name: "취소" });
+  const save = screen.getByRole("button", { name: "저장" });
+  expect(cancel.parentElement).toBe(save.parentElement);
+  expect(cancel.parentElement).toHaveClass("form-actions");
+  expect(cancel.nextElementSibling).toBe(save);
+  await userEvent.clear(revenue);
+  await userEvent.type(revenue, "1234567890");
+  expect(revenue).toHaveValue("1,234,567,890");
+  expect(screen.getByText("12억 3,456만 7,890 원")).toBeInTheDocument();
+  await userEvent.click(save);
+  const stored = calls.find(call => call.url === "/api/company" && call.init.method === "PUT");
+  expect(JSON.parse(String(stored?.init.body)).annualRevenueKrw).toBe(1234567890);
+});
+
+test("IP 한도 오류는 한국어 안내를 보이고 재시도를 권하지 않는다", async () => {
+  mockFetch(loggedIn, hasCompany, (url, init) => {
+    if (url === "/api/conversations" && init.method === "POST") return { status: 201, body: { id: 10, title: "질문", createdAt: "", updatedAt: "" } };
+    if (url === "/api/conversations") return { status: 200, body: [] };
+    if (url === "/api/conversations/10/messages") return { status: 200, body: [] };
+    if (url === "/api/ai/query") return { status: 429, body: { error: { code: "ai_ip_daily_limit_reached", message: "이 네트워크에서 오늘 사용할 수 있는 AI 횟수를 모두 사용했어요. 내일 다시 이용해 주세요." } } };
+    return undefined;
+  });
+  renderAt("/ai");
+  await userEvent.type(await screen.findByLabelText("지원사업 질문"), "금융 지원사업");
+  await userEvent.click(screen.getByRole("button", { name: "찾기" }));
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("이 네트워크에서 오늘 사용할 수 있는 AI 횟수를 모두 사용했어요");
+  expect(within(alert).queryByRole("button", { name: "다시 시도" })).not.toBeInTheDocument();
 });

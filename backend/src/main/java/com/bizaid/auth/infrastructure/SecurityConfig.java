@@ -38,7 +38,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login", "/api/auth/refresh",
                                 "/api/auth/logout", "/api/auth/trial").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/auth/trial").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/trial", "/api/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/programs", "/api/programs/filter-options",
                                 "/api/programs/{pblancId}").permitAll()
                         .requestMatchers("/error").permitAll()

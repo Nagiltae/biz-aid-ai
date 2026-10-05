@@ -162,7 +162,8 @@ public class AuthService {
     }
 
     // Refresh Token은 32byte 무작위 값이라 추측이 불가능하므로 느린 비밀번호 해시가 아닌 SHA-256으로 충분하고, 조회도 해시로 바로 할 수 있다.
-    static String hash(String rawToken) {
+    // WHY: 접속 IP counter도 기존과 같은 SHA-256 구현을 재사용한다. 원문은 저장하거나 출력하지 않는다.
+    public static String hash(String rawToken) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(rawToken.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);

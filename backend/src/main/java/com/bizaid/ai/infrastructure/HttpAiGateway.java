@@ -342,7 +342,7 @@ public class HttpAiGateway implements AiGateway {
      * 401/403은 최종 사용자의 로그인 문제가 아니라 Spring↔FastAPI 공유 키 설정 문제라 502 ai_service_auth_failed로 바꾼다.
      */
     ApiException mapError(String path, int status, String upstreamCode) {
-        log.warn("AI upstream error path={} status={} code={}", path, status, upstreamCode);
+        log.warn("AI upstream error path={} status={}", path, status);
         ErrorCode code = switch (status) {
             case 401, 403 -> ErrorCode.AI_SERVICE_AUTH_FAILED;
             case 404 -> Objects.equals(upstreamCode, "eligibility_program_not_found_or_inactive")

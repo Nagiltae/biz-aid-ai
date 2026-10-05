@@ -1,3 +1,4 @@
+import { AiGeneratedNotice } from "./AiGeneratedNotice";
 import { Link } from "react-router-dom";
 import { CitationList } from "./CitationList";
 import type { CriterionResult, EligibilityResult, EligibilityStatus } from "./aiApi";
@@ -62,7 +63,7 @@ export function EligibilityResultView({ result }: { result: EligibilityResult })
           ))}
         </ol>
       )}
-      <p className="muted small">{result.disclaimer}</p>
+      <AiGeneratedNotice ids={[result.pblancId]} />
     </section>
   );
 }

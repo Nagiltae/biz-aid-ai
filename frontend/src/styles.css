@@ -148,7 +148,7 @@ a {
   margin-bottom: 0.6rem;
 }
 
-input,
+input:not([type="checkbox"]):not([type="radio"]),
 select {
   font: inherit;
   font-weight: 400;
@@ -369,9 +369,16 @@ a:focus-visible {
 .form-actions {
   grid-column: 1 / -1;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: nowrap;
 }
+
+.form-actions > .button { flex: 0 0 auto; margin: 0; }
+.form-note { grid-column: 1 / -1; margin: 0 0 0.9rem; }
+.form-grid > .field { align-self: start; min-width: 0; }
 
 /* 지원사업 목록 */
 .filters {
@@ -937,6 +944,11 @@ input:disabled,
   margin: 0.4rem 0 0.8rem;
 }
 
+/* WHY: 선택 입력은 글자 바로 왼쪽의 작은 칸이다. 일반 입력의 전체 폭을 적용하지 않는다. */
+input[type="checkbox"], input[type="radio"] { width: auto; flex: 0 0 auto; margin: 0; padding: 0; }
+.checkbox { justify-content: flex-start; cursor: pointer; }
+.checkbox.confirmation { white-space: nowrap; font-size: 0.9rem; }
+
 .conversation-row {
   display: flex;
   align-items: center;
@@ -1092,4 +1104,20 @@ input:disabled,
 .auth-links {
   text-align: center;
   margin-top: 12px;
+}
+
+/* WHY: 375px 화면에서 긴 공고명·원문 링크·체험 안내가 가로 폭을 밀어내지 않게 한다. */
+.app, .main, .page, .card, .ai-result, .final-result { min-width: 0; }
+.legal, .footer, .alert, .program-title, .criterion { overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .header-inner { flex-wrap: wrap; gap: 8px; padding: 12px; }
+  .nav { flex-wrap: wrap; gap: 8px; }
+  .account { flex-wrap: wrap; width: 100%; gap: 6px; }
+  .main { padding: 12px; }
+  .trial-banner { align-items: stretch; padding: 12px; }
+  .program-grid, .landing-steps, .landing-features { grid-template-columns: minmax(0, 1fr); }
+  .auth-card { width: 100%; box-sizing: border-box; padding: 18px; }
+  .criterion-head, .card-top { flex-wrap: wrap; }
+  .legal h1, .landing-hero h1 { font-size: 24px; }
+  input, textarea, select { max-width: 100%; box-sizing: border-box; }
 }

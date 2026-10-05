@@ -63,7 +63,11 @@ def credential_echo(raw, key):
 def profile_values(root, profile, names, environ=None):
     if profile not in ("dev", "prod"):
         raise PipelineError("unsupported_profile")
-    return values(root / f".env.{profile}", names, os.environ if environ is None else environ)
+    environment = os.environ if environ is None else environ
+    # BOUNDARY: 명시 운영 서버는 process 설정만 사용한다. 이미지 안 Secret 파일·다른 profile fallback을 읽지 않는다.
+    if profile == "prod" and environment.get("BIZAID_ENV") == "prod":
+        return {key: environment[key] for key in names if key in environment}
+    return values(root / f".env.{profile}", names, environment)
 
 
 @dataclass(frozen=True)
@@ -95,6 +99,43 @@ class DbConfig:
     user: str
     password: str = field(repr=False)
     profile: str = "dev"
+    ssl_mode: str = "DISABLED"
+    ssl_ca: str | None = None
+
+    @classmethod
+    def load_service(cls, root, profile, environ=None):
+        # BOUNDARY: 운영 허용은 읽기 전용 서비스 조립에만 제공한다. ingestion의 load()는 dev 전용 그대로다.
+        environment = os.environ if environ is None else environ
+        if profile == "dev":
+            return cls.load(root, profile, environment)
+        if profile != "prod" or environment.get("BIZAID_ENV") != "prod":
+            raise PipelineError("prod_database_access_forbidden")
+        names = ("MYSQL_HOST", "MYSQL_PORT", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD")
+        if any(not environment.get(name) for name in names):
+            raise PipelineError("production_database_configuration_required")
+        mode = environment.get("MYSQL_SSL_MODE", "VERIFY_IDENTITY")
+        if mode not in ("DISABLED", "REQUIRED", "VERIFY_CA", "VERIFY_IDENTITY"):
+            raise PipelineError("mysql_tls_mode_invalid")
+        if mode in ("VERIFY_CA", "VERIFY_IDENTITY") and not environment.get("MYSQL_SSL_CA"):
+            raise PipelineError("mysql_tls_ca_required")
+        try:
+            port = int(environment["MYSQL_PORT"])
+            if not 1 <= port <= 65535:
+                raise ValueError()
+        except ValueError:
+            raise PipelineError("mysql_port_invalid") from None
+        return cls(environment["MYSQL_HOST"], port, environment["MYSQL_DATABASE"], environment["MYSQL_USER"],
+                   environment["MYSQL_PASSWORD"], profile, mode, environment.get("MYSQL_SSL_CA"))
+
+    def connect_args(self):
+        options = {"connect_timeout": 5, "read_timeout": 30, "write_timeout": 30}
+        if self.ssl_mode != "DISABLED":
+            options["ssl"] = {"check_hostname": self.ssl_mode == "VERIFY_IDENTITY"}
+            options["ssl_verify_cert"] = self.ssl_mode in ("VERIFY_CA", "VERIFY_IDENTITY")
+            options["ssl_verify_identity"] = self.ssl_mode == "VERIFY_IDENTITY"
+            if self.ssl_ca:
+                options["ssl_ca"] = self.ssl_ca
+        return options
 
     @classmethod
     def load(cls, root, profile, environ=None):

@@ -23,15 +23,18 @@ public class AuthController {
     private final AuthService authService;
     private final RefreshCookies cookies;
     private final TrialService trialService;
+    private final com.bizaid.auth.application.SignupThrottleService signupThrottle;
 
-    public AuthController(AuthService authService, RefreshCookies cookies, TrialService trialService) {
+    public AuthController(AuthService authService, RefreshCookies cookies, TrialService trialService, com.bizaid.auth.application.SignupThrottleService signupThrottle) {
+        this.signupThrottle = signupThrottle;
         this.authService = authService;
         this.trialService = trialService;
         this.cookies = cookies;
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<AuthDtos.TokenResponse> signup(@Valid @RequestBody AuthDtos.SignupRequest request) {
+    public ResponseEntity<AuthDtos.TokenResponse> signup(@Valid @RequestBody AuthDtos.SignupRequest request, HttpServletRequest httpRequest) {
+        signupThrottle.reserve(httpRequest.getRemoteAddr());
         return cookies.withRefreshCookie(authService.signup(request.email(), request.password(), request.displayName()));
     }
 

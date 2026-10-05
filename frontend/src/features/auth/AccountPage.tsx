@@ -58,7 +58,7 @@ function PasswordChange() {
       <h2>비밀번호 변경</h2>
       <label className="field">
         <span>현재 비밀번호</span>
-        <input type="password" autoComplete="current-password" value={form.currentPassword}
+        <input type="password" autoComplete="current-password" placeholder="현재 비밀번호" value={form.currentPassword}
                onChange={(event) => setForm((current) => ({ ...current, currentPassword: event.target.value }))} />
         <FieldMessage message={fieldMessage(error, "currentPassword")} />
       </label>
@@ -71,9 +71,9 @@ function PasswordChange() {
       </label>
       {error && error.fieldErrors.length === 0 && <p className="alert error" role="alert">{error.message}</p>}
       {done && <p className="alert info" role="status">비밀번호를 바꿨습니다.</p>}
-      <button className="button primary" type="submit" disabled={mutation.isPending}>
+      <div className="form-actions"><button className="button primary" type="submit" disabled={mutation.isPending}>
         {mutation.isPending ? "변경 중..." : "비밀번호 변경"}
-      </button>
+      </button></div>
     </form>
   );
 }
@@ -93,7 +93,7 @@ function Withdraw() {
   const error = mutation.error instanceof ApiError ? mutation.error : null;
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (confirmed) mutation.mutate();
+    if (confirmed && password && !mutation.isPending) mutation.mutate();
   };
   return (
     <form className="card danger-zone" onSubmit={submit} noValidate aria-label="회원 탈퇴">
@@ -103,17 +103,18 @@ function Withdraw() {
       </p>
       <label className="field">
         <span>비밀번호 확인</span>
-        <input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
+        <input type="password" autoComplete="current-password" placeholder="현재 비밀번호" value={password} onChange={(event) => setPassword(event.target.value)} />
         <FieldMessage message={fieldMessage(error, "password")} />
       </label>
-      <label className="checkbox">
-        <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
+      <label className="checkbox confirmation" htmlFor="withdraw-confirmed">
+        <input id="withdraw-confirmed" type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
         <span>위 내용을 확인했고 탈퇴합니다.</span>
       </label>
       {error && error.fieldErrors.length === 0 && <p className="alert error" role="alert">{error.message}</p>}
-      <button className="button danger" type="submit" disabled={!confirmed || !password || mutation.isPending}>
+      <p id="withdraw-help" className="muted small">비밀번호를 입력하고 확인란을 체크하면 탈퇴할 수 있어요.</p>
+      <div className="form-actions"><button className="button danger" aria-describedby="withdraw-help" type="submit" disabled={!confirmed || !password || mutation.isPending}>
         {mutation.isPending ? "탈퇴 처리 중..." : "회원 탈퇴"}
-      </button>
+      </button></div>
     </form>
   );
 }

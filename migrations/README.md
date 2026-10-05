@@ -36,3 +36,7 @@ PARSED 결과만 검증된 S3 DoclingDocument JSON pointer·artifact SHA·byte �
 
 `V11__company_region_standard.sql`은 2026-10-03 사용자 승인 뒤 기업 지역을 계약의 광역16개 표준명으로 변환한다.
 TAB/개행 미제거·광주시 prefix 오분류 경계는 사용자 수용 사항이며 Spring 표준명 입력 검증과 현재 해당 legacy 값 없음이 전제다. dev2행 변환·dev/test migrate/validate를 확인했다.
+
+V14(묶음5-2)는 서비스 전체/IP 가입 counter key와 동의 개정 버전의 설명 COMMENT만 보강한다. 기존 컬럼 정의·key·데이터와 V1~V13 이력은 보존한다.
+
+- V15: 기존 V1~V14를 보존하고 ai_usage_counters의 AI_IP key/예약·환불/한국 날짜7일 보관 COMMENT만 갱신한다. 계정10/IP30/체험200/전체300/가입IP5 상한은 설정·제품 코드가 소유한다.

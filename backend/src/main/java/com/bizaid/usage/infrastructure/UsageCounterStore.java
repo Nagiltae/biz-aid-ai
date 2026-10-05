@@ -46,7 +46,8 @@ public class UsageCounterStore {
     }
 
     public int deleteBefore(LocalDate date) {
-        return jdbc.update("delete from ai_usage_counters where usage_date < ?", Date.valueOf(date));
+        // BOUNDARY: 한국 날짜 기준 7일 된 행도 지워 IP 해시가 8일째까지 남지 않게 한다.
+        return jdbc.update("delete from ai_usage_counters where usage_date <= ?", Date.valueOf(date));
     }
 
     // WHY INSERT IGNORE: 동시 요청이 같은 날 첫 행을 함께 만들어도 하나만 남고 나머지는 오류 없이 넘어간다.

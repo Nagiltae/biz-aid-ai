@@ -19,12 +19,13 @@ class LegalVersionTests(unittest.TestCase):
             shown = re.search(rf'export const {screen_name} = "([^"]+)";', screen).group(1)
             self.assertEqual(server, shown, server_key)
             # 버전은 V13 column 길이(20)·시행일 형식을 따른다.
-            self.assertRegex(server, r"^\d{4}-\d{2}-\d{2}$")
+            self.assertRegex(server, r"^\d{4}-\d{2}-\d{2}(?:\.\d+)?$")
 
     def test_public_service_defaults(self):
         yml = BACKEND_YML.read_text(encoding="utf-8")
-        # 사용자 결정 값: 하루 30회, 체험 합산 200회, 24시간 수명. 체험하기는 기본 끔(dev profile만 켬).
-        self.assertIn("daily-limit: ${BIZAID_AI_DAILY_LIMIT:30}", yml)
+        # 사용자 결정 값: 계정10/IP30회, 체험 합산 200회, 24시간 수명. 체험하기는 기본 끔(dev profile만 켬).
+        self.assertIn("daily-limit: ${BIZAID_AI_DAILY_LIMIT:10}", yml)
+        self.assertIn("daily-limit-per-ip: ${BIZAID_AI_DAILY_LIMIT_PER_IP:30}", yml)
         self.assertIn("daily-pool-limit: ${BIZAID_TRIAL_DAILY_POOL_LIMIT:200}", yml)
         self.assertIn("enabled: ${BIZAID_TRIAL_ENABLED:false}", yml)
         self.assertRegex(yml, r"\n      ttl: 24h\n")

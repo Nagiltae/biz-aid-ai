@@ -8,6 +8,7 @@ import com.bizaid.ai.application.PersonalizedSearchService;
 import com.bizaid.auth.domain.AuthUser;
 import com.bizaid.usage.application.AiUsageService;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,27 +41,27 @@ public class AiController {
 
     /** V2 개인화 검색 Top 3 + 공고별 자격 판정. 조합은 서버(FastAPI)가 하고 공고별 실패는 그 공고에만 표시된다. */
     @PostMapping("/api/ai/personalized-eligibility")
-    public AiDtos.PersonalizedEligibilityResult personalizedEligibility(
+    public AiDtos.PersonalizedEligibilityResult personalizedEligibility(HttpServletRequest httpRequest,
             @AuthenticationPrincipal AuthUser user, @Valid @RequestBody AiRequests.PersonalizedSearchRequest request) {
-        return usage.run(user, () -> personalizedEligibilityService.evaluate(user.id(), request.query()));
+        return usage.run(user, httpRequest.getRemoteAddr(), () -> personalizedEligibilityService.evaluate(user.id(), request.query()));
     }
 
     /** V2 기업정보 기반 개인화 검색(Top 3). V1 /api/ai/query 동작은 그대로다. */
     @PostMapping("/api/ai/personalized-search")
-    public AiDtos.PersonalizedSearchResult personalizedSearch(@AuthenticationPrincipal AuthUser user,
+    public AiDtos.PersonalizedSearchResult personalizedSearch(HttpServletRequest httpRequest, @AuthenticationPrincipal AuthUser user,
                                                               @Valid @RequestBody AiRequests.PersonalizedSearchRequest request) {
-        return usage.run(user, () -> personalizedSearchService.search(user.id(), request.query()));
+        return usage.run(user, httpRequest.getRemoteAddr(), () -> personalizedSearchService.search(user.id(), request.query()));
     }
 
     @PostMapping("/api/ai/query")
-    public AiDtos.AiQueryResponse query(@AuthenticationPrincipal AuthUser user,
+    public AiDtos.AiQueryResponse query(HttpServletRequest httpRequest, @AuthenticationPrincipal AuthUser user,
                                        @Valid @RequestBody AiRequests.AiQueryRequest request) {
-        return usage.run(user, () -> aiQueryService.query(user.id(), request.query(), request.conversationId(), request.selectedPblancId()));
+        return usage.run(user, httpRequest.getRemoteAddr(), () -> aiQueryService.query(user.id(), request.query(), request.conversationId(), request.selectedPblancId()));
     }
 
     @PostMapping("/api/programs/{pblancId}/eligibility")
-    public AiDtos.EligibilityResult eligibility(@AuthenticationPrincipal AuthUser user, @PathVariable String pblancId,
+    public AiDtos.EligibilityResult eligibility(HttpServletRequest httpRequest, @AuthenticationPrincipal AuthUser user, @PathVariable String pblancId,
                                                 @Valid @RequestBody(required = false) AiRequests.EligibilityRequest request) {
-        return usage.run(user, () -> eligibilityService.evaluate(user.id(), pblancId, request == null ? null : request.toFacts()));
+        return usage.run(user, httpRequest.getRemoteAddr(), () -> eligibilityService.evaluate(user.id(), pblancId, request == null ? null : request.toFacts()));
     }
 }

@@ -4,6 +4,7 @@
 NO_CANDIDATES·INSUFFICIENT_EVIDENCE·NEEDS_MORE_INFO·INELIGIBLE 같은 결과는 정상 판단이라 HTTP 200으로 돌려준다.
 """
 import hmac
+import os
 from contextlib import asynccontextmanager
 from datetime import date
 
@@ -83,10 +84,17 @@ class InternalAuthError(Exception):
 
 def internal_api_key():
     """서비스 간 인증(Service-to-Service Authentication) 공유 키. OS 환경변수 우선, 없으면 .env.dev에서 읽는다."""
-    return profile_values(ROOT, "dev", {"INTERNAL_AI_API_KEY"}).get("INTERNAL_AI_API_KEY") or None
+    return profile_values(ROOT, os.environ.get("BIZAID_ENV", "dev"), {"INTERNAL_AI_API_KEY"}).get("INTERNAL_AI_API_KEY") or None
 
 
 def create_app(runtime_factory=None, api_key=None):
+    profile = os.environ.get("BIZAID_ENV", "dev")
+    if profile not in ("dev", "prod"):
+        raise PipelineError("unsupported_profile")
+    if profile == "prod":
+        # BOUNDARY: 사용자 입력을 보내는 SDK 자동 추적도 운영에서 강제로 차단한다.
+        os.environ["LANGSMITH_TRACING"] = "false"
+        os.environ["LANGCHAIN_TRACING_V2"] = "false"
     key = api_key if api_key is not None else internal_api_key()
 
     def require_internal_key(request: Request):
@@ -103,7 +111,7 @@ def create_app(runtime_factory=None, api_key=None):
         # 서버 시작 때 공통 의존 객체를 한 번 만들고, 종료 때 DB pool·Qdrant client를 닫는다. Ollama 서버는 관리하지 않는다.
         if runtime_factory is None:
             from biz_aid_pipeline.runtime import ServiceRuntime
-            app.state.runtime = ServiceRuntime("dev")
+            app.state.runtime = ServiceRuntime(profile)
         else:
             app.state.runtime = runtime_factory()
         try:
@@ -111,7 +119,10 @@ def create_app(runtime_factory=None, api_key=None):
         finally:
             app.state.runtime.close()
 
-    app = FastAPI(title="BizAid internal AI API", version="1", lifespan=lifespan)
+    app = FastAPI(title="BizAid internal AI API", version="1", lifespan=lifespan,
+                  docs_url=None if profile == "prod" else "/docs",
+                  redoc_url=None if profile == "prod" else "/redoc",
+                  openapi_url=None if profile == "prod" else "/openapi.json")
 
     @app.exception_handler(InternalAuthError)
     async def internal_auth_error(request, error):
@@ -119,8 +130,9 @@ def create_app(runtime_factory=None, api_key=None):
 
     @app.exception_handler(PipelineError)
     async def pipeline_error(request, error):
-        # RISK: 내부 stack trace·연결 정보를 응답에 싣지 않는다. 고정된 오류 code만 돌려준다.
-        return JSONResponse(status_code=status_for(str(error)), content={"error": {"code": str(error)}})
+        # BOUNDARY: 운영은 고정 code만 보낸다. dev의 입력 필드 진단 suffix 계약은 그대로 보존한다.
+        code = str(error).split(":", 1)[0] if profile == "prod" else str(error)
+        return JSONResponse(status_code=status_for(code.split(":", 1)[0]), content={"error": {"code": code}})
 
     from qdrant_client.http.exceptions import ResponseHandlingException
     from sqlalchemy.exc import OperationalError

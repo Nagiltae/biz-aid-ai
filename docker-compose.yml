@@ -57,7 +57,9 @@ services:
     volumes:
       - qdrant_dev:/qdrant/storage
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     profiles: [app]
     depends_on:
       mysql:

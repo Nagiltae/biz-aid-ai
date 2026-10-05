@@ -1,5 +1,6 @@
 package com.bizaid.usage.application;
 
+import com.bizaid.auth.application.AuthService;
 import com.bizaid.auth.domain.AuthUser;
 import com.bizaid.common.error.ApiException;
 import com.bizaid.common.error.ErrorCode;
@@ -11,6 +12,8 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -20,13 +23,14 @@ import org.springframework.stereotype.Service;
  * 사용자별 하루 dailyLimit회, 한국 시간 자정에 새로 센다. AI 검색 질문·맞춤 추천 시작·단일 자격 판정 1회를 1로 센다.
  * 추천의 다음 단계 진행·부족 정보 답변은 세지 않는다. 체험 계정은 체험 전체 합산 상한(TRIAL_POOL)도 함께 쓴다.
  *
- * <p>BOUNDARY: 트랜잭션을 두지 않는다. 각 증감은 DB 한 문장으로 바로 commit되고, 체험 합산에서 막히면 이미 올린 사용자 횟수를 되돌린다.
- * <p>EXCEPTION: AI가 결과를 주지 못한 요청(ApiException: 기업정보 없음·AI 시간 초과 등)은 횟수를 되돌린다.
+ * <p>BOUNDARY: 트랜잭션을 두지 않는다. 각 증감은 DB 한 문장으로 바로 commit되고, IP·체험·서비스 합산에서 막히면 앞서 예약한 횟수를 되돌린다.
+ * <p>EXCEPTION: AI가 결과를 주지 못한 요청(기업정보 없음·AI 시간 초과·예상 밖 실행 오류 등)은 횟수를 되돌린다.
  */
 @Service
 public class AiUsageService {
 
     public static final String TRIAL_POOL = "TRIAL_POOL";
+    public static final String SERVICE_POOL = "SERVICE_POOL";
 
     private final UsageCounterStore store;
     private final UsageProperties properties;
@@ -40,36 +44,51 @@ public class AiUsageService {
         this.zone = ZoneId.of(zone);
     }
 
-    /** 횟수를 하나 쓰고 AI 기능을 실행한다. 실행이 ApiException으로 끝나면 쓴 횟수를 되돌린다. */
-    public <T> T run(AuthUser user, Supplier<T> action) {
+    /** 신뢰한 proxy를 거친 실제 IP로 모든 상한을 예약한 뒤에만 AI를 실행한다. */
+    public <T> T run(AuthUser user, String clientIp, Supplier<T> action) {
         Instant now = clock.instant();
         LocalDate day = serviceDate(now);
-        consume(user.id(), user.trial(), now);
+        List<String> reserved = consume(user.id(), user.trial(), clientIp, now);
         try {
             return action.get();
-        } catch (ApiException exception) {
-            refund(user.id(), user.trial(), day, clock.instant());
+        } catch (RuntimeException exception) {
+            refund(reserved, day, clock.instant());
             throw exception;
         }
     }
 
-    /** 사용자 횟수 → (체험이면) 체험 합산 순서로 하나씩 쓴다. 어느 쪽이든 상한이면 429 고정 코드. */
-    public void consume(Long userId, boolean trial, Instant now) {
+    /** 계정 → IP → 체험(해당 계정) → 전체 순서. 이미 예약한 key만 실패 시 역순으로 되돌린다. */
+    public List<String> consume(Long userId, boolean trial, String clientIp, Instant now) {
         LocalDate day = serviceDate(now);
-        if (!store.incrementBelow(userKey(userId), day, properties.dailyLimit(), now)) {
-            throw new ApiException(ErrorCode.AI_DAILY_LIMIT_REACHED);
-        }
-        if (trial && !store.incrementBelow(TRIAL_POOL, day, properties.trial().dailyPoolLimit(), now)) {
-            store.decrement(userKey(userId), day, now);
-            throw new ApiException(ErrorCode.AI_TRIAL_POOL_EXHAUSTED);
+        String ip = ipKey(clientIp);
+        List<String> reserved = new ArrayList<>();
+        try {
+            reserve(reserved, userKey(userId), day, properties.dailyLimit(), now, ErrorCode.AI_DAILY_LIMIT_REACHED);
+            reserve(reserved, ip, day, properties.dailyLimitPerIp(), now, ErrorCode.AI_IP_DAILY_LIMIT_REACHED);
+            if (trial) {
+                reserve(reserved, TRIAL_POOL, day, properties.trial().dailyPoolLimit(), now, ErrorCode.AI_TRIAL_POOL_EXHAUSTED);
+            }
+            reserve(reserved, SERVICE_POOL, day, properties.globalDailyLimit(), now, ErrorCode.AI_SERVICE_DAILY_LIMIT_REACHED);
+            return List.copyOf(reserved);
+        } catch (RuntimeException exception) {
+            refund(reserved, day, now);
+            throw exception;
         }
     }
 
-    void refund(Long userId, boolean trial, LocalDate day, Instant now) {
-        store.decrement(userKey(userId), day, now);
-        if (trial) {
-            store.decrement(TRIAL_POOL, day, now);
-        }
+    private void reserve(List<String> reserved, String key, LocalDate day, int limit, Instant now, ErrorCode error) {
+        if (!store.incrementBelow(key, day, limit, now)) throw new ApiException(error);
+        reserved.add(key);
+    }
+
+    private void refund(List<String> reserved, LocalDate day, Instant now) {
+        // BOUNDARY: 같은 IP의 다른 요청이 올린 횟수나 거절된 counter는 내 요청의 환불 대상이 아니다.
+        for (int i = reserved.size() - 1; i >= 0; i--) store.decrement(reserved.get(i), day, now);
+    }
+
+    public static String ipKey(String clientIp) {
+        if (clientIp == null || clientIp.isBlank()) throw new IllegalArgumentException("trusted_client_ip_required");
+        return "AI_IP:" + AuthService.hash(clientIp);
     }
 
     public Usage usage(Long userId) {

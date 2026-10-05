@@ -1,11 +1,11 @@
 import { DATA_SOURCE, TERMS_VERSION } from "./legalVersions";
 
-// RISK: 개인 포트폴리오 서비스 기준 초안이다. 운영 전 사용자가 검토한다(보고서 기재).
+// BOUNDARY: 사용자 확인 공공데이터 이용 조건과 공고 원문/AI 안내 구분을 반영한다.
 export function TermsPage() {
   return (
     <article className="page narrow legal" aria-label="이용약관">
       <h1>이용약관</h1>
-      <p className="muted small">시행일 {TERMS_VERSION} · 초안</p>
+      <p className="muted small">시행일 {TERMS_VERSION.split(".")[0]} · 버전 {TERMS_VERSION}</p>
 
       <h2>1. 서비스 내용</h2>
       <p>
@@ -13,15 +13,19 @@ export function TermsPage() {
         공고 정보는 {DATA_SOURCE.name}의 공개 데이터를 사용합니다.
       </p>
 
+      <p>{DATA_SOURCE.notice}</p>
+      <p><a href={DATA_SOURCE.url} target="_blank" rel="noopener noreferrer">기업마당 원문</a> ·
+        <a href={DATA_SOURCE.licenseUrl} target="_blank" rel="noopener noreferrer">공공누리 제3유형 안내</a></p>
+      <p>공고 원문 정보는 임의로 변경하지 않습니다. AI 안내는 공고 원문과 구분해서 표시합니다.</p>
       <h2>2. AI 판정은 참고용입니다</h2>
       <p className="alert warn">
-        AI 판정은 참고용이며, 최종 자격은 공고문과 주관기관에 확인해야 합니다. AI는 공고문을 잘못 읽거나 빠뜨릴 수 있고,
+        AI가 공고문을 참고해 만든 안내이며 공고 원문이 아닙니다. 판정은 참고용이며 최종 자격은 공고 원문과 주관기관에 확인해야 합니다. AI는 공고문을 잘못 읽거나 빠뜨릴 수 있고,
         서비스는 AI 결과를 근거로 한 신청·선정 결과에 책임지지 않습니다.
       </p>
 
       <h2>3. 이용 제한</h2>
       <ul>
-        <li>AI 기능은 한 사람당 하루 정해진 횟수까지 쓸 수 있으며, 한국 시간 자정에 다시 채워집니다.</li>
+        <li>AI 기능은 일반·체험 계정 모두 한 계정당 하루 10회, 같은 접속 IP에서는 여러 계정을 합쳐 하루 30회까지 쓸 수 있으며, 한국 시간 자정에 다시 채워집니다.</li>
         <li>체험 계정은 24시간 동안만 쓸 수 있고 기업정보 수정·비밀번호 변경·탈퇴 기능이 없습니다.</li>
         <li>자동화된 대량 요청, 다른 사람의 계정 사용, 서비스 운영을 방해하는 행위는 금지합니다.</li>
       </ul>
@@ -29,7 +33,9 @@ export function TermsPage() {
       <h2>4. 서비스 변경·중단</h2>
       <p>개인 포트폴리오 서비스이므로 기능이 바뀌거나 예고 없이 중단될 수 있습니다.</p>
 
-      <h2>5. 계정 해지</h2>
+      <h2>5. 문의처</h2>
+      <p>서비스 문의: nagt1997@naver.com</p>
+      <h2>6. 계정 해지</h2>
       <p>이용자는 언제든지 계정 화면에서 탈퇴할 수 있으며, 탈퇴하면 개인정보처리방침에 따라 데이터가 삭제됩니다.</p>
     </article>
   );

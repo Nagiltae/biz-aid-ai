@@ -124,6 +124,7 @@ export function LoginPage() {
             {mutation.isPending ? "처리 중..." : mode === "login" ? "로그인" : "가입하고 시작하기"}
           </button>
         </form>
+        {mode === "login" && <p className="muted small">비밀번호를 잊으면 문의처 <a href="mailto:nagt1997@naver.com">nagt1997@naver.com</a>로 연락해 주세요.</p>}
         <p className="muted small auth-links">
           <Link to="/">서비스 소개</Link> · <Link to="/terms">이용약관</Link> · <Link to="/privacy">개인정보처리방침</Link>
         </p>

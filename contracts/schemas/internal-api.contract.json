@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "scope": "internal HTTP interface for the service layer (Spring Boot); dev, loopback, no browser clients, no CORS; /internal/v1/* requires the shared service key; the dev server runs as the Compose service fastapi (published only on 127.0.0.1:8000, called by the Compose backend as http://fastapi:8000) or on the host via scripts/run_api.py",
+  "scope": "internal HTTP interface for the service layer (Spring Boot); dev default with loopback publication; explicit BIZAID_ENV=prod read-only service exception follows production_service; no browser clients, no CORS; /internal/v1/* requires the shared service key; the dev server runs as the Compose service fastapi (published only on 127.0.0.1:8000, called by the Compose backend as http://fastapi:8000) or on the host via scripts/run_api.py",
   "server": "scripts/run_api.py → uvicorn biz_aid_pipeline.api.app:app on 127.0.0.1:8000 (BIZAID_API_PORT), one worker",
   "auth": {
     "header": "X-Internal-Api-Key",
@@ -155,5 +155,30 @@
     "deadline_basis": "2026-10-03: Spring AI_RESPONSE_TIMEOUT is 90s; one request runs at most one judgment LLM call (IMP-020); 75s leaves time for retrieval and serialization. Before this the 300s client timeout applied per streamed read, so a generation abandoned by Spring kept running (20,905 tokens over 18+ minutes observed)",
     "context_tokens": 32768,
     "context_basis": "num_ctx is sent explicitly on every call and equals the context the local runner already uses (ollama ps 32768), so no reload happens; measured judgment input 2,315-3,252 tokens plus at most 1,280 eligibility output tokens (2026-10-03 approved limit) fits without truncation or context shift"
+  },
+  "production_service": {
+    "explicit_environment": "BIZAID_ENV=prod",
+    "db_owner": "read-only program repository; ingestion guard unchanged",
+    "mysql_tls_modes": [
+      "DISABLED",
+      "REQUIRED",
+      "VERIFY_CA",
+      "VERIFY_IDENTITY"
+    ],
+    "qdrant_collection": "explicit QDRANT_COLLECTION; missing or empty prevents startup; embedding schema still verified",
+    "external_tracing": "forced disabled including SDK automatic tracing",
+    "docs": "disabled",
+    "credentials": "process configuration; AWS SDK credential chain/EC2 IAM role; no embedded AWS key",
+    "proxy_trust": "Caddy overwrites external XFF; nginx trusts dedicated edge network only; backend trusts service network only",
+    "daily_limits": {
+      "per_user": 10,
+      "trial_pool": 200,
+      "service_pool": 300,
+      "signup_per_ip": 5,
+      "timezone": "Asia/Seoul",
+      "counter_store": "atomic ai_usage_counters; trusted request remoteAddr hashed with SHA-256 as AI_IP; confirmed reservations compensated on rejection/failure; Korean-date retention7days",
+      "per_ip": 30
+    },
+    "rehearsal": "isolated DB/collection/volumes; max40 actual Bedrock attempts; no AWS resource creation or S3 upload"
   }
 }

@@ -4,6 +4,12 @@ spring:
   datasource:
     # 운영 DB 연결은 TLS를 요구한다(MYSQL_SSL_MODE로 조정 가능).
     url: jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}?characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=${MYSQL_SSL_MODE:REQUIRED}
+    hikari:
+      data-source-properties:
+        # 운영 RDS CA는 공개 인증서로 만든 truststore를 사용한다. 비밀번호는 설정으로만 주입한다.
+        trustCertificateKeyStoreUrl: ${MYSQL_TRUSTSTORE_URL:}
+        trustCertificateKeyStoreType: ${MYSQL_TRUSTSTORE_TYPE:PKCS12}
+        trustCertificateKeyStorePassword: ${MYSQL_TRUSTSTORE_PASSWORD:}
   flyway:
     locations: ${FLYWAY_LOCATIONS}
 
@@ -20,3 +26,16 @@ logging:
     com.bizaid: INFO
     # SQL·요청 본문이 로그에 남지 않도록 프레임워크 상세 로그를 올리지 않는다.
     org.hibernate.SQL: WARN
+
+# 운영 request access log에는 IP·URL 개인정보를 남기지 않는다.
+server:
+  tomcat:
+    accesslog:
+      enabled: false
+
+# 운영 profile 자체에서 문서 endpoint를 끈다(공통 설정/개발 문서 기본값에 기대지 않는다).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

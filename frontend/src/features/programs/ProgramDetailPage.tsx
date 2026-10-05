@@ -51,10 +51,7 @@ export function ProgramDetailPage() {
             <dt>신청기간</dt>
             <dd>
               {periodText(program)}
-              {/* 파생 날짜와 원문이 다를 때만(예: 원문에 추가 설명이 있을 때) 원문을 함께 보여 준다. */}
-              {program.applicationPeriodRaw && program.applicationStartDate && program.applicationPeriodRaw !== periodText(program) && (
-                <span className="muted"> (원문: {program.applicationPeriodRaw})</span>
-              )}
+
             </dd>
             <dt>공고 ID</dt>
             <dd className="muted">{program.pblancId}</dd>

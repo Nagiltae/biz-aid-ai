@@ -30,15 +30,18 @@ bizaid:
     finished-workflow-retention: 90d
     usage-counter-retention: 7d
   usage:
-    daily-limit: 30
+    daily-limit: 10
+    daily-limit-per-ip: 30
+    global-daily-limit: 300
+    signup-per-ip-per-day: 1000
     trial:
       enabled: true
       ttl: 24h
       daily-pool-limit: 200
       max-creates-per-ip-per-day: 1000
   legal:
-    terms-version: "2026-10-04"
-    privacy-version: "2026-10-04"
+    terms-version: "2026-10-04.3"
+    privacy-version: "2026-10-04.3"
   # 테스트는 backend/에서 실행하므로 저장소의 공통 계약을 그대로 읽는다(복사본 없음).
   contracts-path: ../contracts
   jwt:

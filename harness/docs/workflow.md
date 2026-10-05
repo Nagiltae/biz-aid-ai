@@ -129,3 +129,5 @@ Registry.report의 현재 Task Report는 검토 대상이 달라 CURRENT REPORT 
 Human Review는 AGY 원문·활성 개발 Producer Report·최종 Validation·Git Diff를 대조해 다음 Task를 판단한다.
 
 사용자 지정 `harness/workspace/handoff/bundle1-handoff.md`는 동일 Task 실행 상태를 이어가는 non-gating checkpoint다. 반면 `artifacts/development/regression-set/run.py`는 재사용 실행 입력으로 strict 등록하며 JSON/log 실행 결과와 구분한다.
+
+사용자 지정 `harness/workspace/handoff/bundle5-2-handoff.md`도 같은 Task 실행 상태의 non-gating checkpoint다.

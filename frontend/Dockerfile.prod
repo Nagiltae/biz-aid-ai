@@ -1,0 +1,11 @@
+# WHY: 운영 nginx 설정까지 이미지 안에 포함해 서버에 frontend 소스를 전달하지 않는다.
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+FROM nginx:1.28-alpine
+COPY nginx.prod.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80

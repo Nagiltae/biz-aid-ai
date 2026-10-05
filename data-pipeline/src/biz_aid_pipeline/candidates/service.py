@@ -2,6 +2,8 @@
 
 실제 schema에서 값이 고정된 정형 column만 hard filter로 쓴다. 자유 hashtag는 해석하지 않는다. 승인된 제목 지역 표시와 명시 신청기간 파생은 계약 규칙만 사용한다.
 """
+import os
+
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -45,13 +47,15 @@ class ProgramCandidateRepository:
 
     @classmethod
     def from_config(cls, config):
-        if (config.profile != "dev" or config.database not in ("biz_aid_dev", "biz_aid_test")
+        if config.profile == "prod" and os.environ.get("BIZAID_ENV") != "prod":
+            raise PipelineError("production_environment_required")
+        if config.profile != "prod" and (config.profile != "dev" or config.database not in ("biz_aid_dev", "biz_aid_test")
                 or config.host not in ("localhost", "127.0.0.1", "mysql") or config.port != 3306):
             raise PipelineError("dev_database_boundary")
         return cls(create_engine(URL.create("mysql+pymysql", username=config.user, password=config.password,
             host=config.host, port=config.port, database=config.database, query={"charset": "utf8mb4"}),
             hide_parameters=True, echo=False, pool_pre_ping=True,
-            connect_args={"connect_timeout": 5, "read_timeout": 30, "write_timeout": 30}))
+            connect_args=config.connect_args()))
 
     def find(self, candidate_filter):
         table = self.programs.c

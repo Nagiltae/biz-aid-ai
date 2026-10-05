@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,6 +20,15 @@ public abstract class ApiTestSupport {
 
     @Autowired
     protected ObjectMapper json;
+
+    @Autowired
+    private JdbcTemplate usageJdbc;
+
+    @BeforeEach
+    void resetUsageFixture() {
+        // BOUNDARY: H2 테스트 DB의 counter만 격리한다. 한 테스트 안의 동시 요청·상한 검사는 그대로다.
+        usageJdbc.update("delete from ai_usage_counters");
+    }
 
     protected String signup(String email) throws Exception {
         String body = mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)

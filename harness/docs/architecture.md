@@ -10,7 +10,7 @@
 | 대상 | 설계상 책임 | 현재 상태 |
 | --- | --- | --- |
 | React | UI, 서버 상태 캐시(TanStack Query), 로그인 사용자 상태 | V1 화면과 V2 맞춤 추천(`/recommend`) 구현. 서버 `nextAction`만 따라 단계 진행·복원하며 Spring만 호출. 비로그인 소개(`/`)·약관(`/terms`·`/privacy`)·체험 표시·남은 AI 횟수·하단 출처(묶음5-1) |
-| Spring Boot | 인증·기업정보·대화·추천 State Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | JWT·기업정보·지원사업·대화·활동 기록과 `ai_workflows` JSON 저장·동시 진행 제어. 계정 관리(탈퇴·비밀번호 변경)·대화 삭제·로그인 시도 제한(계정·IP 5회/10분)·정리 스케줄러(토큰·workflow), dev 전용 Swagger(2026-10-04). 공개 서비스 기능(묶음5-1): 체험 계정(POST /api/auth/trial, 설정 on/off, 24시간 뒤 삭제, 수정 불가), 하루 AI 사용 제한(사용자 30회·체험 합산 200회, 한국 자정 초기화, DB 조건부 UPDATE), 가입 필수 동의 기록. `HttpAiGateway`로 FastAPI 연결(Compose 안에서는 `http://fastapi:8000`) |
+| Spring Boot | 인증·기업정보·대화·추천 State Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | JWT·기업정보·지원사업·대화·활동 기록과 `ai_workflows` JSON 저장·동시 진행 제어. 계정 관리(탈퇴·비밀번호 변경)·대화 삭제·로그인 시도 제한(계정·IP 5회/10분)·정리 스케줄러(토큰·workflow), dev 전용 Swagger(2026-10-04). 공개 서비스 기능(묶음5-1): 체험 계정(POST /api/auth/trial, 설정 on/off, 24시간 뒤 삭제, 수정 불가), 하루 AI 사용 제한(계정10회·같은IP30회·체험 합산200회, 한국 자정 초기화, DB 조건부 UPDATE), 가입 필수 동의 기록. `HttpAiGateway`로 FastAPI 연결(Compose 안에서는 `http://fastapi:8000`) |
 | FastAPI | 질문 구조화·검색·비교·답변·Citation 검증·추천 단계 실행 | 내부 API v1과 V2 개인화 검색·Top 3 판정·LangGraph workflow 구현. 회원·기업 State를 소유하지 않음 |
 | MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | 공고·문서·parse(V1~V5), 회원·기업·대화·AI 결과·활동·workflow(V6~V9), 일반 ZIP 내부 파일(V10), 기업 지역 표준명(V11), 로그인 시도 제한·활동 기록 COMMENT(V12), 계정 종류·약관 동의·하루 사용 횟수(V13) 구현 |
 | Qdrant | 문서 Chunk vector와 근거 metadata | V1 기준선 collection 동결. V2 서비스 범위 별도 collection은 3문서 Smoke 후 전체 파싱·적재 진행 중 |
@@ -94,7 +94,7 @@ parsing(S3 원본 → DoclingDocument, S3 + V5 row) ← chunking(현재 parse_ke
 | MySQL | 공고(pblanc_id)·source relation·parse 상태·identity·artifact pointer | Flyway schema, 데이터는 Pipeline |
 | Qdrant | FinalChunk point(id=chunk_id, dense+sparse, payload=FinalChunk.payload) | S3 parsed artifact + V5 row에서 다시 만들 수 있는 파생 index |
 
-MySQL과 Qdrant는 `pblanc_id`·`source_sha256`으로만 연결한다. collection은 embedding_key별이고 dev Compose Qdrant만 쓴다(host는 loopback, Compose 안의 FastAPI는 `http://qdrant:6333`만 허용).
+MySQL과 Qdrant는 `pblanc_id`·`source_sha256`으로만 연결한다. collection은 embedding_key별이며 수집·적재는 dev Compose Qdrant만 쓴다(host는 loopback, Compose 안의 FastAPI는 `http://qdrant:6333`). 명시 운영 조회 서비스는 아래 묶음5-2 경계에 따라 설정된 주소와 고정 collection을 읽는다.
 `retrieval/`은 같은 embedder로 query를 만들어 현재 embedding_key collection을 읽기만 한다(dense·sparse·RRF hybrid). `candidates/`가 MySQL 후보를 만들고 RAG가 그 pblanc_id 범위 안에서만 검색한다. [AI 경계](../rules/ai-boundary-rules.md)와 [파일 경계](../rules/file-boundaries.md)를 따른다.
 
 ## 묶음2 지역·데이터 정리(2026-10-04)
@@ -107,3 +107,17 @@ MySQL과 Qdrant는 `pblanc_id`·`source_sha256`으로만 연결한다. collectio
 
 `rag/llm.py`의 공통 provider 경계에서 Ollama(기본) 또는 Bedrock ConverseStream/tool JSON을 선택한다. MySQL 후보·BGE-M3·Qdrant·RRF·판정 최종 상태 계산은 provider와 독립적이다. Bedrock은 SDK chain(로컬 `bizaid-dev`, 서버 IAM 역할)만 쓰며 실제 키를 image/env example에 넣지 않는다. 출력 schema·75초 전체기한·출력상한 실패 처리를 공통 계약으로 유지한다.
 V2 비교 입력은 `evals/cases-v2/`에 별도 동결해 V1 baseline과 분리한다. 목록 중복은 순위 후처리, 표 표현은 모델 context 단계만 바꾸며 저장된 vector/key는 불변이다.
+
+## 묶음5-2 운영 실행 준비
+
+운영 진입은 Caddy(HTTPS·보안 헤더·외부 XFF 제거) → frontend nginx(전용 edge에서만 IP 신뢰) → Spring → FastAPI다.
+공고 원본 정보는 변경하지 않고 AI 안내를 구분한다. Spring의 contracts와 공통 migrations는 backend 이미지에 포함한다.
+`docker-compose.prod.yml`은 MySQL을 생성하지 않고 RDS 설정을 받는다. Qdrant는 내부 network/별도 영구 volume, FastAPI는 고정 collection을 읽는다.
+운영 코드는 image에 복사하고 reload·외부 추적·Swagger를 끈다. BGE-M3와 RDS CA는 서버 디렉터리를 읽기 전용 mount한다.
+개발 Compose의 기존 loopback·dev DB·local AWS credential chain 경계는 유지한다.
+
+묶음5-2 마무리: 실제 request remoteAddr의 SHA-256 AI_IP counter를 기존 store에 추가한다. 계정/IP/체험/전체 상한 모두 예약한 뒤 실행하며 거절·실패는 이번 예약 key만 역순 환불한다. 한국 날짜7일 된 행부터 정리한다. 체크·라디오는 일반 입력의 전체폭에서 제외하고 버튼 묶음은 수평으로 통일한다.
+
+## 묶음6-0 운영 실행 준비
+
+개발 Compose/dev.sh/dev profile은 유지한다. 운영은docker-compose.prod.yml의ARM image를단일비공개Hub저장소에서pull하고서버에저장소를복제하지않는다. 소스가있는명시build는docker-compose.build.yml만사용한다. backend가먼저RDS schema를만든뒤공고/V2/모델을복원하고전체서비스를시작한다. 서버bundle은실행파일allowlist이며Secret·제품소스·데이터를포함하지않는다. 실제AWS배포는아직미실행이다. [운영 설명서](../../docs/deployment.md).

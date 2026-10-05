@@ -45,3 +45,11 @@ LangSmith 실행 추적은 설정(`BIZAID_TRACING_ENABLED`)으로 켤 때만, `o
 추적 식별값은 사용자·기업과 무관한 무작위 값(trace_key)이다. 추적 생성·전송 실패는 무시하고 AI 흐름을 멈추거나 바꾸지 않는다.
 
 마감 정리는 dev V2에만 명시 기준일과 snapshot 검증 후 적용한다(document-indexing 계약). 신규 원본 admission은 embedding 전 전체 source 보류이며 chunk prefix만 적재하지 않는다. 기존 collection을 admission 때문에 다시 쓰거나 지우지 않는다.
+
+## 운영 질문 서버 (2026-10-04 묶음5-2 사용자 승인)
+
+BIZAID_ENV=prod를 명시한 ServiceRuntime만 원격 MySQL 읽기/TLS와 설정의 고정 Qdrant collection 조회를 허용한다.
+수집·파싱·적재 CLI는 dev 전용으로 남으며 운영 연결을 이 경계 밖으로 확대하지 않는다.
+운영 collection missing/empty는 시작 실패다. embedding identity/schema 검증은 검색에서도 유지한다.
+운영은 설정과 무관하게 LangSmith와 SDK 자동 추적을 강제로 끈다. Bedrock 인증은 SDK credential chain/EC2 Role이며 운영 image에 AWS 설정을 mount하지 않는다.
+사용자의 질문·기업정보가 global inference profile을 통해 해외 AWS 지역에서 처리될 수 있음을 개인정보처리방침에 고지한다.

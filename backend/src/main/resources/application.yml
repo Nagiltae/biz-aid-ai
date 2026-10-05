@@ -53,7 +53,10 @@ bizaid:
     usage-counter-retention: 7d
   # 하루 AI 사용 제한·체험 계정(2026-10-04 묶음5-1 사용자 결정). 한국 시간 자정에 새로 센다.
   usage:
-    daily-limit: ${BIZAID_AI_DAILY_LIMIT:30}
+    daily-limit: ${BIZAID_AI_DAILY_LIMIT:10}
+    daily-limit-per-ip: ${BIZAID_AI_DAILY_LIMIT_PER_IP:30}
+    global-daily-limit: ${BIZAID_AI_GLOBAL_DAILY_LIMIT:300}
+    signup-per-ip-per-day: ${BIZAID_SIGNUP_PER_IP_PER_DAY:5}
     trial:
       # 운영 on/off. 기본은 끔이고 dev profile만 켠다. 운영은 BIZAID_TRIAL_ENABLED=true로 켠다.
       enabled: ${BIZAID_TRIAL_ENABLED:false}
@@ -62,8 +65,8 @@ bizaid:
       max-creates-per-ip-per-day: ${BIZAID_TRIAL_MAX_CREATES_PER_IP:20}
   # 이용약관·개인정보처리방침 현재 버전(시행일). 화면 frontend/src/features/legal/legalVersions.ts와 같아야 한다.
   legal:
-    terms-version: "2026-10-04"
-    privacy-version: "2026-10-04"
+    terms-version: "2026-10-04.3"
+    privacy-version: "2026-10-04.3"
   # 공통 계약 폴더(기업 지역 표준명 등). IntelliJ(working dir backend/)는 ../contracts, Compose는 /contracts mount.
   contracts-path: ${BIZAID_CONTRACTS_PATH:../contracts}
   jwt:

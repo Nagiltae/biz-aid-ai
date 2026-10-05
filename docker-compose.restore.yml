@@ -1,0 +1,23 @@
+# 서버용 일회성 도구. DB 서버를 띄우지 않고 RDS/MySQL client만 실행한다.
+services:
+  mysql-tools:
+    image: mysql:8.4
+    profiles: [tools]
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST:?DB 주소 필수}
+      MYSQL_PORT: ${MYSQL_PORT:?DB 포트 필수}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?DB 이름 필수}
+      MYSQL_USER: ${MYSQL_USER:?DB 사용자 필수}
+      MYSQL_PWD: ${MYSQL_PASSWORD:?DB 비밀번호 필수}
+      MYSQL_SSL_MODE: ${MYSQL_SSL_MODE:-VERIFY_IDENTITY}
+      MYSQL_SSL_CA: ${MYSQL_SSL_CA:-/certs/rds-ca.pem}
+    entrypoint: [sh, -c, 'exec mysql --host="$MYSQL_HOST" --port="$MYSQL_PORT" --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --ssl-mode="$MYSQL_SSL_MODE" --ssl-ca="$MYSQL_SSL_CA" --default-character-set=utf8mb4 --batch --skip-column-names "$@"', sh]
+    volumes:
+      - ${MYSQL_TLS_CERTS_PATH:?CA 디렉터리 필수}:/certs:ro
+    networks: [service]
+  http-tools:
+    image: curlimages/curl:8.11.1
+    profiles: [tools]
+    volumes:
+      - ${BIZAID_RESTORE_PATH:-./transfer}:/transfer:ro
+    networks: [service]

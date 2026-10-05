@@ -59,8 +59,8 @@ export function Layout() {
       <footer className="footer">
         <div className="footer-inner">
           <p>
-            공고 정보: <a href={DATA_SOURCE.url} target="_blank" rel="noopener noreferrer">{DATA_SOURCE.name}</a> 공공데이터 활용.
-            각 공고의 원문은 공고 상세의 "공고 원문 보기"에서 확인하세요.
+            {DATA_SOURCE.notice} <a href={DATA_SOURCE.url} target="_blank" rel="noopener noreferrer">기업마당</a> ·
+            <a href={DATA_SOURCE.licenseUrl} target="_blank" rel="noopener noreferrer">공공누리 제3유형</a>
           </p>
           <p>AI 판정은 참고용입니다. 최종 자격은 공고문과 주관기관에 확인하세요.</p>
           <p className="footer-links">

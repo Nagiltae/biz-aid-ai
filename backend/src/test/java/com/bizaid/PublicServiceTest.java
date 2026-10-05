@@ -71,7 +71,7 @@ class PublicServiceTest extends ApiTestSupport {
                 .andReturn().getResponse().getContentAsString()).get("user").get("id").asLong();
         List<String> rows = jdbc.queryForList("select concat(document_type, '@', document_version) from user_consents "
                 + "where user_id = ? and agreed_at is not null order by document_type", String.class, userId);
-        assertThat(rows).containsExactly("PRIVACY@2026-10-04", "TERMS@2026-10-04");
+        assertThat(rows).containsExactly("PRIVACY@2026-10-04.3", "TERMS@2026-10-04.3");
     }
 
     @Test
@@ -128,7 +128,7 @@ class PublicServiceTest extends ApiTestSupport {
         String oldToken = bearer(old);
         mvc.perform(post("/api/conversations").header(HttpHeaders.AUTHORIZATION, oldToken).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"title\":\"오래된 체험\"}")).andExpect(status().isCreated());
-        usage.consume(oldId, true, Instant.now());
+        usage.consume(oldId, true, "198.51.100.20", Instant.now());
         String member = signupWithCompany("member-keep@example.com");
         // 생성 시각만 25시간 전으로 옮긴다(24시간 경계를 넘긴 체험 계정).
         jdbc.update("update users set created_at = ? where id = ?", Timestamp.from(Instant.now().minus(Duration.ofHours(25))), oldId);
@@ -148,16 +148,16 @@ class PublicServiceTest extends ApiTestSupport {
     }
 
     @Test
-    void dailyLimitAllowsExactly30ThenFixed429AndResetsAtKoreanMidnight() {
+    void dailyLimitAllowsExactly10ThenFixed429AndResetsAtKoreanMidnight() {
         long userId = 900_001L;
-        for (int i = 0; i < 30; i++) {
-            usage.consume(userId, false, KST_LAST_SECOND);
+        for (int i = 0; i < 10; i++) {
+            usage.consume(userId, false, "198.51.100.20", KST_LAST_SECOND);
         }
-        assertThatThrownBy(() -> usage.consume(userId, false, KST_LAST_SECOND))
+        assertThatThrownBy(() -> usage.consume(userId, false, "198.51.100.20", KST_LAST_SECOND))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.errorCode().code()).isEqualTo("ai_daily_limit_reached"));
-        assertThat(used(userId, LocalDate.of(2026, 10, 4))).isEqualTo(30);
+        assertThat(used(userId, LocalDate.of(2026, 10, 4))).isEqualTo(10);
         // 한국 자정(UTC 15:00)이 지나면 새 날짜로 다시 센다.
-        usage.consume(userId, false, KST_NEXT_MIDNIGHT);
+        usage.consume(userId, false, "198.51.100.20", KST_NEXT_MIDNIGHT);
         assertThat(used(userId, LocalDate.of(2026, 10, 5))).isEqualTo(1);
     }
 
@@ -170,7 +170,7 @@ class PublicServiceTest extends ApiTestSupport {
             for (int i = 0; i < 60; i++) {
                 calls.add(() -> {
                     try {
-                        usage.consume(userId, false, KST_LAST_SECOND);
+                        usage.consume(userId, false, "198.51.100.20", KST_LAST_SECOND);
                         return true;
                     } catch (ApiException exception) {
                         return false;
@@ -181,8 +181,8 @@ class PublicServiceTest extends ApiTestSupport {
             for (Future<Boolean> result : pool.invokeAll(calls)) {
                 allowed += result.get() ? 1 : 0;
             }
-            assertThat(allowed).isEqualTo(30);
-            assertThat(used(userId, LocalDate.of(2026, 10, 4))).isEqualTo(30);
+            assertThat(allowed).isEqualTo(10);
+            assertThat(used(userId, LocalDate.of(2026, 10, 4))).isEqualTo(10);
         } finally {
             pool.shutdownNow();
         }
@@ -193,14 +193,14 @@ class PublicServiceTest extends ApiTestSupport {
         String token = signupWithCompany("usage@example.com");
         long userId = userId("usage@example.com");
         mvc.perform(get("/api/ai/usage").header(HttpHeaders.AUTHORIZATION, token)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.dailyLimit").value(30)).andExpect(jsonPath("$.remaining").value(30));
+                .andExpect(jsonPath("$.dailyLimit").value(10)).andExpect(jsonPath("$.remaining").value(10));
         // 테스트 AI 주소는 연결되지 않는다(503). 결과를 못 받은 요청은 횟수를 되돌린다.
         mvc.perform(post("/api/ai/query").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"query\":\"금융 지원사업\"}")).andExpect(status().isServiceUnavailable());
         mvc.perform(get("/api/ai/usage").header(HttpHeaders.AUTHORIZATION, token)).andExpect(jsonPath("$.used").value(0));
 
         // 위 요청이 0으로 되돌린 오늘 행을 한도까지 쓴 상태로 바꾼다.
-        assertThat(jdbc.update("update ai_usage_counters set used_count = 30 where counter_key = ?", AiUsageService.userKey(userId)))
+        assertThat(jdbc.update("update ai_usage_counters set used_count = 10 where counter_key = ?", AiUsageService.userKey(userId)))
                 .isEqualTo(1);
         for (String path : new String[] {"/api/ai/query", "/api/ai/workflows"}) {
             mvc.perform(post(path).header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)

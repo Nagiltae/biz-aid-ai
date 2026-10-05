@@ -1,0 +1,110 @@
+# 운영 기본: docker compose --env-file .env.prod -f docker-compose.prod.yml pull → up -d (서버 build 없음)
+# generic .env fallback에 기대지 않는다. 운영에는 MySQL/Secret 파일/AWS credential mount가 없다.
+name: biz-aid-prod
+x-runtime: &runtime
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+services:
+  caddy:
+    <<: *runtime
+    image: caddy:2.10-alpine
+    ports:
+      - "${CADDY_HTTP_BIND:-0.0.0.0:80}:80"
+      - "${CADDY_HTTPS_BIND:-0.0.0.0:443}:443"
+    environment:
+      CADDY_SITE: ${CADDY_SITE:-biz-aid.cloud}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+    depends_on: [frontend]
+  frontend:
+    <<: *runtime
+    image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:frontend-${BIZAID_IMAGE_TAG:?이미지 태그 필수}
+    platform: linux/arm64
+    networks: [edge, service]
+    depends_on: [backend]
+  backend:
+    <<: *runtime
+    image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:backend-${BIZAID_IMAGE_TAG:?이미지 태그 필수}
+    platform: linux/arm64
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      MYSQL_HOST: ${MYSQL_HOST:?운영 DB 주소 필수}
+      MYSQL_PORT: ${MYSQL_PORT:?운영 DB 포트 필수}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?운영 DB 이름 필수}
+      MYSQL_USER: ${MYSQL_USER:?운영 DB 사용자 필수}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?운영 DB 비밀번호 필수}
+      MYSQL_SSL_MODE: ${MYSQL_SSL_MODE:-VERIFY_IDENTITY}
+      MYSQL_TRUSTSTORE_URL: ${MYSQL_TRUSTSTORE_URL:-}
+      MYSQL_TRUSTSTORE_TYPE: ${MYSQL_TRUSTSTORE_TYPE:-PKCS12}
+      MYSQL_TRUSTSTORE_PASSWORD: ${MYSQL_TRUSTSTORE_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET:?JWT 비밀값 필수}
+      INTERNAL_AI_API_KEY: ${INTERNAL_AI_API_KEY:?내부 인증키 필수}
+      AI_BASE_URL: http://fastapi:8000
+      BIZAID_CONTRACTS_PATH: /app/contracts
+      FLYWAY_LOCATIONS: filesystem:/migrations
+      BIZAID_TRIAL_ENABLED: ${BIZAID_TRIAL_ENABLED:-true}
+      BIZAID_AI_DAILY_LIMIT: ${BIZAID_AI_DAILY_LIMIT:-10}
+      BIZAID_AI_DAILY_LIMIT_PER_IP: ${BIZAID_AI_DAILY_LIMIT_PER_IP:-30}
+      BIZAID_AI_GLOBAL_DAILY_LIMIT: ${BIZAID_AI_GLOBAL_DAILY_LIMIT:-300}
+      BIZAID_SIGNUP_PER_IP_PER_DAY: ${BIZAID_SIGNUP_PER_IP_PER_DAY:-5}
+      SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES: '172\.29\.53\.[0-9]{1,3}'
+    volumes:
+      - ${MYSQL_TLS_CERTS_PATH:?DB TLS 인증서 디렉터리 필수}:/certs:ro
+    networks: [service]
+    depends_on: [fastapi]
+  fastapi:
+    <<: *runtime
+    image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:fastapi-${BIZAID_IMAGE_TAG:?이미지 태그 필수}
+    platform: linux/arm64
+    command: [uvicorn, biz_aid_pipeline.api.app:app, --host, 0.0.0.0, --port, "8000", --workers, "${FASTAPI_WORKERS:-1}", --no-access-log]
+    environment:
+      BIZAID_ENV: prod
+      MYSQL_HOST: ${MYSQL_HOST:?운영 DB 주소 필수}
+      MYSQL_PORT: ${MYSQL_PORT:?운영 DB 포트 필수}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?운영 DB 이름 필수}
+      MYSQL_USER: ${MYSQL_USER:?운영 DB 사용자 필수}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?운영 DB 비밀번호 필수}
+      MYSQL_SSL_MODE: ${MYSQL_SSL_MODE:-VERIFY_IDENTITY}
+      MYSQL_SSL_CA: ${MYSQL_SSL_CA:-/certs/rds-ca.pem}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:?운영 V2 collection 이름 필수}
+      LLM_PROVIDER: bedrock
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-global.anthropic.claude-haiku-4-5-20251001-v1:0}
+      BEDROCK_REGION: ${BEDROCK_REGION:-ap-northeast-2}
+      INTERNAL_AI_API_KEY: ${INTERNAL_AI_API_KEY:?내부 인증키 필수}
+      BIZAID_TRACING_ENABLED: "false"
+      LANGSMITH_TRACING: "false"
+      LANGCHAIN_TRACING_V2: "false"
+      BIZAID_DOCLING_ARTIFACTS_PATH: /models
+      TOKENIZERS_PARALLELISM: "false"
+    volumes:
+      - ${BIZAID_MODEL_PATH:?서버 모델 경로 필수}:/models:ro
+      - ${MYSQL_TLS_CERTS_PATH:?DB TLS 인증서 디렉터리 필수}:/certs:ro
+    networks: [service]
+    depends_on: [qdrant]
+  qdrant:
+    <<: *runtime
+    image: qdrant/qdrant:v1.19.1
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks: [service]
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: 172.29.52.0/24
+  service:
+    ipam:
+      config:
+        - subnet: 172.29.53.0/24
+volumes:
+  caddy_data:
+  caddy_config:
+  qdrant_data:

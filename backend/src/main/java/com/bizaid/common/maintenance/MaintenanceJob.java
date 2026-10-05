@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
+import org.springframework.beans.factory.annotation.Value;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,10 +45,12 @@ public class MaintenanceJob {
     private final Clock clock;
     private final TrialService trials;
     private final UsageCounterStore usageCounters;
+    private final ZoneId serviceZone;
 
     public MaintenanceJob(RefreshTokenRepository refreshTokens, LoginThrottleRepository loginThrottles, AiWorkflowRepository workflows,
                           MaintenanceProperties properties, AuthProperties authProperties, ObjectMapper objectMapper, Clock clock,
-                          TrialService trials, UsageCounterStore usageCounters) {
+                          TrialService trials, UsageCounterStore usageCounters, @Value("${bizaid.service-zone}") String zone) {
+        this.serviceZone = ZoneId.of(zone);
         this.trials = trials;
         this.usageCounters = usageCounters;
         this.refreshTokens = refreshTokens;
@@ -77,7 +81,7 @@ public class MaintenanceJob {
         int expired = expireInactive(now);
         int finished = workflows.deleteFinishedBefore(now.minus(properties.finishedWorkflowRetention()));
         int trialUsers = trials.purgeExpired(now);
-        int usageRows = usageCounters.deleteBefore(now.atZone(clock.getZone()).toLocalDate().minus(properties.usageCounterRetention()));
+        int usageRows = usageCounters.deleteBefore(now.atZone(serviceZone).toLocalDate().minus(properties.usageCounterRetention()));
         Summary summary = new Summary(tokens, throttles, expired, finished, releaseStaleClaims(now), trialUsers, usageRows);
         log.info("maintenance done refreshTokensDeleted={} loginThrottlesDeleted={} workflowsExpired={} workflowsDeleted={} staleClaims={} "
                         + "trialUsersDeleted={} usageRowsDeleted={}",

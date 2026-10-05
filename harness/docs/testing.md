@@ -272,3 +272,17 @@ NOT_MET→INELIGIBLE, 잘못된 evidence id·다른 공고 evidence·모르는 p
 
 `test_bedrock_llm.py`는 fake ConverseStream으로 tool/schema·75초 전체기한·출력상한 fail-closed·권한오류 고정503·SDK chain·개인정보 없는 token 추적을 검사한다. `test_bundle4_quality.py`는 순위 후 목록 중복/지역 보존과 context cell 표현의 원문·식별값 보존을 검사한다. `test_cases_v2.py`는 동결 20건 hash·채점·비용 단위만 검사하며 실제 Bedrock/Ollama/LLM은 CI에서 호출하지 않는다.
 실제 비교는 `evals/cases-v2/README.md`처럼 승인된 dev에서 provider당 순차1회 수행한다. 평가 코드의 오류는 모델 품질 실패와 분리하고 기대값을 결과에 맞춰 바꾸지 않는다. 결과 출력이 있으면 덮어쓰지 않는다.
+
+## 묶음5-2 배포 전 검증
+
+`tests/contract/test_predeploy.py`는 운영 process-only 설정·TLS·추적 차단·collection 준비·Swagger/에러 경계를 offline mock으로 확인한다.
+Spring PredeployTest는 H2에서 전체 AI 상한·환불·IP별 가입/체험과 위조 XFF 경계를 확인한다. React는 법적 안내/문의처를 mock으로 검사한다.
+`scripts/rehearse_prod.py --execute`는 별도 bizaid-rehearsal52 DB/volume에서 공고 데이터와 V2 snapshot을 복원하고 최대40회 Bedrock을 계측한다.
+리허설 실패는 실패로 기록한다. 종료 cleanup은 해당 리허설 프로젝트만 대상으로 하며 dev volume은 건드리지 않는다.
+배포 직후 `scripts/smoke_prod.sh <주소>`는 체험과 AI 질문1회를 실제 생성하므로 사용량을 소모한다. check-all에서는 live 서비스를 호출하지 않는다.
+
+묶음5-2 마무리 검증: 계정10/IP30 동시성·서로 다른 계정 합산·각 거절 시 보상·AI 실패4 counter환불·7일 정리를 H2로 검사한다. React는 문장 클릭/탈퇴 disabled/가입2동의/매출 표시와 숫자 저장/버튼 배치를 검사한다. 실제 Bedrock 추가호출은 금지하며 마지막 check-all은 offline/Test DB만 사용한다.
+
+## 묶음6-0 배포 준비 검증
+
+배포bundle allowlist·독립Compose config·ARM build-only·기존대상거절·공고COMMIT전개수검증·V2 exact count·모델checksum·오류비밀값차단은tests/contract/test_deploy_kit.py가검사한다. 실제AWS/RDS/Bedrock은호출하지않는다. 개발환경기동·체험인증/공고목록과자료준비는별도local점검이며전체검사는마지막1회실행한다.

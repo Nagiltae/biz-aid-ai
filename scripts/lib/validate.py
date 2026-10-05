@@ -97,7 +97,8 @@ def workspace_category(name):
     # BOUNDARY: 사용자가 지정한 Task handoff는 실행 상태 산출물이며 current-task와 다르다.
     if name in ("harness/workspace/handoff/bundle1-handoff.md", "harness/workspace/handoff/bundle2-handoff.md",
                 "harness/workspace/handoff/bundle3-handoff.md", "harness/workspace/handoff/bundle4-handoff.md",
-                "harness/workspace/handoff/bundle5-1-handoff.md"):
+                "harness/workspace/handoff/bundle5-1-handoff.md", "harness/workspace/handoff/bundle5-2-handoff.md",
+                "harness/workspace/handoff/bundle6-0-handoff.md"):
         return "GENERATED_CHECKPOINT"
     for category, names in STATIC_WORKSPACE_FILES.items():
         if name in names:
@@ -413,7 +414,7 @@ def allowed_ignored(name):
             return True
         return path.suffix in {".xml", ".iml"} or path.name == ".gitignore"
     # 실제 credential은 제외하지만 변수 계약을 보여주는 example은 사용자가 Diff로 검토해야 한다.
-    if len(parts) == 1 and (name == ".env" or name.startswith(".env.")) and name != ".env.example":
+    if len(parts) == 1 and (name == ".env" or name.startswith(".env.")) and name not in (".env.example", ".env.prod.example"):
         return True
     # 서비스 V1 build 산출물·의존성 cache는 재생성 가능한 결과라 추적하지 않는다. 소스 디렉터리는 숨기지 않는다.
     if len(parts) >= 2 and (parts[0], parts[1]) in SERVICE_BUILD_OUTPUTS:

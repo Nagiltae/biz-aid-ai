@@ -474,4 +474,6 @@
 - Why deferred: 확인하지 않은 조건을 화면에 쓰면 틀린 고지가 된다. 사용자가 포털 활용신청 화면에서 직접 확인하는 편이 정확하다.
 - Revisit trigger: 공개 배포 전, 사용자가 이용허락범위를 확인해 알려 줄 때.
 - Side effect: 출처표시 의무 유형에 따라 하단 문구·공고 상세 표기를 바꿔야 할 수 있다(legalVersions.ts DATA_SOURCE 한 곳).
-- Status: OPEN
+- Status: RESOLVED (사용자가 공공데이터포털에서 무료·공공누리 제3유형을 확인; 묶음5-2 출처·AI 구분·원문 링크 반영)
+
+- IMP-034 추가 Evidence: [묶음5-2 Report](../workspace/reports/development/2026-10-04-bundle5-2-predeploy.md). 원문 정보는 변경하지 않고 생성 안내를 별도로 표시한다.

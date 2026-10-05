@@ -15,4 +15,4 @@ export const usageApi = {
 };
 
 /** 하루 사용 제한 오류 코드. 이 오류는 다시 시도해도 같은 결과라 "다시 시도" 버튼을 보이지 않는다. */
-export const USAGE_LIMIT_CODES = new Set(["ai_daily_limit_reached", "ai_trial_pool_exhausted"]);
+export const USAGE_LIMIT_CODES = new Set(["ai_daily_limit_reached", "ai_ip_daily_limit_reached", "ai_trial_pool_exhausted", "ai_service_daily_limit_reached"]);

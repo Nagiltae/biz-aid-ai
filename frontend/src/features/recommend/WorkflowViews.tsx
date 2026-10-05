@@ -1,3 +1,4 @@
+import { AiGeneratedNotice } from "../ai/AiGeneratedNotice";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { CitationList } from "../ai/CitationList";
@@ -289,7 +290,7 @@ export function FinalResultView({ result }: { result: FinalResult }) {
           </section>
         );
       })}
-      {result.disclaimer && <p className="muted small">{result.disclaimer}</p>}
+      <AiGeneratedNotice ids={[...result.recommended, ...result.excluded, ...result.unresolved].map((item) => item.pblancId)} />
     </section>
   );
 }

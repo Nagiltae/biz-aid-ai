@@ -465,4 +465,25 @@ class AiGatewayIntegrationTest extends ApiTestSupport {
                         .content("{\"query\":\"질문\",\"conversationId\":" + conversationId + "}"))
                 .andExpect(status().isBadGateway()).andExpect(jsonPath("$.error.code").value("ai_service_auth_failed"));
     }
+    @Test
+    void bedrockStyleErrorsAndTimeoutRestoreQuotaAndServerRemainsAlive() throws Exception {
+        String token = signupWithCompany("predeploy-failures@example.com");
+        int globalBefore = jdbc.queryForObject("select coalesce(sum(used_count), 0) from ai_usage_counters where counter_key = 'SERVICE_POOL'", Integer.class);
+        for (int upstreamStatus : new int[] {503, 429, 500}) {
+            reply = new Reply(upstreamStatus, "{\"error\":{\"code\":\"llm_provider_unavailable\"}}", 0);
+            mvc.perform(post("/api/ai/query").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"query\":\"지원사업 찾아줘\"}"))
+                    .andExpect(status().is5xxServerError()).andExpect(jsonPath("$.error.message").isNotEmpty());
+            mvc.perform(get("/api/ai/usage").header(HttpHeaders.AUTHORIZATION, token)).andExpect(jsonPath("$.used").value(0));
+            mvc.perform(get("/api/health")).andExpect(status().isOk());
+        }
+        reply = new Reply(200, "{}", 1500);
+        mvc.perform(post("/api/ai/query").header(HttpHeaders.AUTHORIZATION, token).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"query\":\"지원사업 찾아줘\"}"))
+                .andExpect(status().isGatewayTimeout()).andExpect(jsonPath("$.error.code").value("ai_service_timeout"));
+        mvc.perform(get("/api/ai/usage").header(HttpHeaders.AUTHORIZATION, token)).andExpect(jsonPath("$.used").value(0));
+        assertThat(jdbc.queryForObject("select coalesce(sum(used_count), 0) from ai_usage_counters where counter_key = 'SERVICE_POOL'", Integer.class))
+                .isEqualTo(globalBefore);
+    }
+
 }

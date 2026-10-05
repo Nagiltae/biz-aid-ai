@@ -5,6 +5,7 @@ import com.bizaid.ai.application.RecommendationWorkflowService;
 import com.bizaid.auth.domain.AuthUser;
 import com.bizaid.usage.application.AiUsageService;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import java.util.Map;
@@ -41,10 +42,10 @@ public class WorkflowController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public AiDtos.WorkflowResponse start(@AuthenticationPrincipal AuthUser user,
+    public AiDtos.WorkflowResponse start(HttpServletRequest httpRequest, @AuthenticationPrincipal AuthUser user,
                                          @Valid @RequestBody AiRequests.PersonalizedSearchRequest request) {
         // 하루 사용 횟수는 추천 시작에서만 1 쓴다. 다음 단계 진행·부족 정보 답변은 같은 추천의 일부라 세지 않는다.
-        return usage.run(user, () -> workflowService.start(user.id(), request.query()));
+        return usage.run(user, httpRequest.getRemoteAddr(), () -> workflowService.start(user.id(), request.query()));
     }
 
     @GetMapping

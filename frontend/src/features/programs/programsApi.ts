@@ -56,8 +56,9 @@ export const programsApi = {
   get: (pblancId: string) => apiRequest<ProgramDetail>(`/api/programs/${encodeURIComponent(pblancId)}`),
 };
 
-/** 신청기간 표시: 파생 날짜가 있으면 날짜 범위, 없으면 기업마당 원문(예: "예산 소진시까지")을 그대로 보여 준다. */
+/** 변경금지 경계: 신청기간 원문이 있으면 그대로 표시한다. 파생 날짜는 원문이 없는 경우에만 사용한다. */
 export function periodText(program: Pick<ProgramSummary, "applicationStartDate" | "applicationEndDate" | "applicationPeriodRaw">) {
+  if (program.applicationPeriodRaw != null) return program.applicationPeriodRaw;
   if (program.applicationStartDate || program.applicationEndDate) {
     return `${program.applicationStartDate ?? "?"} ~ ${program.applicationEndDate ?? "?"}`;
   }

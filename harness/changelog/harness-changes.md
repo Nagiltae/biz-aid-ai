@@ -669,3 +669,26 @@ V1 종료 상태를 V2 변경과 같은 조건으로 비교하도록 SEARCH_LIST
 ## 2026-10-04 묶음2 지역·데이터 정리
 
 기업 지역 제목/소관 규칙과 named QA 예외를 계약·FastAPI·Spring·React에 공유했다. 명시 신청기간 파생 보강·원문 보존, snapshot 후 V2 마감 정리, 신규 문서 admission을 추가했다. 제품 key/vector/V1과 비밀값 불변. 사용자 지정 bundle2 handoff만 non-gating 경계에 추가했다. 최종 검증 결과는 개발 Report에 실제 exit로 기록한다.
+
+## 2026-10-04 묶음5-2 배포 전 마무리
+
+- 사용자 승인으로 명시 운영 질문 서버만 원격 DB/TLS·고정 검색 collection을 허용한다. 수집·적재 dev guard는 보존한다.
+- 운영 외부 추적/Swagger 차단, IP 신뢰는 Caddy와 전용 nginx 경계로 제한한다.
+- 기존 usage counter를 전체 하루300회/IP별 가입5개에 재사용한다. 공고 영역/V2 snapshot만 이사하며 개인정보 영역은 제외한다.
+- 공공누리 제3유형 확인·Bedrock 국외 처리·문의처를 안내하고 약관/동의 버전을 2026-10-04.2로 함께 올린다.
+- 운영 Compose/리허설/배포 smoke 및 narrow bundle5-2 handoff 생성물 예외를 등록한다. 미측정 결과는 PASS로 기록하지 않는다.
+
+- V14는 기존 type/key/data를 보존하고 usage counter 새 key와 동의 버전 개정 번호의 DB COMMENT만 동기화한다. V1~V13은 불변이다.
+
+- 묶음5-2 최종 계약 검사에서 dev 입력 필드 오류 suffix 회귀3건을 발견해, 상세 오류 제거를 명시 prod 응답에만 적용했다. 기존 dev 계약 assertion은 그대로 유지하며 prod의 field/detail 비노출 검사를 보강했다.
+- 최종 코드 점검에서 S3Config에 잘못 중복 추가된 DB 전용 설정 helper를 제거해 기존 dev-only S3 경계를 복원하고, 운영 DB 예외가 S3로 확산되지 않는 검사를 추가했다. 운영 예외를 계약 scope/architecture에도 명시했다.
+
+## 2026-10-04 묶음5-2 마무리 수정
+
+사용자 결정으로 계정 하루10회·실제IP 합산30회를 적용한다. 기존 원자적 store와 해시만 재사용하고 거절/실패 때 모든 예약을 보상한다. 한국 날짜7일 정리와 V15 COMMENT, 문서 버전2026-10-04.3을 동기화한다. 일반 input 전체폭/버튼 세로배치의 공통 CSS 원인을 수정하고 기업 매출은 표시만 쉼표·한글로 보강한다. 이전Report·migrationV1~V14는 보존하며 실제Bedrock은 호출하지 않는다.
+
+## 2026-10-05 — 묶음6-0 배포 준비물
+
+- 사용자결정:ARM t4g.large/Ubuntu24.04,RDS MySQL8.4,단일비공개Hub3태그,pull전용서버bundle. 명시build override와안전복원·설명서/Contract를등록한다.
+- 개발Compose/dev.sh/기존migration·vector·V1/V2원본은보존한다. 실제push/AWS생성/S3업로드/Bedrock은미실행이다.
+- handoff/bundle6-0-handoff.md만동적산출물로등록한다. Generated출력으로제품입력을숨기지않고기존gate를유지한다.

@@ -46,3 +46,11 @@ SHOW CREATE TABLE과 information_schema를 비교해 COMMENT 외 정의 변경�
 
 적용된 migration의 COMMENT 누락도 그 파일을 수정해서 해결하지 않는다.
 예: 적용된 V3에서 누락 발견 → V3 보존 → 신규 V4로 COMMENT 추가 → migrate / validate / schema 비교.
+
+## 운영 서비스 연결과 비용 제한 (묶음5-2)
+
+운영 Spring은 명시 prod 설정으로 공통 Flyway 계보를 사용하고, FastAPI는 DbConfig.load_service의 명시 운영 설정으로 공고만 읽는다.
+기존 DbConfig.load의 ingestion dev guard를 유지한다. 원격 주소·TLS 검증/CA는 process 설정으로 받고 Secret 파일 fallback을 하지 않는다.
+ai_usage_counters의 기존 원자적 예약/환불을 서비스 전체 하루300회와 IP별 가입5개에도 재사용한다. IP는 SHA-256만 기록하고 실패한 가입 요청도 센다.
+계정10회·IP30회·체험200회·전체300회 모두 예약한 뒤 AI를 실행한다. 실제 접속 IP는 원문 대신 AI_IP:<SHA-256>로 계산하고 한국 날짜7일 된 행부터 정리한다. 한 상한 거절이나 AI 호출 예외는 이번 요청의 예약 key만 모두 복원한다. 추천의 다음 단계는 시작 시 예약한 같은 사용 건으로 간주한다.
+운영 이사는 공고 관련 테이블만 허용한다. 회원·대화·체험·활동·V1 데이터는 옮기지 않는다. 기존 migration은 수정하지 않는다.

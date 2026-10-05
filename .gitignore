@@ -3,6 +3,7 @@
 .env
 .env.*
 !.env.example
+!.env.prod.example
 .venv/
 __pycache__/
 *.pyc
@@ -34,3 +35,7 @@ __pycache__/
 /harness/workspace/handoff/bundle3-handoff.md
 /harness/workspace/handoff/bundle4-handoff.md
 /harness/workspace/handoff/bundle5-1-handoff.md
+/harness/workspace/handoff/bundle5-2-handoff.md
+
+# 이번 배포 준비 Task의 동적 인수인계만 제외한다.
+/harness/workspace/handoff/bundle6-0-handoff.md

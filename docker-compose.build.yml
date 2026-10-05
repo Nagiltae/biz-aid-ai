@@ -1,0 +1,14 @@
+# 소스가 있는 맥북/명시 서버 build 전용 override. 기본 운영 묶음에는 넣지 않는다.
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+  fastapi:
+    build:
+      context: .
+      dockerfile: data-pipeline/Dockerfile.prod

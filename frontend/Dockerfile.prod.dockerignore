@@ -1,0 +1,6 @@
+# 운영 frontend build에 사용자 Secret/cache를 보내지 않는다. 개발 Dockerfile은 그대로다.
+node_modules
+dist
+.env
+.env.*
+.aws

@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom";
 import { PRIVACY_VERSION } from "./legalVersions";
 
-// RISK: 개인 포트폴리오 서비스 기준 초안이다. 운영 전 사용자가 문구·문의처를 검토하고 채운다(보고서 기재).
+// BOUNDARY: 사용자 제공 문의처·국외 처리 결정을 반영한다. 공개 전 법적 적합성의 최종 검토는 사용자 책임이다.
 export function PrivacyPage() {
   return (
     <article className="page narrow legal" aria-label="개인정보처리방침">
       <h1>개인정보처리방침</h1>
-      <p className="muted small">시행일 {PRIVACY_VERSION} · 초안</p>
+      <p className="muted small">시행일 {PRIVACY_VERSION.split(".")[0]} · 버전 {PRIVACY_VERSION}</p>
       <p>BizAid(이하 "서비스")는 이용자의 개인정보를 아래와 같이 처리합니다.</p>
 
       <h2>1. 수집하는 정보</h2>
@@ -15,6 +15,7 @@ export function PrivacyPage() {
         <li>기업정보: 회사명, 사업자 형태, 기업 규모, 지역, 업종, 개업일, 영업 상태, 직원 수, 매출 등 이용자가 입력한 값</li>
         <li>AI 이용 기록: AI 검색 질문과 답변, 맞춤 추천 진행 기록</li>
         <li>약관 동의 기록(문서 버전·동의 시각), 하루 AI 사용 횟수</li>
+        <li>로그인·체험 생성·회원가입 남용 방지 및 하루 AI 사용 횟수 계산을 위한 접속 IP 해시(원문 IP는 저장하지 않음)</li>
       </ul>
       <p className="muted small">자격 판정 때 입력하는 신용점수·체납 여부는 그 요청에만 쓰고 저장하지 않습니다.</p>
 
@@ -30,6 +31,7 @@ export function PrivacyPage() {
         <li>회원 탈퇴 시 계정·기업정보·AI 대화·추천 기록·동의 기록을 즉시 삭제합니다.</li>
         <li>활동 기록(언제 어떤 기능을 썼는지)은 누구인지 알 수 없게 바꾼 뒤 운영 통계로만 남깁니다.</li>
         <li>체험 계정은 만든 뒤 24시간이 지나면 모든 데이터와 함께 자동 삭제됩니다.</li>
+        <li>과도한 사용을 막기 위해 접속 IP를 알아볼 수 없는 값(해시)으로 바꿔 하루 사용 횟수 계산에 쓰고, 한국 날짜 기준 7일 뒤 정리 작업에서 삭제합니다.</li>
       </ul>
 
       <h2>4. 처리 위탁</h2>
@@ -38,14 +40,21 @@ export function PrivacyPage() {
         <li>Amazon Bedrock(AWS): AI 처리. 이용자의 질문, 기업정보, 공개된 공고문 내용이 AI 답변·자격 판정을 만드는 데 사용됩니다.</li>
       </ul>
 
-      <h2>5. 이용자의 권리</h2>
+      <h2>5. 국외 이전</h2>
+      <p>AI 처리는 Amazon Bedrock을 통해 해외 AWS 지역에서 이루어질 수 있습니다. AI 질문·추천 요청 시 질문 내용과 기업정보,
+        공개 공고문 근거가 암호화된 연결로 AWS의 글로벌 추론 프로필에 전달되어 답변·자격 판정에 사용됩니다.
+        처리 지역은 글로벌 프로필의 라우팅에 따라 달라질 수 있습니다. AI 기능을 이용하지 않으면 이 전송은 발생하지 않습니다.
+        운영 서비스는 LangSmith 등 외부 실행 추적을 사용하지 않습니다.</p>
+      <p>국외 이전과 개인정보 처리에 관한 문의·동의 철회는 nagt1997@naver.com으로 요청할 수 있습니다.
+        AI 처리 제공자의 보관·처리 조건은 AWS 이용약관 및 개인정보 정책을 함께 확인해 주세요.</p>
+      <h2>6. 이용자의 권리</h2>
       <p>
         이용자는 언제든지 <Link to="/account">계정 화면</Link>에서 회원 탈퇴로 개인정보 삭제를 요청할 수 있습니다.
         기업정보는 <Link to="/company">내 기업정보</Link>에서 고칠 수 있습니다.
       </p>
 
-      <h2>6. 문의처</h2>
-      <p>개인정보 관련 문의: [문의처 이메일을 입력하세요]</p>
+      <h2>7. 문의처</h2>
+      <p>개인정보 관련 문의: nagt1997@naver.com</p>
     </article>
   );
 }

@@ -1,3 +1,4 @@
+import { AiGeneratedNotice } from "./AiGeneratedNotice";
 import { Link } from "react-router-dom";
 import { periodText } from "../programs/programsApi";
 import { CitationList } from "./CitationList";
@@ -91,6 +92,7 @@ export function AiQueryResultView({ result, onSelect }: { result: AiQueryResult;
       {result.status !== "ANSWERED" && <span className="badge status-undated">근거 부족</span>}
       <p className="prewrap">{result.answer ?? EMPTY_STATUS[result.status] ?? "답변이 없습니다."}</p>
       <CitationList citations={result.citations} />
+      <AiGeneratedNotice ids={(result.citations ?? []).map((citation) => citation.pblancId)} />
     </section>
   );
 }

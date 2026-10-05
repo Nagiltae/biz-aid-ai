@@ -37,6 +37,9 @@ class TraceSettings:
 
     @classmethod
     def load(cls, root=ROOT, profile="dev", environ=None):
+        if profile == "prod":
+            # BOUNDARY: 운영에서는 Secret·endpoint를 읽거나 외부 추적 Client를 만들지 않는다.
+            return cls(False, DEFAULT_PROJECT, None)
         values = profile_values(root, profile, SETTING_NAMES, environ)
         enabled = values.get("BIZAID_TRACING_ENABLED", "").strip().lower() == "true"
         if profile == "prod":
