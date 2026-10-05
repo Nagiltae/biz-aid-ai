@@ -7,6 +7,7 @@ import argparse
 import concurrent.futures
 import json
 import os
+import re
 from pathlib import Path
 import statistics
 import subprocess
@@ -50,11 +51,22 @@ def sql(container, query):
                     'MYSQL_PWD="$MYSQL_PASSWORD" exec mysql -N -B -u "$MYSQL_USER" "$MYSQL_DATABASE"'], stdin=query.encode() if isinstance(query, str) else query)
 
 
-def rehearsal():
+def image_settings(repository, tag, platform):
+    if not repository or not re.fullmatch(r"[a-z0-9][a-z0-9._:/-]*", repository):
+        raise ValueError("image_repository_required")
+    if not tag or not re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}", tag):
+        raise ValueError("image_tag_required")
+    if platform not in {"linux/amd64", "linux/arm64"}:
+        raise ValueError("unsupported_image_platform")
+    return {"BIZAID_IMAGE_REPO": repository, "BIZAID_IMAGE_TAG": tag, "BIZAID_IMAGE_PLATFORM": platform}
+
+
+def rehearsal(repository, tag, platform):
+    images = image_settings(repository, tag, platform)
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     if command(["docker", "ps", "-aq", "--filter", "label=com.docker.compose.project=" + PROJECT]).strip():
         raise RuntimeError("existing_rehearsal_requires_manual_review")
-    env = dict(os.environ)
+    env = dict(os.environ, **images)
     source = running_environment("biz-aid-ai-backend-1")
     env.update({key: source[key] for key in ("MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DATABASE", "JWT_SECRET", "INTERNAL_AI_API_KEY")})
     original_db = env["MYSQL_DATABASE"]
@@ -71,7 +83,7 @@ def rehearsal():
                REHEARSAL_AWS_SESSION_TOKEN=creds.token or "")
     env.update(COMPOSE_DISABLE_ENV_FILE="1", MYSQL_HOST="rehearsal-mysql", MYSQL_PORT="3306", MYSQL_DATABASE="bizaid_rehearsal52",
                MYSQL_SSL_MODE="DISABLED", BIZAID_MODEL_PATH=os.environ.get("BIZAID_DOCLING_ARTIFACTS_PATH", str(Path.home()/".cache/biz-aid/docling-artifacts")),
-               MYSQL_TLS_CERTS_PATH="/tmp", QDRANT_COLLECTION=name, CADDY_SITE="http://localhost:80",
+               MYSQL_TLS_CERTS_PATH="/tmp", QDRANT_COLLECTION=name, CADDY_SITE="localhost:80",
                CADDY_HTTP_BIND="127.0.0.1:18080", CADDY_HTTPS_BIND="127.0.0.1:18443", FASTAPI_WORKERS="1")
     # 전체 리허설 상한 40회는 임시 런타임 계측으로 enforced한다. 제품 provider·prompt는 바꾸지 않는다.
     prior = EVIDENCE/"bedrock-call-count.json"
@@ -100,7 +112,8 @@ import uvicorn
 uvicorn.run('biz_aid_pipeline.api.app:app',host='0.0.0.0',port=8000,access_log=False)
 '''
     result = {"status": "IN_PROGRESS", "original_collection": name, "original_point_count": count, "workers": 1,
-              "source_database": original_db, "aws_budget": 40}
+              "source_database": original_db, "aws_budget": 40, "images": images,
+              "permission_limit": "macOS Docker Desktop은 Ubuntu 서버의 파일 권한을 재현하지 않음"}
     with tempfile.TemporaryDirectory(prefix="bizaid-rehearsal52-") as tmp:
         tmp = Path(tmp)
         (tmp/"certs").mkdir()
@@ -112,16 +125,16 @@ uvicorn.run('biz_aid_pipeline.api.app:app',host='0.0.0.0',port=8000,access_log=F
                                   "MYSQL_PASSWORD": "${MYSQL_PASSWORD}", "MYSQL_ROOT_PASSWORD": "${MYSQL_PASSWORD}"},
                                   "networks": ["service"], "volumes": ["rehearsal_mysql:/var/lib/mysql"]},
             "qdrant": {"ports": ["127.0.0.1:16333:6333"]},
-            "backend": {"image": "bizaid-rehearsal-backend", "pull_policy": "never", "depends_on": ["rehearsal-mysql", "fastapi"]},
-            "frontend": {"image": "bizaid-rehearsal-frontend", "pull_policy": "never"},
-            "fastapi": {"image": "bizaid-rehearsal-fastapi", "pull_policy": "never", "command": ["python", "/rehearsal/entry.py"],
+            "backend": {"image": f"{repository}:backend-{tag}", "platform": platform, "pull_policy": "never", "depends_on": ["rehearsal-mysql", "fastapi"]},
+            "frontend": {"image": f"{repository}:frontend-{tag}", "platform": platform, "pull_policy": "never"},
+            "fastapi": {"image": f"{repository}:fastapi-{tag}", "platform": platform, "pull_policy": "never", "command": ["python", "/rehearsal/entry.py"],
                         "environment": {"AWS_ACCESS_KEY_ID": "${REHEARSAL_AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY": "${REHEARSAL_AWS_SECRET_ACCESS_KEY}",
                                         "AWS_SESSION_TOKEN": "${REHEARSAL_AWS_SESSION_TOKEN}", "REHEARSAL_PRIOR_CALLS": "${REHEARSAL_PRIOR_CALLS}"},
                         "volumes": [f"{tmp}:/rehearsal:ro"]}}, "volumes": {"rehearsal_mysql": {}}}
         overlay_path = tmp/"override.json"
         overlay_path.write_text(json.dumps(overlay))
-        env.update(BIZAID_IMAGE_REPO="bizaidlocal/rehearsal", BIZAID_IMAGE_TAG="local")
-        compose = ["docker", "compose", "--env-file", os.devnull, "-p", PROJECT, "-f", "docker-compose.prod.yml", "-f", "docker-compose.build.yml", "-f", str(overlay_path)]
+        # BOUNDARY: 선택한 기존 이미지만 실행한다. 소스 build override와 과거 ARM 이미지 이름은 사용하지 않는다.
+        compose = ["docker", "compose", "--env-file", os.devnull, "-p", PROJECT, "-f", "docker-compose.prod.yml", "-f", str(overlay_path)]
         mysql = PROJECT + "-rehearsal-mysql-1"
         try:
             command(compose + ["up", "-d", "--no-build", "rehearsal-mysql", "qdrant"], env=env)
@@ -234,9 +247,12 @@ uvicorn.run('biz_aid_pipeline.api.app:app',host='0.0.0.0',port=8000,access_log=F
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="운영 Compose 로컬 리허설(실제 Bedrock 최대40회·별도 DB·volume)")
     parser.add_argument("--execute", action="store_true", required=True)
-    parser.parse_args()
+    parser.add_argument("--image-repo", default=os.environ.get("BIZAID_IMAGE_REPO"))
+    parser.add_argument("--image-tag", default=os.environ.get("BIZAID_IMAGE_TAG"))
+    parser.add_argument("--platform", default=os.environ.get("BIZAID_IMAGE_PLATFORM", "linux/amd64"))
+    args = parser.parse_args()
     try:
-        result = rehearsal()
+        result = rehearsal(args.image_repo, args.image_tag, args.platform)
         print(json.dumps({"status": result["status"], "bedrock": result.get("bedrock"), "evidence": str(EVIDENCE)}, ensure_ascii=False))
     except Exception as error:
         print("rehearsal_failed:"+type(error).__name__, file=sys.stderr)

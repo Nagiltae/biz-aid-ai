@@ -100,13 +100,12 @@ class ProductionBoundaryTests(unittest.TestCase):
         self.assertIn("proxy_set_header X-Forwarded-For $remote_addr", nginx)
         self.assertNotIn("$proxy_add_x_forwarded_for", nginx)
         self.assertIn("set_real_ip_from 172.29.52.0/24", nginx)
-        # BOUNDARY: 사용자 확정 운영 값만 예시에 허용한다. credential과 Hub 개인 설정은 계속 빈칸이다.
+        # BOUNDARY: 예시는 공통 기본값·자리표시만 사용한다. credential과 Hub 개인 설정은 계속 빈칸이다.
         public_names = {"BEDROCK_MODEL_ID", "BEDROCK_REGION", "BIZAID_AI_DAILY_LIMIT", "BIZAID_AI_DAILY_LIMIT_PER_IP",
             "BIZAID_AI_GLOBAL_DAILY_LIMIT", "BIZAID_MODEL_PATH", "BIZAID_SIGNUP_PER_IP_PER_DAY", "BIZAID_TRIAL_ENABLED",
             "CADDY_HTTPS_BIND", "CADDY_HTTP_BIND", "CADDY_SITE", "FASTAPI_WORKERS", "MYSQL_DATABASE", "MYSQL_HOST",
             "MYSQL_PORT", "MYSQL_SSL_CA", "MYSQL_SSL_MODE", "MYSQL_TLS_CERTS_PATH", "MYSQL_USER", "QDRANT_COLLECTION",
-            "MYSQL_TRUSTSTORE_URL", "MYSQL_TRUSTSTORE_TYPE", "QDRANT_URL", "BIZAID_IMAGE_PLATFORM", "AWS_REGION",
-            "AWS_S3_BUCKET", "AWS_S3_PREFIX"}
+            "MYSQL_TRUSTSTORE_URL", "MYSQL_TRUSTSTORE_TYPE", "QDRANT_URL", "BIZAID_IMAGE_PLATFORM", "AWS_REGION"}
         for line in (ROOT / ".env.prod.example").read_text().splitlines():
             if line and not line.startswith("#"):
                 name, value = line.split("=", 1)
@@ -124,7 +123,9 @@ class SmokePortabilityTests(unittest.TestCase):
         bodies = [b'{"status":"ok"}', b'<div id="root"></div>', b'{"accessToken":"fixture-token"}',
                   b'{"remaining":10}', b'{"result":{"requestMode":"SEARCH_LIST","status":"LISTED"}}', b'{"remaining":9}']
         def respond(request, **kwargs):
-            return io.BytesIO(bodies.pop(0))
+            response = io.BytesIO(bodies.pop(0))
+            response.status = 200
+            return response
         with patch.object(module, "urlopen", side_effect=respond):
             result = module.smoke("https://fixture.invalid")
         self.assertEqual(result["remaining"], 9)

@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import subprocess
 import tarfile
 import tempfile
@@ -26,16 +27,79 @@ def sha(path):
     return digest.hexdigest()
 
 
-def command(args, source, payload=None):
+def command(args, source, payload=None, *, overrides=None, permission_service=None):
     environment = dict(os.environ, COMPOSE_DISABLE_ENV_FILE="1", BIZAID_RESTORE_PATH=str(source.resolve()))
+    environment.update(overrides or {})
     result = subprocess.run(["docker", "compose", "--env-file", str(ROOT / ".env.prod"),
         "-f", str(ROOT / "docker-compose.prod.yml"), "-f", str(ROOT / "docker-compose.restore.yml"),
         "--profile", "tools", "run", "--rm", "--no-deps", "-T"] + args,
         input=payload, capture_output=True, env=environment)
     if result.returncode:
+        if permission_service:
+            # BOUNDARY: 자체 검사에서 정한 코드·파일 경로만 허용한다. Docker 원문과 설정값은 출력하지 않는다.
+            reason = "container_check_failed; image, mount and Docker access must be checked"
+            for line in result.stdout.decode("utf-8", errors="replace").splitlines():
+                if re.fullmatch(r"(?:unreadable_file|unreadable_directory):/(?:models|certs)/?[a-zA-Z0-9_./-]*", line):
+                    reason = line
+                    break
+                elif line in {"image_user_must_not_be_root", "no_files", "directory_required", "scan_failed"}:
+                    reason = line
+            raise RestoreFailure(f"permission_check_failed:{permission_service}:{reason}")
         # BOUNDARY: DB/HTTP 원문 오류는 credential·공고 본문을 반사할 수 있다.
         raise RestoreFailure("restore_client_failed; raw output withheld")
     return result.stdout
+
+
+def normalize_permissions(directory):
+    directory = Path(directory).resolve()
+    if not directory.is_dir():
+        raise RestoreFailure("permission_directory_required")
+    # WHY: TemporaryDirectory의 700이 복원 목적지에 남으면 이미지의 일반 사용자가 폴더에 들어가지 못한다.
+    directory.chmod(0o755)
+    def walk_error(error):
+        raise error
+    for parent, directories, files in os.walk(directory, onerror=walk_error):
+        for name in directories + files:
+            path = Path(parent) / name
+            mode = path.lstat().st_mode
+            if stat.S_ISDIR(mode):
+                path.chmod(0o755)
+            elif stat.S_ISREG(mode):
+                path.chmod(0o644)
+            else:
+                raise RestoreFailure("permission_symlink_or_special_file_forbidden")
+
+
+READ_CHECK = '''set -eu
+folder=$1
+uid=$(id -u)
+[ "$uid" != 0 ] || { echo image_user_must_not_be_root; exit 1; }
+[ -d "$folder" ] || { echo directory_required; exit 1; }
+[ -r "$folder" ] && [ -x "$folder" ] || { echo unreadable_directory:$folder; exit 1; }
+# 일반 사용자로 모든 파일을 끝까지 읽어 실제 mount 권한을 검사한다. 내용은 버린다.
+find "$folder" -type d -exec sh -c 'for p do [ -r "$p" ] && [ -x "$p" ] || { echo unreadable_directory:$p; exit 1; }; done' sh {} + 2>/dev/null || { echo scan_failed; exit 1; }
+find "$folder" -type f -exec sh -c 'for p do cat "$p" >/dev/null 2>&1 || { echo unreadable_file:$p; exit 1; }; done' sh {} + 2>/dev/null || exit 1
+count=$(find "$folder" -type f 2>/dev/null | wc -l)
+[ "$count" -gt 0 ] || { echo no_files; exit 1; }
+printf 'uid=%s\\nfiles=%s\\n' "$uid" "$count"
+'''
+
+
+def check_readable(service, directory, mount):
+    setting = "BIZAID_MODEL_PATH" if mount == "/models" else "MYSQL_TLS_CERTS_PATH"
+    raw = command(["--entrypoint", "sh", service, "-c", READ_CHECK, "sh", mount], Path(directory),
+                  overrides={setting: str(Path(directory).resolve())}, permission_service=service)
+    match = re.fullmatch(rb"uid=([1-9][0-9]*)\nfiles=([1-9][0-9]*)\n", raw)
+    if not match:
+        raise RestoreFailure(f"permission_check_failed:{service}:invalid_check_result")
+    return {"service": service, "uid": int(match[1]), "readable_files": int(match[2]), "mount": mount}
+
+
+def verify_permissions(directory, *, certs=False):
+    normalize_permissions(directory)
+    services = ("backend", "fastapi") if certs else ("fastapi",)
+    mount = "/certs" if certs else "/models"
+    return {"permissions": "directories=755,files=644", "read_checks": [check_readable(service, directory, mount) for service in services]}
 
 
 def counts(raw):
@@ -100,6 +164,8 @@ def restore_models(source, manifest, target):
                 name = PurePosixPath(member.name)
                 if name.is_absolute() or ".." in name.parts or not name.parts or name.parts[0] not in {"BAAI--bge-m3", "BAAI--bge-m3-embedding"}:
                     raise RestoreFailure("unsafe_model_archive")
+                if not (member.isdir() or member.isfile()):
+                    raise RestoreFailure("model_archive_links_or_special_files_forbidden")
             archive.extractall(scratch, filter="data")
         for name, expected in manifest["model_files"].items():
             path = (scratch / name).resolve()
@@ -108,16 +174,20 @@ def restore_models(source, manifest, target):
         if target.exists():
             target.rmdir()  # BOUNDARY: 빈 목적지만 교체한다. 기존 corpus/모델을 삭제하지 않는다.
         scratch.rename(target)
-    return {"model_directory": str(target), "verified_files": len(manifest["model_files"])}
+    return {"model_directory": str(target), "verified_files": len(manifest["model_files"]), **verify_permissions(target)}
 
 
 def main():
     parser = argparse.ArgumentParser(description="빈 운영 저장소에만 복원")
-    parser.add_argument("kind", choices=["programs", "qdrant", "models"])
+    parser.add_argument("kind", choices=["programs", "qdrant", "models", "models-check", "certs"])
     parser.add_argument("directory", type=Path)
     parser.add_argument("--model-path", type=Path)
     args = parser.parse_args()
     source = args.directory.resolve()
+    if args.kind in {"models-check", "certs"}:
+        result = verify_permissions(source, certs=args.kind == "certs")
+        print(json.dumps({"status": "PASS", **result}, ensure_ascii=False))
+        return
     manifest = json.loads((source / "data-manifest.json").read_text())
     name = {"programs": "programs.sql", "qdrant": "v2.snapshot", "models": "models.tar.gz"}[args.kind]
     if sha(source / name) != manifest["sha256"][name]:
@@ -135,6 +205,9 @@ if __name__ == "__main__":
         main()
     except RestoreFailure as error:
         print("FAIL: " + str(error))
+        raise SystemExit(1) from None
+    except PermissionError:
+        print("FAIL: filesystem_permission_denied; host owner must be able to set directory=755 and file=644")
         raise SystemExit(1) from None
     except (ValueError, OSError, KeyError, tarfile.TarError):
         print("FAIL: restore rejected or failed; check empty target, checksums, service health and settings")

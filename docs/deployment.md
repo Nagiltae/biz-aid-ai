@@ -1,218 +1,294 @@
 # BizAid 운영 배포 설명서
 
-실제 서버는 **Ubuntu24.04 x86_64(linux/amd64), 메모리8GB + swap2GB, Docker29 / Compose5**다.
-EC2·RDS·S3는 **시드니(ap-southeast-2)**, DB는 **RDS MySQL8.4.9**다. Bedrock 호출만 서울(ap-northeast-2)의 global 추론 프로필을 사용한다. 저장소 전체를 서버에 복사하지 않는다.
-Docker Hub 비공개 저장소1개에서 `frontend-태그`, `backend-태그`, `fastapi-태그` 이미지를 받는다.
-이 문서의 login/push/S3 업로드/서버 변경은 **사용자가 직접 실행**한다. 비밀값은 명령·로그·Git에 넣지 않는다.
+사용자 확인 기준으로 **2026-10-05 `https://biz-aid.cloud` 운영 배포 완료**, 이미지 태그는 **20261005-03 / linux/amd64**다. 서버는 Ubuntu 24.04 x86_64, 메모리 8GB + swap 2GB, Docker 29 / Compose 5다. EC2·RDS·자료 전달 S3는 시드니(ap-southeast-2), Bedrock 호출은 서울(ap-northeast-2)이다.
 
-## 1. 개발과 운영은 분리
+묶음7-1은 배포 스크립트·설명서·Caddy 설정을 정리한다. **기존 앱 이미지를 그대로 사용하며 빌드·push는 필요 없다.** 이 문서의 서버 접속·업로드·설정 적용·smoke는 사용자가 직접 실행한다. 현재 서버의 www 인증서는 아래 적용·확인 전까지 미확인 상태다.
 
-| 구분 | 개발(그대로 유지) | 운영 |
+명령은 일반 따옴표가 필요한 곳에만 ASCII 따옴표를 쓴다. 서버에서는 Bash를 사용하고 폴더는 공백 없는 `~/bizaid`로 둔다. 문서에서 복사한 둥근 따옴표(`“ ”`, `‘ ’`)를 명령에 넣지 않는다. 실제 `.env.prod` 내용, 로그인 토큰, 전체 Compose 설정을 출력하거나 공유하지 않는다.
+
+## 1. 개발·운영과 셸 변수를 구분
+
+| 구분 | 개발 | 운영 |
 | --- | --- | --- |
-| 실행 | scripts/dev.sh up | docker compose --env-file .env.prod -f docker-compose.prod.yml |
-| Compose | docker-compose.yml | docker-compose.prod.yml; 일회성 복원은 docker-compose.restore.yml 추가 |
-| 설정 파일 | .env.dev | .env.prod(서버에서 직접 작성) |
-| profile | Spring dev / FastAPI dev | Spring prod / FastAPI BIZAID_ENV=prod |
-| DB | 로컬 MySQL / 기존 volume | RDS MySQL8.4 / TLS로 서버 인증 |
-| 검색 DB | 로컬 Qdrant / V1·V2 보존 | 서버 내부 Qdrant / V2만 복원 |
-| 코드 | 로컬 build·개발 mount | 이미지 pull / 소스·reload 없음 |
-| AWS 인증 | 기존 로컬 SDK 체계·사용자 AWS 로그인 | EC2 IAM Role / 키 파일 mount 없음 |
-| 추적 | 기존 선택적 LangSmith | 설정과 무관하게 강제 off |
+| 실행 | scripts/dev.sh | prod 단축함수 / docker-compose.prod.yml |
+| 설정 | .env.dev / 작성 견본 .env.dev.example | 서버의 .env.prod / 작성 견본 .env.prod.example |
+| DB | 로컬 MySQL | RDS MySQL 8.4, VERIFY_IDENTITY |
+| 검색 DB | 기존 개발 Qdrant | 서버 내부 Qdrant / 복원한 V2 |
+| 앱 | 로컬 개발 코드 | 기존 태그의 이미지 pull |
+| AWS 인증 | 사용자 로컬 SDK 인증 | EC2 IAM Role / 키 파일 mount 없음 |
+| AI 추적 | 선택적 개발 추적 | 운영에서는 비활성화 |
 
-### 맥북에서 준비
-
-새 태그를 쓴다. 기존 ARM 이미지와 태그를 재사용하지 않는다. 데이터는 CPU 종류와 무관하므로 이미 만든02자료를 그대로 사용한다.
+Compose는 셸에서 export한 값을 `--env-file`의 같은 이름 값보다 먼저 사용한다. **자료 전달 변수는 DEPLOY_TAG, DEPLOY_REGION, DEPLOY_BUCKET, DEPLOY_S3로 구분한다.** 운영의 BIZAID_IMAGE_TAG, AWS_REGION 등을 셸에 export해서 전달 변수로 쓰지 않는다.
 
 ```bash
-export BIZAID_IMAGE_REPO='DockerHub사용자명/비공개저장소명'
-export BIZAID_IMAGE_TAG='20261005-03'
-export DEPLOY_DATA_DIR='/private/tmp/bizaid-deploy-data-20261005-02'
-export DEPLOY_KIT='/private/tmp/bizaid-deploy-kit-20261005-04.tar.gz'
-export AWS_REGION='ap-southeast-2'
-export AWS_S3_BUCKET='amazon-s3-biz-aid-bucket-695694684371-ap-southeast-2-an'
-export TRANSFER_S3_URI="s3://${AWS_S3_BUCKET}/deploy/${BIZAID_IMAGE_TAG}"
+export DEPLOY_TAG=20261005-03
+export DEPLOY_REGION=ap-southeast-2
+export DEPLOY_BUCKET=YOUR_TRANSFER_BUCKET
+export DEPLOY_S3=s3://${DEPLOY_BUCKET}/deploy/${DEPLOY_TAG}
+```
 
-# 기존 데이터 재생성 없음. 배포 묶음만 이번 수정으로 새로 만든다(같은 출력 파일이면 생성 생략).
-scripts/make_deploy_bundle.sh "$DEPLOY_KIT"
-shasum -a 256 "$DEPLOY_KIT" "$DEPLOY_DATA_DIR/programs.sql" \
-  "$DEPLOY_DATA_DIR/v2.snapshot" "$DEPLOY_DATA_DIR/models.tar.gz" "$DEPLOY_DATA_DIR/data-manifest.json"
-# macOS 임시 자료는 영구 보관되지 않는다. 파일이 없다면 새 디렉터리에 준비하되 기존02자료를 덮어쓰지 않는다.
-# .venv/bin/python scripts/prepare_deploy_data.py <새 디렉터리> --model-path "$HOME/.cache/biz-aid/docling-artifacts"
+`YOUR_TRANSFER_BUCKET`은 사용자가 관리하는 실제 자료 전달 버킷으로 바꾼다. 원본 문서 경로와 자료 전달 `deploy/<태그>/`는 서로 다르다. `.env.prod.example`의 AWS_S3_BUCKET·AWS_S3_PREFIX는 운영 서비스에서 전달·사용하지 않아 제거했으며, 개발 파이프라인 설정은 그대로다.
 
-# 로컬 AWS profile은 위 prefix에 PutObject 권한이 있어야 한다(서버 role은 읽기만 가능).
+서버의 `~/.bashrc`를 편집해서 다음 함수를 한 번만 넣는다. `"$@"`는 전달한 명령 인자를 그대로 보존하기 위한 필수 ASCII 따옴표다.
+
+```bash
+prod() { docker compose --env-file ~/bizaid/.env.prod -f ~/bizaid/docker-compose.prod.yml "$@"; }
+```
+
+새 SSH 세션에서 사용할 수 있다. 지금 세션은 `source ~/.bashrc`로 불러온다. 과거 방식으로 남아 있는 export가 있으면 아래 공개 설정 이름을 해제하고 운영 파일의 값을 사용한다. 다른 MYSQL_*·JWT_*·INTERNAL_AI_* 이름도 운영 파일과 겹치는 export를 만들지 않는다.
+
+```bash
+unset BIZAID_IMAGE_REPO BIZAID_IMAGE_TAG BIZAID_IMAGE_PLATFORM AWS_REGION AWS_S3_BUCKET AWS_S3_PREFIX
+```
+
+| 확인 | 정상이면 이렇게 보임 |
+| --- | --- |
+| `type prod` | 함수 정의의 경로가 ~/bizaid 기준 |
+| `prod config --quiet` | 오류 없이 종료하며 설정값을 출력하지 않음 |
+| 전달 변수 | DEPLOY_* 이름만 사용하고 운영 앱 변수와 겹치지 않음 |
+
+## 2. 맥북에서 새 실행 묶음만 준비
+
+현재 서버·이미지·모델·공고 자료를 다시 만들지 않는다. `make_deploy_bundle.sh`는 서버 실행 파일만 담고 소스·실제 설정·모델·DB 자료는 포함하지 않는다. 새 출력 이름을 써서 기존 묶음을 보존한다.
+
+```bash
+export DEPLOY_KIT=/private/tmp/bizaid-deploy-kit-20261005-7-1.tar.gz
+scripts/make_deploy_bundle.sh $DEPLOY_KIT
+shasum -a 256 $DEPLOY_KIT
 aws login --profile bizaid-dev
-for file in programs.sql v2.snapshot models.tar.gz data-manifest.json; do
-  aws s3 cp "$DEPLOY_DATA_DIR/$file" "$TRANSFER_S3_URI/$file" --region "$AWS_REGION" --profile bizaid-dev
-done
-aws s3 cp "$DEPLOY_KIT" "$TRANSFER_S3_URI/deploy-kit.tar.gz" --region "$AWS_REGION" --profile bizaid-dev
-
-# build-only는 push하지 않는다. Docker Desktop의 기존 buildx에서 ARM 맥북도 amd64를 만들 수 있다.
-scripts/push_images.sh "$BIZAID_IMAGE_REPO" "$BIZAID_IMAGE_TAG" --build-only
-# 사용자가 비공개 Hub 저장소를 만든 뒤 직접 로그인·push한다. login 입력창에만 토큰을 입력한다.
-docker login --username 'DockerHub사용자명'
-scripts/push_images.sh "$BIZAID_IMAGE_REPO" "$BIZAID_IMAGE_TAG"
+aws s3 cp $DEPLOY_KIT ${DEPLOY_S3}/deploy-kit-7-1.tar.gz --region $DEPLOY_REGION --profile bizaid-dev
 ```
 
-기본 플랫폼은 `linux/amd64`다. 별도 ARM 서버를 쓸 때만 `--platform linux/arm64`와 운영 env의 `BIZAID_IMAGE_PLATFORM=linux/arm64`를 함께 지정한다.
-Docker Desktop은 기본으로 CPU 변환 실행을 지원하지만 ARM 맥북의 amd64 컴파일은 느릴 수 있다([Docker 안내](https://docs.docker.com/build/building/multi-platform/)).
-자료의 SHA(내용 확인용 지문)는 비밀값이 아니다. 업로드는 `deploy/<태그>/`에만 하고 기존 문서 `biz-aid/documents/`는 변경하지 않는다.
-회원·기업·대화·체험·동의·활동·workflow·Flyway 이력·V1 collection은 이사하지 않는다.
-덤프는 INSERT만 포함하고 복원 schema는 backend 이미지 안의 기존 Flyway로 만든다.
+이전 배포의 `programs.sql`, `v2.snapshot`, `models.tar.gz`, `data-manifest.json`은 기존 전달 경로에 둔다. 자료가 로컬 임시 폴더에만 있다면 별도 보관하되 기존 원문과 지문(SHA)을 덮어쓰지 않는다. 기존 Docker Hub 태그를 그대로 사용한다.
 
-## 2. 이미 생성한 운영 환경과 남은 준비
+| 확인 | 정상이면 이렇게 보임 |
+| --- | --- |
+| 실행 묶음 생성 | `서버 실행 묶음 생성 완료` |
+| 묶음 내용 | Compose 2개, Caddyfile, 운영 견본, 스크립트 4개, 배포 설명서(총 9개) |
+| SHA 기록 | 64자리 지문과 파일 이름, 비밀값 없음 |
+| S3 업로드 | deploy/20261005-03/deploy-kit-7-1.tar.gz에 새 파일 업로드 |
+| 이미지 | 기존 20261005-03 태그 유지; 빌드·push 없음 |
 
-- EC2: 시드니 Ubuntu24.04 x86_64,8GB RAM+swap2GB. 서버 홈은 /home/ubuntu다. 저장소 전체를 clone하지 않는다. 실제 부하는 배포 후 확인한다.
-- RDS: 시드니 MySQL8.4.9, 호스트 `bizaid-db.cb0ek4accq15.ap-southeast-2.rds.amazonaws.com`,3306, 빈 DB `bizaid`(utf8mb4_0900_ai_ci), 서비스 계정 `bizaid_app`. 암호는 사용자만 .env.prod에 입력한다.
-- S3: `amazon-s3-biz-aid-bucket-695694684371-ap-southeast-2-an`,시드니. 전달 경로는 `deploy/<태그>/`다.
-- EC2 IAM Role: S3 GetObject·ListBucket, Bedrock Haiku4.5 호출. AWS 키 없이 기존 role을 쓴다. IMDSv2/hop limit2는 설정됨. role로 업로드하려고 하지 않는다.
-- 네트워크: RDS3306은 EC2 보안그룹에서만 허용. 서버80/443 공개,22는 사용자 IP만.8080/8000/6333/6334는 공개하지 않는다.
-- **DNS 연결은 아직이다.** biz-aid.cloud를 EC2 주소로 연결한 뒤 외부 HTTPS smoke를 실행한다. 연결 전의 Caddy 인증서 발급/공개 화면은 미완료로 구분한다.
-- 서버 Docker29/Compose5는 설치됐다. 다음 설치 절차는 새 서버를 준비할 때만 참고한다. 이미 있는 프로그램·volume은 지우지 않는다.
+## 3. 서버·DNS·보안 그룹과 자료 확인
 
-## 3. Ubuntu 처음 설정
+현재 서버에는 Docker 29 / Compose 5가 설치되어 있다. 기존 운영 서버의 패키지·서비스·volume을 지우지 않는다. 새 서버를 준비할 때만 [Docker Ubuntu 설치 안내](https://docs.docker.com/engine/install/ubuntu/)를 참고한다. 서버 IAM Role은 S3 자료 읽기와 승인된 Bedrock 모델 호출 권한을 사용한다. AWS 키 파일을 컨테이너에 넣지 않는다.
 
-새 서버 기준이다. 기존 서비스가 있는 서버의 패키지/volume을 임의 제거하지 않는다.
-[Docker 공식 Ubuntu 설치](https://docs.docker.com/engine/install/ubuntu/)의 apt 저장소 방식을 따른다.
+AWS 보안 그룹에서 서버의 **TCP 80과 443을 모두 외부에 허용**한다. 22는 관리자 IP만, RDS 3306은 서버 보안 그룹에서만 허용한다. 8080·8000·6333·6334는 공개하지 않는다. 서버 방화벽도 80/443을 막지 않아야 한다.
+
+DNS의 대표 도메인과 www가 같은 서버를 가리켜야 한다. IPv6를 사용하지 않는 서버에 잘못된 AAAA 기록이 남아 있으면 인증서 발급이 실패할 수 있으므로 DNS 화면에서 함께 확인한다.
 
 ```bash
-sudo apt update
-sudo apt install -y ca-certificates curl unzip python3
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-# Ubuntu24.04 x86_64 고정 조건
-printf 'Types: deb\nURIs: https://download.docker.com/linux/ubuntu\nSuites: noble\nComponents: stable\nArchitectures: amd64\nSigned-By: /etc/apt/keyrings/docker.asc\n' | sudo tee /etc/apt/sources.list.d/docker.sources
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo systemctl enable --now docker
-sudo usermod -aG docker "$USER"
-# 여기서 SSH를 나갔다 다시 들어온다. docker 그룹은 서버 관리자 수준 권한이다.
+getent ahostsv4 biz-aid.cloud
+getent ahostsv4 www.biz-aid.cloud
+docker version --format '{{.Server.Version}}'
+docker compose version
+mkdir -p ~/bizaid/transfer ~/bizaid/certs
+cd ~/bizaid
+aws s3 cp ${DEPLOY_S3}/deploy-kit-7-1.tar.gz deploy-kit-7-1.tar.gz --region $DEPLOY_REGION
+sha256sum deploy-kit-7-1.tar.gz
 ```
 
+맥북에서 기록한 묶음 SHA와 같을 때만 다음 명령으로 스크립트·문서를 반영한다. 현재 `.env.prod`와 앱 이미지는 바뀌지 않는다. `prod` 함수는 별도 터미널에서도 ~/bizaid 경로를 사용한다.
+
 ```bash
-# x86_64용 AWS CLI(이미 설치돼 있으면 설치 단계 생략). 인증은 EC2 role이 자동 제공한다.
-curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip
-unzip -q /tmp/awscliv2.zip -d /tmp
-sudo /tmp/aws/install
-mkdir -p "$HOME/bizaid/transfer" "$HOME/bizaid/certs"
-cd "$HOME/bizaid"
-export BIZAID_IMAGE_TAG='20261005-03'
-export AWS_REGION='ap-southeast-2'
-export AWS_S3_BUCKET='amazon-s3-biz-aid-bucket-695694684371-ap-southeast-2-an'
-export TRANSFER_S3_URI="s3://${AWS_S3_BUCKET}/deploy/${BIZAID_IMAGE_TAG}"
-aws s3 cp "$TRANSFER_S3_URI/deploy-kit.tar.gz" ./deploy-kit.tar.gz --region "$AWS_REGION"
-# 맥북에서 기록한 bundle SHA와 반드시 대조한다.
-sha256sum deploy-kit.tar.gz
-tar -xzf deploy-kit.tar.gz
+tar -xzf deploy-kit-7-1.tar.gz
+```
+
+**새 서버의 첫 복원에만** 기존 전달 자료를 받는다. 이미 공고·V2·모델을 복원한 운영 서버에서는 다음 다운로드·복원을 다시 실행할 필요가 없다.
+
+```bash
 for file in programs.sql v2.snapshot models.tar.gz data-manifest.json; do
-  aws s3 cp "$TRANSFER_S3_URI/$file" "transfer/$file" --region "$AWS_REGION"
+  aws s3 cp ${DEPLOY_S3}/$file transfer/$file --region $DEPLOY_REGION
 done
 ```
 
-## 4. RDS 인증서와 운영 설정
+| 확인 | 정상이면 이렇게 보임 |
+| --- | --- |
+| 대표 도메인·www DNS | 둘 다 의도한 서버 주소로 연결 |
+| 서버 보안 그룹 | 80/443 외부 허용, 내부 앱 포트 비공개 |
+| RDS 보안 그룹 | 서버에서 오는 3306만 허용 |
+| 서버 묶음 SHA | 맥북의 지문과 일치 |
+| 기존 운영 자료 | 삭제·재복원 없이 보존 |
 
-CA(서버 인증기관 인증서)는 공개 파일이다. [AWS RDS TLS 안내](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html)를 참고한다.
-아래는 실제 시드니 RDS의 공식 CA bundle이다. Spring은 PKCS12 신뢰저장소, FastAPI와 복원 client는 같은 bundle PEM을 사용한다.
-배포 묶음에 이 설명서가 포함돼 서버에서도 그대로 따라 할 수 있다. 비밀값을 만들거나 예시에 적지 않는다.
+## 4. RDS 신뢰저장소와 공개 인증서 권한
+
+첫 설정이나 새 서버에서만 진행한다. 기존 `.env.prod`는 예시로 덮어쓰지 않는다. `.env.prod.example`의 YOUR_*와 example.com을 본인 설정으로 바꾸며 비밀값은 사용자만 입력한다.
 
 ```bash
-# 예시를 복사해 비밀값을 직접 입력한다. 이미 .env.prod가 있으면 복사하지 않고 필요한 공개 값만 확인한다.
+cd ~/bizaid
 if [ ! -e .env.prod ]; then cp .env.prod.example .env.prod; fi
 chmod 600 .env.prod
 nano .env.prod
-# 다음 프롬프트에는 .env.prod의 MYSQL_TRUSTSTORE_PASSWORD와 같은 값을 직접 입력한다.
+```
+
+아래는 시드니 RDS의 공개 인증기관 파일을 Java용 p12(신뢰저장소)로 만드는 실제 배포 방식이다. 비밀번호 추출 명령은 **사용자가 서버에서만 실행**하며 표준 출력으로 비밀번호를 내보내지 않는다. `set -x`를 켜지 않는다. 운영 파일의 비밀번호는 따옴표 없는 한 줄 값으로 입력한다.
+
+```bash
+mkdir -p certs
 curl -fsSL https://truststore.pki.rds.amazonaws.com/ap-southeast-2/ap-southeast-2-bundle.pem -o certs/rds-ca.pem
-# 기존 truststore는 덮어쓰지 않는다. 실패/재실행 시 원인을 확인한다.
-if [ -e certs/rds-ca.p12 ]; then echo "기존 신뢰저장소가 있어 중단합니다"; exit 1; fi
-# Java 신뢰저장소에는 bundle의 인증서 각각을 넣는다(첫 인증서만 넣지 않음).
-awk '/BEGIN CERTIFICATE/{n++} n{print > ("certs/rds-" n ".pem")}' certs/rds-ca.pem
-read -rsp '신뢰저장소 비밀번호: ' RDS_STORE_PASSWORD; echo
-export RDS_STORE_PASSWORD
-docker run --rm -e RDS_STORE_PASSWORD -v "$PWD/certs:/certs" eclipse-temurin:21-jre sh -c \
-  'for certificate in /certs/rds-[0-9]*.pem; do keytool -importcert -noprompt -alias "$(basename "$certificate")" -file "$certificate" -keystore /certs/rds-ca.p12 -storetype PKCS12 -storepass:env RDS_STORE_PASSWORD; done'
+if [ -e certs/rds-ca.p12 ]; then echo 기존_신뢰저장소가_있어_중단합니다; exit 1; fi
+csplit -s -z -f certs/rds- -b %d.pem certs/rds-ca.pem /BEGIN/ {*}
+export RDS_STORE_PASSWORD=$(grep ^MYSQL_TRUSTSTORE_PASSWORD= .env.prod | cut -d= -f2-)
+if [ -z "$RDS_STORE_PASSWORD" ]; then echo 신뢰저장소_비밀번호를_먼저_입력하세요; exit 1; fi
+for f in certs/rds-[0-9]*.pem; do
+  n=$(basename $f .pem)
+  docker run --rm --user $(id -u):$(id -g) -e RDS_STORE_PASSWORD -v $PWD/certs:/certs eclipse-temurin:21-jre keytool -importcert -noprompt -alias $n -file /certs/$n.pem -keystore /certs/rds-ca.p12 -storetype PKCS12 -storepass:env RDS_STORE_PASSWORD || { unset RDS_STORE_PASSWORD; exit 1; }
+done
 unset RDS_STORE_PASSWORD
-# 인증서에는 비밀키가 없다. 컨테이너의 일반 사용자(uid10001)가 읽을 수 있게 한다.
 chmod 755 certs
 chmod 644 certs/*.pem certs/rds-ca.p12
 ```
 
-**본인 값은 직접 입력하며 config 전체를 출력하거나 공유하지 않는다.** `docker compose config --quiet`는 확인만 한다.
+`--user`를 지정해서 호스트 사용자 소유로 생성한다. 이미 root 소유 파일이 생겼다면 사용자 확인 후 소유권을 정리한다. 공개 CA와 p12에는 서버 비밀키가 없으며 일반 실행 사용자도 읽을 수 있게 한다. **같은 권한 명령을 실제 .env나 AWS 키 폴더에 쓰지 않는다.** [RDS 공식 TLS 안내](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html)
 
-| 설정 | 넣을 값의 의미 |
-| --- | --- |
-| BIZAID_IMAGE_PLATFORM | linux/amd64(서버 x86_64) |
-| AWS_REGION / AWS_S3_BUCKET | ap-southeast-2 / 위 기존 시드니 버킷 |
-| BIZAID_IMAGE_REPO / BIZAID_IMAGE_TAG | 맥북 push와 같은 Hub 저장소/이번 태그 |
-| MYSQL_HOST / PORT / DATABASE / USER / PASSWORD | 위 시드니 RDS endpoint /3306/bizaid/bizaid_app/사용자 비밀번호 |
-| MYSQL_SSL_MODE | VERIFY_IDENTITY |
-| MYSQL_TLS_CERTS_PATH | 서버 절대 경로 /home/ubuntu/bizaid/certs |
-| MYSQL_SSL_CA | 컨테이너 경로 /certs/rds-ca.pem |
-| MYSQL_TRUSTSTORE_URL / TYPE / PASSWORD | file:/certs/rds-ca.p12 /PKCS12/위 keytool에 입력한 비밀번호 |
-| BIZAID_MODEL_PATH | 서버 절대 모델 경로 /home/ubuntu/bizaid/models |
-| QDRANT_URL / QDRANT_COLLECTION | http://qdrant:6333 / bizaid_v2_chunks_v1_228acdd12220 |
-| JWT_SECRET / INTERNAL_AI_API_KEY | 사용자가 관리하는 충분히 긴 서로 다른 비밀값 |
-| BEDROCK_MODEL_ID / REGION | global.anthropic.claude-haiku-4-5-20251001-v1:0 / ap-northeast-2 |
-| FASTAPI_WORKERS | 1(8GB 서버 실제 처리량은 미검증) |
-| CADDY_SITE / HTTP_BIND / HTTPS_BIND | biz-aid.cloud / 0.0.0.0:80 / 0.0.0.0:443 |
-| BIZAID_TRIAL_ENABLED | true |
-| BIZAID_AI_DAILY_LIMIT / PER_IP / GLOBAL_DAILY_LIMIT | 10 /30 /300 |
-| BIZAID_SIGNUP_PER_IP_PER_DAY | 5 |
-
-## 5. 이미지 받기 → 빈 저장소 복원 → 시작
-
-빈 Qdrant에 FastAPI부터 올리면 startup 검사가 정상적으로 거부한다. 다음 순서를 따른다.
+이미지를 받은 뒤 인증서 폴더를 backend와 FastAPI 이미지의 **기본 실행 사용자**로 검사한다. 검사 컨테이너는 앱 서버를 실행하지 않고 파일을 모두 읽은 뒤 종료한다.
 
 ```bash
-cd "$HOME/bizaid"
-docker login --username 'DockerHub사용자명'
-# 단축함수: 항상 명시한 운영 env만 선택한다.
-prod() { docker compose --env-file .env.prod -f docker-compose.prod.yml "$@"; }
+scripts/restore_deploy_data.sh certs certs
+```
+
+| 설정 | 의미 |
+| --- | --- |
+| BIZAID_IMAGE_REPO / TAG / PLATFORM | 기존 비공개 저장소 / 20261005-03 / linux/amd64 |
+| MYSQL_HOST / PORT / DATABASE / USER / PASSWORD | 본인 RDS 주소 / 3306 / 운영 DB 이름·계정·비밀번호 |
+| MYSQL_SSL_MODE | VERIFY_IDENTITY |
+| MYSQL_TLS_CERTS_PATH | 서버 절대 경로 /home/ubuntu/bizaid/certs |
+| MYSQL_SSL_CA | /certs/rds-ca.pem |
+| MYSQL_TRUSTSTORE_URL / TYPE / PASSWORD | file:/certs/rds-ca.p12 / PKCS12 / p12 생성 때 사용한 같은 비밀번호 |
+| BIZAID_MODEL_PATH | /home/ubuntu/bizaid/models; 복원 목적지와 동일 |
+| QDRANT_URL / COLLECTION | http://qdrant:6333 / 복원 manifest의 정확한 V2 collection 이름 |
+| JWT_SECRET / INTERNAL_AI_API_KEY | 서로 다른 사용자 관리 비밀값 |
+| BEDROCK_MODEL_ID / REGION | 승인된 global Haiku 4.5 모델 / ap-northeast-2 |
+| AWS_REGION | FastAPI 기본 AWS 지역 ap-southeast-2 |
+| FASTAPI_WORKERS | 1; 8GB 서버에서 무작정 늘리지 않음 |
+| CADDY_SITE / HTTP_BIND / HTTPS_BIND | 대표 도메인 / 0.0.0.0:80 / 0.0.0.0:443 |
+| BIZAID_TRIAL_ENABLED | true |
+| BIZAID_AI_DAILY_LIMIT / PER_IP / GLOBAL_DAILY_LIMIT | 10 / 30 / 300 |
+| BIZAID_SIGNUP_PER_IP_PER_DAY | 5 |
+
+| 확인 | 정상이면 이렇게 보임 |
+| --- | --- |
+| keytool | 각 인증서에 `Certificate was added to keystore` |
+| `ls -ld certs` | drwxr-xr-x(755) |
+| `ls -l certs/rds-ca.pem certs/rds-ca.p12` | -rw-r--r--(644), 호스트 사용자 소유 |
+| 인증서 검사 | status=PASS, backend·fastapi 각각 uid=10001, readable_files가 양수 |
+
+## 5. 첫 배포의 복원 순서와 모델 권한 확인
+
+**이미 복원한 현재 운영 서버에서는 공고·Qdrant·모델 복원을 재실행하지 않는다.** 현재 모델은 다음 별도 검사만 실행할 수 있다. 이 명령은 모델 내용을 바꾸지 않고 폴더 755·파일 644를 맞춘 뒤 FastAPI 기본 사용자로 모든 파일을 읽는다.
+
+```bash
+cd ~/bizaid
+scripts/restore_deploy_data.sh models-check models
+scripts/restore_deploy_data.sh certs certs
+```
+
+새 빈 서버에 처음 배포할 때만 아래 순서를 사용한다. 빈 Qdrant에 FastAPI부터 올리면 시작 시 검사가 실패한다.
+
+```bash
 prod config --quiet
+docker login --username YOUR_DOCKERHUB_USER
 prod pull
-# backend만 독립 시작해 Flyway schema를 만든다. FastAPI 의존 실행은 잠시 생략한다.
+scripts/restore_deploy_data.sh certs certs
 prod up -d --no-deps qdrant backend
-# 최대3분 backend health를 기다린다. 성공 후에만 덤프를 넣는다.
 ready=false
 for attempt in $(seq 1 36); do
-  if docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.restore.yml --profile tools run --rm --no-deps -T http-tools --fail --silent --max-time 5 http://backend:8080/api/health >/dev/null; then ready=true; break; fi
+  if docker compose --env-file ~/bizaid/.env.prod -f ~/bizaid/docker-compose.prod.yml -f ~/bizaid/docker-compose.restore.yml --profile tools run --rm --no-deps -T http-tools --fail --silent --max-time 5 http://backend:8080/api/health >/dev/null; then ready=true; break; fi
   sleep 5
 done
-if [ "$ready" != true ]; then echo "backend health 실패: 복원하지 않음"; exit 1; fi
+if [ $ready != true ]; then echo backend_health_실패_복원하지_않음; exit 1; fi
 scripts/restore_deploy_data.sh programs transfer
 scripts/restore_deploy_data.sh qdrant transfer
-# 출력 point_count=60362를 확인한 뒤 모델을 풀고 모든 파일 checksum을 확인한다.
-scripts/restore_deploy_data.sh models transfer --model-path "$PWD/models"
+scripts/restore_deploy_data.sh models transfer --model-path $PWD/models
 prod up -d
+```
+
+복원은 SHA 확인 → 빈 목적지 확인 → 복원 → 개수·모델 파일 SHA 확인 순서다. 공고 6개 테이블은 모두 비어 있어야 하며 개수 오류는 COMMIT 전에 실패해 되돌린다. Qdrant는 동일 collection이 있으면 point 수가 0이어도 거절한다. 모델은 빈 목적지만 허용하고 링크·특수 파일을 거절한다.
+
+모델 검사 실패 때는 모델을 자동 삭제하지 않는다. 출력의 service·파일 경로·이유를 확인하고 해결 후 `models-check`만 다시 실행한다. 서버에서 사용하는 실제 이미지 사용자는 Dockerfile의 bizaid(UID 10001)이며, 검사에서도 --user로 다른 사용자를 덮어쓰지 않는다.
+
+| 확인 | 정상이면 이렇게 보임 |
+| --- | --- |
+| 이미지 pull | 기존 frontend/backend/fastapi-20261005-03을 받음 |
+| backend 준비 | /api/health가 정상 응답 후에만 공고 복원 |
+| 공고 복원 | status=PASS, 6개 테이블 개수가 manifest와 일치 |
+| V2 복원 | status=PASS, point_count가 manifest와 일치(이번 자료 60,362) |
+| 모델 폴더 | drwxr-xr-x / 파일 -rw-r--r-- |
+| 모델 읽기 검사 | status=PASS, fastapi uid=10001, readable_files 양수 |
+| 인증서 읽기 검사 | backend·fastapi 각각 PASS |
+
+## 6. Caddy 적용·www·smoke 확인
+
+CADDY_SITE에는 `biz-aid.cloud`처럼 대표 도메인만 쓴다. Caddyfile이 대표 도메인과 `www.<대표 도메인>`을 함께 등록한다. www HTTPS 요청은 경로·조회 문자열을 보존해 대표 HTTPS 주소로 **301 영구 이동**한다. Caddy가 두 도메인의 인증서를 자동 발급·갱신하려면 DNS와 80/443 연결이 정상이어야 한다. [Caddy 자동 HTTPS](https://caddyserver.com/docs/automatic-https), [영구 이동 설정](https://caddyserver.com/docs/caddyfile/directives/redir)
+
+기존 서버에는 새 Caddyfile을 전달한 뒤 확인하고 설정만 다시 불러온다. 앱 이미지 빌드나 앱 서비스 재시작은 필요 없다.
+
+```bash
+prod exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+prod exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+curl -sS -o /dev/null -w '%{http_code}\n' https://biz-aid.cloud/api/health
+curl -sSI https://www.biz-aid.cloud/
+curl -sSIL https://www.biz-aid.cloud/
 scripts/smoke_prod.sh https://biz-aid.cloud
 ```
 
-복원 script는 SHA검증 → 빈 목적지 확인 → 복원 → 개수/모델 파일 checksum 대조 순서다.
-공고는 backend health+schema 확인 후6개 테이블 모두 빈 경우에만 INSERT한다. 개수가 기대값과 다르면 COMMIT 전 임시 CHECK로 실패시켜 rollback한다.
-Qdrant는 **같은 collection이 존재하면 point0이어도 거절**한다. 복원 실패한 collection은 증거로 남기고 자동 삭제/재복원하지 않는다.
-모델도 비어 있는 목적지만 허용한다. manifest는 맥북 실측 개수를 사용하며 이번 V2 기대 point는60,362다.
-복원 script는 서버에 mysql 프로그램을 설치하지 않고 mysql:8.4 일회성 client 컨테이너를 쓴다.
-smoke는 체험 생성·실제 Bedrock 질문1회와 횟수 조회를 한다. 배포 담당 사용자가 실행하며 개발 Agent의 이번 검증에는 포함하지 않는다.
+`curl -k`로 인증서 검사를 끄지 않는다. smoke는 체험 계정 1개와 **실제 AI 질문 1회**를 만든다. 자동 재시도하지 않으며 실패를 고친 뒤 담당자가 재실행 여부를 판단한다.
 
-## 6. 업데이트·백업·문제 대응
+| 확인 | 정상이면 이렇게 보임 |
+| --- | --- |
+| Caddy validate | Valid configuration |
+| 대표 /api/health | 200 |
+| https://www.biz-aid.cloud/ | 인증서 오류 없이 HTTP 301, Location: https://biz-aid.cloud/ |
+| www에서 이동 따라가기 | 최종 HTTP 200 |
+| smoke | health·landing·trial·ai_query·usage 모두 PASS, 사용 횟수 1회 차감 |
 
-- 업데이트: 맥북 새 태그 build/push → 서버 `.env.prod`의 BIZAID_IMAGE_TAG만 새 태그로 → `prod pull` → `prod up -d` → 사용자 smoke1회. 기존 데이터 복원 script는 재실행하지 않는다.
-- rollback(이전 버전으로): 이전 태그로 돌아가 `prod pull; prod up -d`. 이미 적용된 Flyway는 되돌리지 않으므로 코드/DB 호환을 먼저 확인한다.
-- 백업: RDS는 AWS 화면에서 자동 백업/수동 snapshot을 설정한다. 회원 데이터가 생긴 후의 백업은 공고용 덤프와 별개이며 공개하지 않는다. V2는 아래 명령으로 새 snapshot을 만든다(응답의 name을 다음 명령에 입력).
+## 7. 문제 해결·업데이트·백업·리허설 한계
 
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.restore.yml --profile tools run --rm --no-deps -T http-tools --fail --silent --max-time 180 -X POST http://qdrant:6333/collections/bizaid_v2_chunks_v1_228acdd12220/snapshots
-# 실제 반환된 snapshot name을 아래 변수에 넣는다. 기존 백업 파일을 덮어쓰지 않는다.
-export SNAPSHOT_NAME='반환된-name.snapshot'
-mkdir -p backups
-(set -o noclobber; docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.restore.yml --profile tools run --rm --no-deps -T http-tools --fail --silent --max-time 300 "http://qdrant:6333/collections/bizaid_v2_chunks_v1_228acdd12220/snapshots/$SNAPSHOT_NAME" > "backups/$SNAPSHOT_NAME")
-sha256sum "backups/$SNAPSHOT_NAME"
+| 문제 | 확인할 곳 | 대응 |
+| --- | --- | --- |
+| PermissionError /models/.../config.json, AI 500 | 모델 폴더 700 또는 파일 읽기 권한 | models-check models로 755/644와 실제 사용자 읽기 확인. 기존 모델 재복원·삭제는 하지 않음 |
+| 인증서 PermissionError / p12 읽기 실패 | certs 755, pem·p12 644, 파일 소유자와 실제 mount 경로 | certs certs 검사. root 소유로 생성된 파일은 사용자 확인 후 소유권 정리 |
+| smoke 실패 | stage, url, http_status, body_preview, reason | 실패한 단계부터 확인. body_preview는 비밀값을 가린 앞 300자이며 토큰·쿠키·요청 헤더는 출력하지 않음 |
+| HTTP 상태가 null | 연결·DNS·시간 초과 등 응답 자체가 없는 경우 | 주소와 DNS, 보안 그룹, 서비스 상태를 확인 |
+| www 인증서 발급 실패 | www DNS, 잘못된 AAAA, 80/443 보안 그룹·방화벽, Caddy 설정 적용 여부 | 두 도메인이 서버로 향하는지 확인. TLS 검사를 끄거나 앱 이미지를 재빌드하지 않음 |
+| Caddy DNS/인증서 발급 지연 | DNS 전파와 인증기관 재시도·발급 제한 | 설정을 확인한 뒤 기다림; Caddy volume을 삭제하거나 발급을 반복하지 않음 |
+| RDS 연결 실패 | 보안 그룹, DB 주소·이름, CA와 p12 비밀번호, VERIFY_IDENTITY | 공개 인증서 권한부터 확인하고 비밀값은 사용자만 점검 |
+| Bedrock 호출 실패 | EC2 Role, 승인 모델 호출 권한, region, IMDSv2 | 키 파일을 새로 넣지 않고 기존 Role 권한 확인 |
+
+smoke 실패 예시(진짜 응답이나 비밀값이 아닌 설명용 합성 예시):
+
+```json
+{"status":"FAIL","stage":"ai_query","url":"https://example.com/api/ai/query","http_status":500,"body_preview":"{\"code\":\"ai_service_unavailable\"}","reason":"HTTPError"}
 ```
 
-모델·전달 자료의 SHA와 원본은 보존한다.
-- 상태: `prod ps`; 재시작: `prod restart backend fastapi`. 모델 변경은 worker 메모리/collection 계약을 다시 확인한다.
-- 로그: `prod logs --tail 100 backend fastapi`; 전체 `config`, inspect 환경, 로그인 응답, 개인정보 포함 로그를 붙여넣지 않는다.
-- 이미지 오류: Hub login/태그/amd64 확인. RDS 오류:보안그룹/DB이름/CA/인증서 경로. FastAPI 시작 거부: 모델 경로·V2 collection/point 수 확인. Bedrock 오류:role/global profile 권한·region·IMDSv2 확인. 같은 실패를 자동 반복하지 않는다.
-- 운영 volume을 지우는 `down -v`, collection 삭제, DB reset은 금지한다. 개발 환경을 운영 Compose로 건드리지 않는다.
-- 실제 서버의 TLS·HTTPS·IAM·부하/CPU credit는 배포 후 확인해야 한다. 맥북에서 amd64 build 성공은 실제 AWS E2E 완료가 아니다. swap은 부족한 RAM을 빠르게 늘려 주는 수단이 아니며 worker1을 유지한다.
+서비스 상태는 `prod ps`로 확인한다. 오류 로그를 확인할 때 전체 설정·inspect 환경·인증 응답·개인정보 포함 로그를 공유하지 않는다. `down -v`, collection 삭제, DB reset은 사용하지 않는다. 이번 서버 정상 동작은 사용자 제공 사실이며 리허설·부하 검증 결과와 구분한다.
+
+이미지 업데이트가 필요한 다음 묶음은 새 태그를 따로 준비한 뒤 서버 설정의 태그 변경 → prod pull → prod up -d → 사용자 smoke 순서다. 기존 데이터 복원은 반복하지 않는다. 되돌릴 때도 이미지와 이미 적용된 Flyway의 호환성을 먼저 확인한다.
+
+RDS는 AWS 화면의 자동 백업·수동 snapshot을 사용한다. 회원 데이터 백업은 공고 덤프와 별도로 보관한다. V2는 새 이름으로 snapshot을 만들고 기존 백업을 덮어쓰지 않는다.
+
+```bash
+cd ~/bizaid
+docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.restore.yml --profile tools run --rm --no-deps -T http-tools --fail --silent --max-time 180 -X POST http://qdrant:6333/collections/bizaid_v2_chunks_v1_228acdd12220/snapshots
+export SNAPSHOT_NAME=RETURNED_SNAPSHOT_NAME.snapshot
+mkdir -p backups
+(set -o noclobber; docker compose --env-file .env.prod -f docker-compose.prod.yml -f docker-compose.restore.yml --profile tools run --rm --no-deps -T http-tools --fail --silent --max-time 300 http://qdrant:6333/collections/bizaid_v2_chunks_v1_228acdd12220/snapshots/$SNAPSHOT_NAME > backups/$SNAPSHOT_NAME)
+sha256sum backups/$SNAPSHOT_NAME
+```
+
+리허설 스크립트는 이미지 저장소·태그·플랫폼을 인자로 받거나 BIZAID_IMAGE_REPO·BIZAID_IMAGE_TAG·BIZAID_IMAGE_PLATFORM 셸 설정에서 받는다. 맥북 프로젝트의 의존성이 설치된 .venv 환경을 사용한다. 선택한 이미지 3개를 미리 로컬에 준비해야 하며 기존 ARM 전용 이름이나 소스 build를 사용하지 않는다. 아래는 **실행 방식 설명이며 묶음7-1에서는 리허설을 실행하지 않는다.** --execute는 실제 임시 DB·컨테이너·Bedrock 호출을 시작한다.
+
+```bash
+.venv/bin/python scripts/rehearse_prod.py --execute --image-repo YOUR_DOCKERHUB_USER/YOUR_PRIVATE_REPO --image-tag 20261005-03 --platform linux/amd64
+```
+
+**macOS Docker Desktop의 공유 폴더 권한은 Ubuntu 서버와 달라 서버의 PermissionError를 재현하지 못할 수 있다.** 맥북 리허설의 성공을 서버 권한 검사 통과로 대신하지 않는다. 복원 뒤 서버에서 이미지의 실제 실행 사용자로 읽기 검사와 HTTPS·www 확인을 별도로 수행한다. 이때도 worker는 1개로 유지하며 swap을 메모리 성능의 대체물로 보지 않는다.
+
+| 확인 | 정상이면 이렇게 보임 |
+| --- | --- |
+| 문제 대응 | 실패 단계와 파일 경로가 좁혀지고 비밀값 출력 없이 조치 |
+| 백업 | 새로운 이름·지문으로 보존, 원본 덮어쓰기 없음 |
+| 리허설 이미지 선택 | 지정한 저장소·태그·linux/amd64 사용 |
+| 서버 최종 확인 | 모델·인증서 읽기 검사, 대표 HTTPS·www 이동·smoke를 따로 확인 |
 
 [전체 프로젝트 설명](../PROJECT_MASTER_GUIDE.md) · [README](../README.md)

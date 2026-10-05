@@ -10,11 +10,18 @@ import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError, URLError
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("deploy_restore", ROOT / "scripts/restore_deploy_data.py")
 restore = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(restore)
+smoke_spec = importlib.util.spec_from_file_location("deploy_smoke", ROOT / "scripts/prod_smoke.py")
+smoke = importlib.util.module_from_spec(smoke_spec)
+smoke_spec.loader.exec_module(smoke)
+rehearsal_spec = importlib.util.spec_from_file_location("deploy_rehearsal", ROOT / "scripts/rehearse_prod.py")
+rehearsal = importlib.util.module_from_spec(rehearsal_spec)
+rehearsal_spec.loader.exec_module(rehearsal)
 
 
 class DeployKitTests(unittest.TestCase):
@@ -75,22 +82,29 @@ class DeployKitTests(unittest.TestCase):
                 env=environment, capture_output=True)
             self.assertEqual(invalid.returncode, 2)
 
-    def test_real_server_public_settings_and_empty_secrets(self):
+    def test_example_uses_placeholders_and_empty_secrets(self):
         lines = (ROOT / ".env.prod.example").read_text().splitlines()
         values = dict(line.split("=", 1) for line in lines if line and not line.startswith("#"))
         expected = {"AWS_REGION":"ap-southeast-2", "BEDROCK_REGION":"ap-northeast-2", "BIZAID_IMAGE_PLATFORM":"linux/amd64",
-            "MYSQL_HOST":"bizaid-db.cb0ek4accq15.ap-southeast-2.rds.amazonaws.com", "MYSQL_DATABASE":"bizaid", "MYSQL_USER":"bizaid_app",
-            "MYSQL_SSL_MODE":"VERIFY_IDENTITY", "MYSQL_PORT":"3306", "CADDY_SITE":"biz-aid.cloud",
-            "AWS_S3_BUCKET":"amazon-s3-biz-aid-bucket-695694684371-ap-southeast-2-an"}
+            "MYSQL_HOST":"YOUR_RDS_ENDPOINT", "MYSQL_DATABASE":"YOUR_DATABASE", "MYSQL_USER":"YOUR_DATABASE_USER",
+            "MYSQL_SSL_MODE":"VERIFY_IDENTITY", "MYSQL_PORT":"3306", "CADDY_SITE":"example.com"}
         for name, value in expected.items():
             self.assertEqual(values[name], value, name)
         for name in ("MYSQL_PASSWORD", "MYSQL_TRUSTSTORE_PASSWORD", "JWT_SECRET", "INTERNAL_AI_API_KEY"):
             self.assertEqual(values[name], "", name)
         guide = (ROOT / "docs/deployment.md").read_text()
         self.assertIn("ap-southeast-2/ap-southeast-2-bundle.pem", guide)
-        self.assertIn('deploy/${BIZAID_IMAGE_TAG}', guide)
+        self.assertNotIn("AWS_S3_BUCKET", values)
+        self.assertNotIn("AWS_S3_PREFIX", values)
+        self.assertEqual(values["QDRANT_COLLECTION"], "bizaid_v2_YOUR_COLLECTION")
+        self.assertNotRegex("\n".join(lines), r"\b\d{12}\b|\.rds\.amazonaws\.com")
+        self.assertIn('deploy/${DEPLOY_TAG}', guide)
         self.assertNotIn("biz-aid/deploy/", guide)
-        self.assertIn('--region "$AWS_REGION"', guide)
+        self.assertIn('--region $DEPLOY_REGION', guide)
+        self.assertIn('--user $(id -u):$(id -g)', guide)
+        for index, line in enumerate(lines):
+            if line and not line.startswith("#"):
+                self.assertTrue(index and lines[index - 1].startswith("#"), line.split("=", 1)[0])
 
     def test_existing_programs_never_write(self):
         before = "\n".join(f"{name}\t{1 if i == 0 else 0}" for i, name in enumerate(restore.TABLES)).encode()
@@ -140,13 +154,135 @@ class DeployKitTests(unittest.TestCase):
                 archive.addfile(item, io.BytesIO(content))
             manifest = {"model_files":{name:hashlib.sha256(content).hexdigest()}}
             target = source / "models"
-            self.assertEqual(restore.restore_models(source, manifest, target)["verified_files"], 1)
+            with patch.object(restore, "check_readable", return_value={"service":"fastapi", "uid":10001, "readable_files":1}):
+                self.assertEqual(restore.restore_models(source, manifest, target)["verified_files"], 1)
             self.assertEqual((target / name).read_bytes(), content)
+            self.assertEqual(target.stat().st_mode & 0o777, 0o755)
+            self.assertEqual((target / name).stat().st_mode & 0o777, 0o644)
             with self.assertRaisesRegex(ValueError, "overwrite_forbidden"):
                 restore.restore_models(source, manifest, target)
             with self.assertRaisesRegex(ValueError, "checksum_mismatch"):
                 restore.restore_models(source, {"model_files":{name:"0" * 64}}, source / "bad")
             self.assertFalse((source / "bad").exists())
+
+    def test_permission_checks_use_default_image_user_and_both_cert_services(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "rds-ca.pem").write_text("public fixture")
+            (directory / "rds-ca.p12").write_bytes(b"public fixture")
+            with patch.object(restore.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, b"uid=10001\nfiles=2\n", b"")) as run:
+                result = restore.verify_permissions(directory, certs=True)
+            self.assertEqual([row["service"] for row in result["read_checks"]], ["backend", "fastapi"])
+            self.assertEqual(directory.stat().st_mode & 0o777, 0o755)
+            for call in run.call_args_list:
+                args = call.args[0]
+                self.assertNotIn("--user", args)
+                self.assertIn("--no-deps", args)
+                self.assertIn("--entrypoint", args)
+                self.assertEqual(call.kwargs["env"]["MYSQL_TLS_CERTS_PATH"], str(directory.resolve()))
+
+    def test_unreadable_model_reports_path_and_retains_restored_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            name, content = "BAAI--bge-m3-embedding/config.json", b"{}"
+            with tarfile.open(source / "models.tar.gz", "w:gz") as archive:
+                item = tarfile.TarInfo(name); item.size = len(content)
+                archive.addfile(item, io.BytesIO(content))
+            failure = subprocess.CompletedProcess([], 1, ("unreadable_file:/models/" + name + "\n").encode(), b"hidden fixture credential")
+            with patch.object(restore.subprocess, "run", return_value=failure):
+                with self.assertRaisesRegex(restore.RestoreFailure, "permission_check_failed:fastapi:unreadable_file") as caught:
+                    restore.restore_models(source, {"model_files":{name:hashlib.sha256(content).hexdigest()}}, source / "models")
+            self.assertIn(name, str(caught.exception))
+            self.assertNotIn("credential", str(caught.exception))
+            self.assertEqual((source / "models" / name).read_bytes(), content)
+
+    def test_permission_check_rejects_root_and_symlinks(self):
+        with patch.object(restore.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, b"image_user_must_not_be_root\n", b"")):
+            with self.assertRaisesRegex(restore.RestoreFailure, "image_user_must_not_be_root"):
+                restore.check_readable("fastapi", Path("."), "/models")
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "link").symlink_to("/tmp")
+            with self.assertRaisesRegex(restore.RestoreFailure, "symlink_or_special_file"):
+                restore.normalize_permissions(directory)
+
+    def test_rehearsal_images_are_explicit_and_platform_is_validated(self):
+        self.assertEqual(rehearsal.image_settings("fixture/deploy", "new", "linux/amd64")["BIZAID_IMAGE_TAG"], "new")
+        self.assertEqual(rehearsal.image_settings("fixture/deploy", "arm", "linux/arm64")["BIZAID_IMAGE_PLATFORM"], "linux/arm64")
+        for repository, tag, platform in [(None, "new", "linux/amd64"), ("fixture/deploy", None, "linux/amd64"),
+                                          ("fixture/deploy", "new", "linux/invalid")]:
+            with self.assertRaises(ValueError):
+                rehearsal.image_settings(repository, tag, platform)
+
+    def test_smoke_failure_has_context_for_every_stage_without_tokens(self):
+        replies = [b'{"status":"ok"}', b'<div id="root">', b'{"accessToken":"synthetic-known-token"}',
+                   b'{"remaining":10}', b'{"result":{"requestMode":"SEARCH_LIST"}}', b'{"remaining":9}']
+        stages = ["health", "landing", "trial", "usage", "ai_query", "usage"]
+        paths = ["/api/health", "/", "/api/auth/trial", "/api/ai/usage", "/api/ai/query", "/api/ai/usage"]
+        for failed, stage in enumerate(stages):
+            position = 0
+            def response(request, timeout):
+                nonlocal position
+                current = position
+                position += 1
+                if current == failed:
+                    raw = b'{"accessToken":"unknown-token","detail":"Bearer synthetic-known-token","password":"fixture-secret","padding":"' + b'x' * 400 + b'"}'
+                    raise HTTPError(request.full_url, 500, "fixture", {}, io.BytesIO(raw))
+                output = io.BytesIO(replies[current])
+                output.status = 200
+                return output
+            with self.subTest(stage=stage, failed=failed), patch.object(smoke, "urlopen", side_effect=response):
+                with self.assertRaises(smoke.SmokeFailure) as caught:
+                    smoke.smoke("https://example.com")
+                details = caught.exception.details
+                self.assertEqual(details["stage"], stage)
+                self.assertEqual(details["url"], "https://example.com" + paths[failed])
+                self.assertEqual(details["http_status"], 500)
+                self.assertLessEqual(len(details["body_preview"]), 300)
+                for sensitive in ("unknown-token", "synthetic-known-token", "fixture-secret"):
+                    self.assertNotIn(sensitive, json.dumps(details))
+
+    def test_smoke_validation_connection_failure_and_usage_mismatch_have_context(self):
+        malformed = io.BytesIO(b'{"accessToken":"fixture-token",invalid}')
+        malformed.status = 200
+        with patch.object(smoke, "urlopen", return_value=malformed):
+            with self.assertRaises(smoke.SmokeFailure) as caught:
+                smoke.smoke("https://example.com")
+            self.assertEqual(caught.exception.details["stage"], "health")
+            self.assertEqual(caught.exception.details["http_status"], 200)
+            self.assertNotIn("fixture-token", caught.exception.details["body_preview"])
+        with patch.object(smoke, "urlopen", side_effect=URLError("hidden connection detail")):
+            with self.assertRaises(smoke.SmokeFailure) as caught:
+                smoke.smoke("https://example.com")
+            self.assertIsNone(caught.exception.details["http_status"])
+            self.assertNotIn("hidden", json.dumps(caught.exception.details))
+        replies = [b'{"status":"ok"}', b'<div id="root">', b'{"accessToken":"fixture-token"}',
+                   b'{"remaining":10}', b'{"result":{}}', b'{"remaining":10}']
+        def responses(request, timeout):
+            result = io.BytesIO(replies.pop(0))
+            result.status = 200
+            return result
+        with patch.object(smoke, "urlopen", side_effect=responses):
+            with self.assertRaises(smoke.SmokeFailure) as caught:
+                smoke.smoke("https://example.com")
+            self.assertEqual(caught.exception.details["stage"], "usage")
+            self.assertEqual(caught.exception.details["reason"], "smoke_usage_mismatch")
+
+    def test_smoke_scrubs_text_headers_and_success_uses_one_query(self):
+        preview = smoke.body_preview('Authorization: Bearer fixture-token\nCookie: a=private; b=private2\n{"refreshToken":"other-private"}')
+        for secret in ("fixture-token", "private", "other-private"):
+            self.assertNotIn(secret, preview)
+        replies = [b'{"status":"ok"}', b'<div id="root">', b'{"accessToken":"fixture-token"}',
+                   b'{"remaining":10}', b'{"result":{"requestMode":"SEARCH_LIST"}}', b'{"remaining":9}']
+        def responses(request, timeout):
+            result = io.BytesIO(replies.pop(0))
+            result.status = 200
+            return result
+        with patch.object(smoke, "urlopen", side_effect=responses) as run:
+            result = smoke.smoke("https://example.com")
+        self.assertEqual(result["ai_query"], "PASS")
+        self.assertEqual(sum(call.args[0].full_url.endswith('/api/ai/query') for call in run.call_args_list), 1)
+        self.assertNotIn("fixture-token", json.dumps(result))
 
     def test_client_errors_never_reflect_raw_credentials(self):
         with patch.object(restore.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, b"", b"sensitive fixture")):

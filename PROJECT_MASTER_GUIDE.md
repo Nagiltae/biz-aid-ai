@@ -2389,3 +2389,15 @@ DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았�
 
 - **주의**: `harness/workspace/reports/development/`의 Report와 새 checkpoint는 `.gitignore` 대상이라 **개발한 로컬 PC에만 있고 GitHub에는 없다**. GitHub에 남은 것은 초기 `reports/agy/`·`reports/codex/` 보고서와 일부 checkpoint뿐이다. 이 문서의 수치 근거를 외부에 보여 주려면 Report의 Git 추적 정책을 따로 정해야 한다.
 - 이 문서 §2 기획 배경과 표 엔진 기준표의 검증 상태는 사용자·AI 대화를 정리한 인수인계 문서(`BizAid_AI_Complete_Handoff_2026-10-01.md`, 저장소 밖)에서 옮겼다.
+
+## 30. 운영 배포 후 정리(묶음7-1, 2026-10-05)
+
+사용자가 biz-aid.cloud 운영 배포 완료를 확인했다. 이미지 태그는 20261005-03, 플랫폼은 linux/amd64다. 이번 작업은 이미지를 다시 만들지 않고 배포 도구·문서·견본만 보강한다.
+
+- 모델 복원 뒤 폴더 755·파일 644를 적용하고 이미지의 기본 일반 사용자로 모든 파일을 읽는다. 기존 모델은 models-check, 인증서는 certs 명령으로 검사한다. backend와 FastAPI의 Dockerfile 실행 사용자는 bizaid(UID 10001)다.
+- smoke 실패는 단계·주소·HTTP 상태·비밀값을 가린 응답 앞 300자로 구분한다. 체험 계정과 실제 질문은 사용자가 점검을 실행할 때만 생성한다.
+- Caddy는 기존 도메인 변수로 www 인증서와 대표 HTTPS 주소 영구 이동을 설정한다. 운영 서버 반영과 www 실제 확인은 사용자 실행 절차로 남긴다.
+- 배포 셸 변수는 DEPLOY_*로 분리하고 RDS p12는 호스트 사용자로 생성한다. 운영 견본의 실제 RDS·버킷 식별값을 제거하고 사용하지 않는 전달용 S3 설정을 정리한다.
+- 리허설은 저장소·태그·플랫폼을 받으며 기존 ARM 이미지 이름에 의존하지 않는다. macOS 공유 폴더의 읽기 성공은 Ubuntu 서버 권한 검사로 대체할 수 없다. 이번 리허설·실서비스 smoke·이미지 build/push는 실행하지 않는다.
+
+실행 순서와 정상 결과는 [운영 배포 설명서](docs/deployment.md), 검증과 7-2 후보는 [묶음7-1 보고서](harness/workspace/reports/development/2026-10-05-bundle7-1-post-deploy.md)에 기록한다.
