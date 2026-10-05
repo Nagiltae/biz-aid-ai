@@ -25,13 +25,13 @@ services:
     depends_on: [frontend]
   frontend:
     <<: *runtime
-    image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:frontend-${BIZAID_IMAGE_TAG:?이미지 태그 필수}
+    image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:frontend-${BIZAID_FRONTEND_TAG:?frontend 태그 필수 - BIZAID_FRONTEND_TAG를 설정하세요}
     platform: ${BIZAID_IMAGE_PLATFORM:-linux/amd64}
     networks: [edge, service]
     depends_on: [backend]
   backend:
     <<: *runtime
-    image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:backend-${BIZAID_IMAGE_TAG:?이미지 태그 필수}
+    image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:backend-${BIZAID_BACKEND_TAG:?backend 태그 필수 - BIZAID_BACKEND_TAG를 설정하세요}
     platform: ${BIZAID_IMAGE_PLATFORM:-linux/amd64}
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -61,7 +61,7 @@ services:
     depends_on: [fastapi]
   fastapi:
     <<: *runtime
-    image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:fastapi-${BIZAID_IMAGE_TAG:?이미지 태그 필수}
+    image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:fastapi-${BIZAID_FASTAPI_TAG:?fastapi 태그 필수 - BIZAID_FASTAPI_TAG를 설정하세요}
     platform: ${BIZAID_IMAGE_PLATFORM:-linux/amd64}
     command: [uvicorn, biz_aid_pipeline.api.app:app, --host, 0.0.0.0, --port, "8000", --workers, "${FASTAPI_WORKERS:-1}", --no-access-log]
     environment:

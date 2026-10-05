@@ -190,4 +190,4 @@ scripts/dev.sh down               # 전체 중지(데이터 volume은 지우지 
 
 개발 Agent는 [AGENTS.md](AGENTS.md)부터 읽고, 사용자는 이 README 다음에 PROJECT_MASTER_GUIDE를 읽는 것이 가장 빠릅니다.
 
-사용자 확인으로 2026-10-05 biz-aid.cloud 운영 배포를 완료했습니다(20261005-03, linux/amd64). [배포 설명서](docs/deployment.md)에 이미지 재빌드 없는 스크립트 갱신, 모델·인증서 권한 검사, www 연결과 smoke 실패 확인 방법을 정리했습니다. 변경한 Caddy 설정의 서버 적용과 www 확인은 사용자가 실행합니다.
+사용자 확인으로 2026-10-05 biz-aid.cloud 운영 배포를 완료했습니다(20261005-03, linux/amd64). [배포 설명서](docs/deployment.md)에 서비스별 이미지 태그 전환, 선택한 서비스의 릴리스·업데이트·되돌리기, 모델·인증서 권한과 www·smoke 확인 방법을 정리했습니다. `scripts/release.sh`는 커밋된 코드로 선택한 이미지만 만들며 기존 태그를 덮어쓰지 않도록 검사합니다. 현재 서버 전환과 실제 빌드·배포는 사용자가 실행합니다.

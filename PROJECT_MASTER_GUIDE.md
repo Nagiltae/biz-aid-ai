@@ -2401,3 +2401,13 @@ DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았�
 - 리허설은 저장소·태그·플랫폼을 받으며 기존 ARM 이미지 이름에 의존하지 않는다. macOS 공유 폴더의 읽기 성공은 Ubuntu 서버 권한 검사로 대체할 수 없다. 이번 리허설·실서비스 smoke·이미지 build/push는 실행하지 않는다.
 
 실행 순서와 정상 결과는 [운영 배포 설명서](docs/deployment.md), 검증과 7-2 후보는 [묶음7-1 보고서](harness/workspace/reports/development/2026-10-05-bundle7-1-post-deploy.md)에 기록한다.
+
+## 31. 서비스별 이미지 태그와 릴리스(묶음7-1b, 2026-10-05)
+
+화면·서버 본체·AI 서버는 각각 BIZAID_FRONTEND_TAG·BIZAID_BACKEND_TAG·BIZAID_FASTAPI_TAG를 사용한다. 하나라도 비어 있으면 Compose는 변수 이름과 이유를 알리고 실패한다. 이미지 선택 외의 서비스 정의와 애플리케이션·Dockerfile은 바꾸지 않는다.
+
+`scripts/release.sh <새 태그> <서비스...> [--dry-run]`은 맥북에서 선택한 서비스만 linux/amd64로 만든다. 묶음6-0의 `buildx --load`, Dockerfile·빌드 폴더를 유지하며 현재 커밋 라벨을 붙인다. 미커밋 변경·기존 원격 태그·로그인 또는 조회 실패는 중단한다. dry-run은 Docker에 접근하지 않고 계획만 표시한다. 실제 릴리스 뒤 서버는 해당 태그 줄만 변경하고 pull·up·smoke를 실행한다.
+
+현재 서버 전환은 세 태그를 모두 20261005-03으로 유지한다. 기존 S3 전달 경로에 새 실행 묶음을 올리고 설정·자료를 보존한다. Caddyfile 파일 교체 뒤에는 Caddy만 강제 재생성해서 파일 연결을 갱신한다. 이번 작업에서 실제 빌드·push·서버 접속·리허설은 실행하지 않는다.
+
+사용자 실행 절차는 [배포 설명서 §8·§9](docs/deployment.md), 빌드 방식 근거와 검사 결과는 [묶음7-1b 보고서](harness/workspace/reports/development/2026-10-05-bundle7-1b-release-tags.md)에 기록한다.

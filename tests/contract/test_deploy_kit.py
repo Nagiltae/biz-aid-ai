@@ -34,10 +34,12 @@ class DeployKitTests(unittest.TestCase):
                 self.assertEqual(len(names), 9)
                 self.assertIn("scripts/prod_smoke.py", names)
                 self.assertNotIn("docker-compose.build.yml", names)
+                self.assertNotIn("scripts/release.sh", names)
                 self.assertFalse(any(n.startswith(("backend/", "frontend/", "data-pipeline/", "harness/", "tests/")) for n in names))
                 self.assertNotIn(".env.prod", names)
                 archive.extractall(path, filter="data")
-            environment = dict(os.environ, COMPOSE_DISABLE_ENV_FILE="1", BIZAID_IMAGE_REPO="fixture/deploy", BIZAID_IMAGE_TAG="test",
+            environment = dict(os.environ, COMPOSE_DISABLE_ENV_FILE="1", BIZAID_IMAGE_REPO="fixture/deploy",
+                BIZAID_FRONTEND_TAG="front-test", BIZAID_BACKEND_TAG="back-test", BIZAID_FASTAPI_TAG="ai-test",
                 MYSQL_HOST="fixture.invalid", MYSQL_PORT="3306", MYSQL_DATABASE="fixture", MYSQL_USER="fixture", MYSQL_PASSWORD="fixture-only",
                 JWT_SECRET="fixture-only", INTERNAL_AI_API_KEY="fixture-only", MYSQL_TLS_CERTS_PATH=str(path),
                 BIZAID_MODEL_PATH=str(path), QDRANT_COLLECTION="bizaid_v2_fixture")
@@ -45,14 +47,29 @@ class DeployKitTests(unittest.TestCase):
                 "config", "--format", "json"], env=environment, capture_output=True)
             self.assertEqual(result.returncode, 0)
             services = json.loads(result.stdout)["services"]
+            tags = {"frontend": "front-test", "backend": "back-test", "fastapi": "ai-test"}
             for name in ["frontend", "backend", "fastapi"]:
-                self.assertEqual(services[name]["image"], "fixture/deploy:" + name + "-test")
+                self.assertEqual(services[name]["image"], "fixture/deploy:" + name + "-" + tags[name])
                 self.assertNotIn("build", services[name])
                 self.assertEqual(services[name]["platform"], "linux/amd64")
             overridden = subprocess.run(["docker", "compose", "--env-file", os.devnull, "-f", str(path / "docker-compose.prod.yml"),
                 "config", "--format", "json"], env=dict(environment, BIZAID_IMAGE_PLATFORM="linux/arm64"), capture_output=True)
             self.assertEqual(overridden.returncode, 0)
             self.assertEqual(json.loads(overridden.stdout)["services"]["fastapi"]["platform"], "linux/arm64")
+            for key in ("BIZAID_FRONTEND_TAG", "BIZAID_BACKEND_TAG", "BIZAID_FASTAPI_TAG"):
+                for missing in (True, False):
+                    with self.subTest(key=key, absent=missing):
+                        broken = dict(environment)
+                        if missing: broken.pop(key)
+                        else: broken[key] = ""
+                        failed = subprocess.run(["docker", "compose", "--env-file", os.devnull, "-f", str(path / "docker-compose.prod.yml"),
+                            "config", "--quiet"], env=broken, capture_output=True)
+                        self.assertNotEqual(failed.returncode, 0)
+                        self.assertIn(key, failed.stderr.decode())
+            with_restore = subprocess.run(["docker", "compose", "--env-file", os.devnull, "-f", str(path / "docker-compose.prod.yml"),
+                "-f", str(path / "docker-compose.restore.yml"), "config", "--format", "json"], env=environment, capture_output=True)
+            self.assertEqual(with_restore.returncode, 0)
+            self.assertEqual(json.loads(with_restore.stdout)["services"]["backend"]["image"], "fixture/deploy:backend-back-test")
 
     def test_build_only_never_pushes_and_rejects_bad_names(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -91,6 +108,8 @@ class DeployKitTests(unittest.TestCase):
         for name, value in expected.items():
             self.assertEqual(values[name], value, name)
         for name in ("MYSQL_PASSWORD", "MYSQL_TRUSTSTORE_PASSWORD", "JWT_SECRET", "INTERNAL_AI_API_KEY"):
+            self.assertEqual(values[name], "", name)
+        for name in ("BIZAID_FRONTEND_TAG", "BIZAID_BACKEND_TAG", "BIZAID_FASTAPI_TAG"):
             self.assertEqual(values[name], "", name)
         guide = (ROOT / "docs/deployment.md").read_text()
         self.assertIn("ap-southeast-2/ap-southeast-2-bundle.pem", guide)
@@ -207,12 +226,13 @@ class DeployKitTests(unittest.TestCase):
                 restore.normalize_permissions(directory)
 
     def test_rehearsal_images_are_explicit_and_platform_is_validated(self):
-        self.assertEqual(rehearsal.image_settings("fixture/deploy", "new", "linux/amd64")["BIZAID_IMAGE_TAG"], "new")
-        self.assertEqual(rehearsal.image_settings("fixture/deploy", "arm", "linux/arm64")["BIZAID_IMAGE_PLATFORM"], "linux/arm64")
-        for repository, tag, platform in [(None, "new", "linux/amd64"), ("fixture/deploy", None, "linux/amd64"),
-                                          ("fixture/deploy", "new", "linux/invalid")]:
+        tags = {"frontend": "front", "backend": "back", "fastapi": "ai"}
+        self.assertEqual(rehearsal.image_settings("fixture/deploy", tags, "linux/amd64")["BIZAID_BACKEND_TAG"], "back")
+        self.assertEqual(rehearsal.image_settings("fixture/deploy", tags, "linux/arm64")["BIZAID_IMAGE_PLATFORM"], "linux/arm64")
+        for repository, chosen, platform in [(None, tags, "linux/amd64"), ("fixture/deploy", {}, "linux/amd64"),
+                                             ("fixture/deploy", tags, "linux/invalid")]:
             with self.assertRaises(ValueError):
-                rehearsal.image_settings(repository, tag, platform)
+                rehearsal.image_settings(repository, chosen, platform)
 
     def test_smoke_failure_has_context_for_every_stage_without_tokens(self):
         replies = [b'{"status":"ok"}', b'<div id="root">', b'{"accessToken":"synthetic-known-token"}',

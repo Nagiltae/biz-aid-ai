@@ -51,18 +51,21 @@ def sql(container, query):
                     'MYSQL_PWD="$MYSQL_PASSWORD" exec mysql -N -B -u "$MYSQL_USER" "$MYSQL_DATABASE"'], stdin=query.encode() if isinstance(query, str) else query)
 
 
-def image_settings(repository, tag, platform):
+def image_settings(repository, tags, platform):
     if not repository or not re.fullmatch(r"[a-z0-9][a-z0-9._:/-]*", repository):
         raise ValueError("image_repository_required")
-    if not tag or not re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}", tag):
-        raise ValueError("image_tag_required")
+    for service in ("frontend", "backend", "fastapi"):
+        tag = tags.get(service)
+        if not tag or not re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}", tag):
+            raise ValueError(f"{service}_image_tag_required")
     if platform not in {"linux/amd64", "linux/arm64"}:
         raise ValueError("unsupported_image_platform")
-    return {"BIZAID_IMAGE_REPO": repository, "BIZAID_IMAGE_TAG": tag, "BIZAID_IMAGE_PLATFORM": platform}
+    return {"BIZAID_IMAGE_REPO": repository, "BIZAID_IMAGE_PLATFORM": platform,
+            **{f"BIZAID_{service.upper()}_TAG": tags[service] for service in ("frontend", "backend", "fastapi")}}
 
 
-def rehearsal(repository, tag, platform):
-    images = image_settings(repository, tag, platform)
+def rehearsal(repository, tags, platform):
+    images = image_settings(repository, tags, platform)
     EVIDENCE.mkdir(parents=True, exist_ok=True)
     if command(["docker", "ps", "-aq", "--filter", "label=com.docker.compose.project=" + PROJECT]).strip():
         raise RuntimeError("existing_rehearsal_requires_manual_review")
@@ -125,9 +128,9 @@ uvicorn.run('biz_aid_pipeline.api.app:app',host='0.0.0.0',port=8000,access_log=F
                                   "MYSQL_PASSWORD": "${MYSQL_PASSWORD}", "MYSQL_ROOT_PASSWORD": "${MYSQL_PASSWORD}"},
                                   "networks": ["service"], "volumes": ["rehearsal_mysql:/var/lib/mysql"]},
             "qdrant": {"ports": ["127.0.0.1:16333:6333"]},
-            "backend": {"image": f"{repository}:backend-{tag}", "platform": platform, "pull_policy": "never", "depends_on": ["rehearsal-mysql", "fastapi"]},
-            "frontend": {"image": f"{repository}:frontend-{tag}", "platform": platform, "pull_policy": "never"},
-            "fastapi": {"image": f"{repository}:fastapi-{tag}", "platform": platform, "pull_policy": "never", "command": ["python", "/rehearsal/entry.py"],
+            "backend": {"image": f"{repository}:backend-{tags['backend']}", "platform": platform, "pull_policy": "never", "depends_on": ["rehearsal-mysql", "fastapi"]},
+            "frontend": {"image": f"{repository}:frontend-{tags['frontend']}", "platform": platform, "pull_policy": "never"},
+            "fastapi": {"image": f"{repository}:fastapi-{tags['fastapi']}", "platform": platform, "pull_policy": "never", "command": ["python", "/rehearsal/entry.py"],
                         "environment": {"AWS_ACCESS_KEY_ID": "${REHEARSAL_AWS_ACCESS_KEY_ID}", "AWS_SECRET_ACCESS_KEY": "${REHEARSAL_AWS_SECRET_ACCESS_KEY}",
                                         "AWS_SESSION_TOKEN": "${REHEARSAL_AWS_SESSION_TOKEN}", "REHEARSAL_PRIOR_CALLS": "${REHEARSAL_PRIOR_CALLS}"},
                         "volumes": [f"{tmp}:/rehearsal:ro"]}}, "volumes": {"rehearsal_mysql": {}}}
@@ -248,11 +251,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="운영 Compose 로컬 리허설(실제 Bedrock 최대40회·별도 DB·volume)")
     parser.add_argument("--execute", action="store_true", required=True)
     parser.add_argument("--image-repo", default=os.environ.get("BIZAID_IMAGE_REPO"))
-    parser.add_argument("--image-tag", default=os.environ.get("BIZAID_IMAGE_TAG"))
+    parser.add_argument("--frontend-tag", default=os.environ.get("BIZAID_FRONTEND_TAG"))
+    parser.add_argument("--backend-tag", default=os.environ.get("BIZAID_BACKEND_TAG"))
+    parser.add_argument("--fastapi-tag", default=os.environ.get("BIZAID_FASTAPI_TAG"))
     parser.add_argument("--platform", default=os.environ.get("BIZAID_IMAGE_PLATFORM", "linux/amd64"))
     args = parser.parse_args()
     try:
-        result = rehearsal(args.image_repo, args.image_tag, args.platform)
+        result = rehearsal(args.image_repo, {"frontend": args.frontend_tag, "backend": args.backend_tag,
+                                            "fastapi": args.fastapi_tag}, args.platform)
         print(json.dumps({"status": result["status"], "bedrock": result.get("bedrock"), "evidence": str(EVIDENCE)}, ensure_ascii=False))
     except Exception as error:
         print("rehearsal_failed:"+type(error).__name__, file=sys.stderr)

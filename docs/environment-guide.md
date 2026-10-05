@@ -144,7 +144,7 @@ COMPOSE_DISABLE_ENV_FILE=1 docker compose --env-file .env.dev --profile app -f d
 
 ## 7. 운영을 맥북에서 미리 시험할 수 있나요?
 
-별도 DB·검색 저장소를 만드는 기존 도구 `scripts/rehearse_prod.py`가 있습니다. 하지만 **현재 상태로 바로 실행하지 마세요.** 최신 운영 이미지는 amd64인데 이 도구가 지정한 기존 리허설 이미지 3개는 arm64입니다. 최신 이미지 준비·이름 연결을 먼저 맞춰야 합니다. 이 도구는 실제 Bedrock 호출과 자료 복사를 하므로 일반 환경 확인 명령이 아닙니다.
+별도 DB·검색 저장소를 만드는 `scripts/rehearse_prod.py`가 있습니다. 이미지 저장소, 서비스별 태그 3개, 플랫폼을 지정할 수 있으며 ARM 이미지에 고정되어 있지 않습니다. 실행 전 해당 이미지를 준비해야 합니다. 이 도구는 실제 Bedrock 호출과 자료 복사를 하므로 일반 환경 확인 명령이 아닙니다. 맥북 Docker Desktop에서는 Ubuntu의 파일 권한 문제를 재현하지 못할 수 있습니다. 실행 인자는 [배포 설명서](deployment.md)를 참고하세요.
 
 | 기존 리허설에서 확인한 것 | 아직 그 결과로 보장할 수 없는 것 |
 | --- | --- |
@@ -202,7 +202,9 @@ DB 비밀번호를 새로 정해야 하는 상황이면 RDS 계정 비밀번호�
 | `QDRANT_COLLECTION` | `bizaid_v2_chunks_v1_228acdd12220`; 이름 전체 | FastAPI |
 | `BIZAID_MODEL_PATH` | `/home/ubuntu/bizaid/models`; 모델 자료 폴더 | Compose가 FastAPI의 `/models`에 연결 |
 | `BIZAID_IMAGE_REPO` | `nagt1997/bizaid`; 실제 Docker Hub 저장소 | Compose |
-| `BIZAID_IMAGE_TAG` | 이번 이미지와 같은 `20261005-03` | Compose |
+| `BIZAID_FRONTEND_TAG` | 화면 이미지 태그; 첫 전환은 `20261005-03` | Compose, 비어 있으면 실패 |
+| `BIZAID_BACKEND_TAG` | 서버 본체 이미지 태그; 첫 전환은 `20261005-03` | Compose, 비어 있으면 실패 |
+| `BIZAID_FASTAPI_TAG` | AI 서버 이미지 태그; 첫 전환은 `20261005-03` | Compose, 비어 있으면 실패 |
 | `BIZAID_IMAGE_PLATFORM` | `linux/amd64`; 실제 서버 CPU 종류 | Compose |
 | `CADDY_SITE` | `biz-aid.cloud`; DNS 연결도 필요 | Caddy |
 | `CADDY_HTTP_BIND` | `0.0.0.0:80`; 외부 접속 입구 | Compose |

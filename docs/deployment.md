@@ -2,7 +2,7 @@
 
 사용자 확인 기준으로 **2026-10-05 `https://biz-aid.cloud` 운영 배포 완료**, 이미지 태그는 **20261005-03 / linux/amd64**다. 서버는 Ubuntu 24.04 x86_64, 메모리 8GB + swap 2GB, Docker 29 / Compose 5다. EC2·RDS·자료 전달 S3는 시드니(ap-southeast-2), Bedrock 호출은 서울(ap-northeast-2)이다.
 
-묶음7-1은 배포 스크립트·설명서·Caddy 설정을 정리한다. **기존 앱 이미지를 그대로 사용하며 빌드·push는 필요 없다.** 이 문서의 서버 접속·업로드·설정 적용·smoke는 사용자가 직접 실행한다. 현재 서버의 www 인증서는 아래 적용·확인 전까지 미확인 상태다.
+묶음7-1b는 화면·서버 본체·AI 서버의 이미지 태그를 따로 관리한다. **현재 서버를 새 설정 방식으로 전환할 때는 기존 이미지를 그대로 사용하며 빌드·push가 필요 없다.** 이후 앱 업데이트 때만 맥북에서 선택한 서비스를 빌드·push하고 서버에서는 pull한다. 서버에는 GitHub 연결이나 소스 빌드가 필요 없다. 이 문서의 서버 접속·업로드·설정 적용·smoke는 사용자가 직접 실행한다. 현재 서버 전환은 §8, 이후 업데이트는 §9를 따른다. www 인증서는 적용·확인 전까지 미확인 상태다.
 
 명령은 일반 따옴표가 필요한 곳에만 ASCII 따옴표를 쓴다. 서버에서는 Bash를 사용하고 폴더는 공백 없는 `~/bizaid`로 둔다. 문서에서 복사한 둥근 따옴표(`“ ”`, `‘ ’`)를 명령에 넣지 않는다. 실제 `.env.prod` 내용, 로그인 토큰, 전체 Compose 설정을 출력하거나 공유하지 않는다.
 
@@ -18,7 +18,7 @@
 | AWS 인증 | 사용자 로컬 SDK 인증 | EC2 IAM Role / 키 파일 mount 없음 |
 | AI 추적 | 선택적 개발 추적 | 운영에서는 비활성화 |
 
-Compose는 셸에서 export한 값을 `--env-file`의 같은 이름 값보다 먼저 사용한다. **자료 전달 변수는 DEPLOY_TAG, DEPLOY_REGION, DEPLOY_BUCKET, DEPLOY_S3로 구분한다.** 운영의 BIZAID_IMAGE_TAG, AWS_REGION 등을 셸에 export해서 전달 변수로 쓰지 않는다.
+Compose는 셸에서 export한 값을 `--env-file`의 같은 이름 값보다 먼저 사용한다. **자료 전달 변수는 DEPLOY_TAG, DEPLOY_REGION, DEPLOY_BUCKET, DEPLOY_S3로 구분한다.** 운영의 BIZAID_FRONTEND_TAG·BIZAID_BACKEND_TAG·BIZAID_FASTAPI_TAG·AWS_REGION 등을 서버 셸에 export해서 전달 변수로 쓰지 않는다.
 
 ```bash
 export DEPLOY_TAG=20261005-03
@@ -38,13 +38,13 @@ prod() { docker compose --env-file ~/bizaid/.env.prod -f ~/bizaid/docker-compose
 새 SSH 세션에서 사용할 수 있다. 지금 세션은 `source ~/.bashrc`로 불러온다. 과거 방식으로 남아 있는 export가 있으면 아래 공개 설정 이름을 해제하고 운영 파일의 값을 사용한다. 다른 MYSQL_*·JWT_*·INTERNAL_AI_* 이름도 운영 파일과 겹치는 export를 만들지 않는다.
 
 ```bash
-unset BIZAID_IMAGE_REPO BIZAID_IMAGE_TAG BIZAID_IMAGE_PLATFORM AWS_REGION AWS_S3_BUCKET AWS_S3_PREFIX
+unset BIZAID_IMAGE_REPO BIZAID_FRONTEND_TAG BIZAID_BACKEND_TAG BIZAID_FASTAPI_TAG BIZAID_IMAGE_PLATFORM AWS_REGION AWS_S3_BUCKET AWS_S3_PREFIX
 ```
 
 | 확인 | 정상이면 이렇게 보임 |
 | --- | --- |
 | `type prod` | 함수 정의의 경로가 ~/bizaid 기준 |
-| `prod config --quiet` | 오류 없이 종료하며 설정값을 출력하지 않음 |
+| `prod config --quiet` | §8에서 서비스별 태그 3줄을 추가한 뒤 오류 없이 종료하며 설정값을 출력하지 않음 |
 | 전달 변수 | DEPLOY_* 이름만 사용하고 운영 앱 변수와 겹치지 않음 |
 
 ## 2. 맥북에서 새 실행 묶음만 준비
@@ -52,11 +52,11 @@ unset BIZAID_IMAGE_REPO BIZAID_IMAGE_TAG BIZAID_IMAGE_PLATFORM AWS_REGION AWS_S3
 현재 서버·이미지·모델·공고 자료를 다시 만들지 않는다. `make_deploy_bundle.sh`는 서버 실행 파일만 담고 소스·실제 설정·모델·DB 자료는 포함하지 않는다. 새 출력 이름을 써서 기존 묶음을 보존한다.
 
 ```bash
-export DEPLOY_KIT=/private/tmp/bizaid-deploy-kit-20261005-7-1.tar.gz
+export DEPLOY_KIT=/private/tmp/bizaid-deploy-kit-20261005-7-1b.tar.gz
 scripts/make_deploy_bundle.sh $DEPLOY_KIT
 shasum -a 256 $DEPLOY_KIT
 aws login --profile bizaid-dev
-aws s3 cp $DEPLOY_KIT ${DEPLOY_S3}/deploy-kit-7-1.tar.gz --region $DEPLOY_REGION --profile bizaid-dev
+aws s3 cp $DEPLOY_KIT ${DEPLOY_S3}/deploy-kit-7-1b.tar.gz --region $DEPLOY_REGION --profile bizaid-dev
 ```
 
 이전 배포의 `programs.sql`, `v2.snapshot`, `models.tar.gz`, `data-manifest.json`은 기존 전달 경로에 둔다. 자료가 로컬 임시 폴더에만 있다면 별도 보관하되 기존 원문과 지문(SHA)을 덮어쓰지 않는다. 기존 Docker Hub 태그를 그대로 사용한다.
@@ -66,7 +66,7 @@ aws s3 cp $DEPLOY_KIT ${DEPLOY_S3}/deploy-kit-7-1.tar.gz --region $DEPLOY_REGION
 | 실행 묶음 생성 | `서버 실행 묶음 생성 완료` |
 | 묶음 내용 | Compose 2개, Caddyfile, 운영 견본, 스크립트 4개, 배포 설명서(총 9개) |
 | SHA 기록 | 64자리 지문과 파일 이름, 비밀값 없음 |
-| S3 업로드 | deploy/20261005-03/deploy-kit-7-1.tar.gz에 새 파일 업로드 |
+| S3 업로드 | deploy/20261005-03/deploy-kit-7-1b.tar.gz에 새 파일 업로드 |
 | 이미지 | 기존 20261005-03 태그 유지; 빌드·push 없음 |
 
 ## 3. 서버·DNS·보안 그룹과 자료 확인
@@ -84,14 +84,14 @@ docker version --format '{{.Server.Version}}'
 docker compose version
 mkdir -p ~/bizaid/transfer ~/bizaid/certs
 cd ~/bizaid
-aws s3 cp ${DEPLOY_S3}/deploy-kit-7-1.tar.gz deploy-kit-7-1.tar.gz --region $DEPLOY_REGION
-sha256sum deploy-kit-7-1.tar.gz
+aws s3 cp ${DEPLOY_S3}/deploy-kit-7-1b.tar.gz deploy-kit-7-1b.tar.gz --region $DEPLOY_REGION
+sha256sum deploy-kit-7-1b.tar.gz
 ```
 
-맥북에서 기록한 묶음 SHA와 같을 때만 다음 명령으로 스크립트·문서를 반영한다. 현재 `.env.prod`와 앱 이미지는 바뀌지 않는다. `prod` 함수는 별도 터미널에서도 ~/bizaid 경로를 사용한다.
+맥북에서 기록한 묶음 SHA와 같을 때만 반영한다. **현재 운영 서버는 §8의 백업·전환 순서를 따른다.** 아래 직접 압축 풀기는 새 서버에 처음 설치할 때만 쓴다. 실제 `.env.prod`와 앱 이미지·자료는 압축에 없다. `prod` 함수는 별도 터미널에서도 ~/bizaid 경로를 사용한다.
 
 ```bash
-tar -xzf deploy-kit-7-1.tar.gz
+tar -xzf deploy-kit-7-1b.tar.gz
 ```
 
 **새 서버의 첫 복원에만** 기존 전달 자료를 받는다. 이미 공고·V2·모델을 복원한 운영 서버에서는 다음 다운로드·복원을 다시 실행할 필요가 없다.
@@ -149,7 +149,10 @@ scripts/restore_deploy_data.sh certs certs
 
 | 설정 | 의미 |
 | --- | --- |
-| BIZAID_IMAGE_REPO / TAG / PLATFORM | 기존 비공개 저장소 / 20261005-03 / linux/amd64 |
+| BIZAID_IMAGE_REPO / BIZAID_IMAGE_PLATFORM | 기존 비공개 저장소 / linux/amd64 |
+| BIZAID_FRONTEND_TAG | 화면 이미지 태그; 첫 전환은 20261005-03 |
+| BIZAID_BACKEND_TAG | 서버 본체 이미지 태그; 첫 전환은 20261005-03 |
+| BIZAID_FASTAPI_TAG | AI 서버 이미지 태그; 첫 전환은 20261005-03 |
 | MYSQL_HOST / PORT / DATABASE / USER / PASSWORD | 본인 RDS 주소 / 3306 / 운영 DB 이름·계정·비밀번호 |
 | MYSQL_SSL_MODE | VERIFY_IDENTITY |
 | MYSQL_TLS_CERTS_PATH | 서버 절대 경로 /home/ubuntu/bizaid/certs |
@@ -221,11 +224,13 @@ prod up -d
 
 CADDY_SITE에는 `biz-aid.cloud`처럼 대표 도메인만 쓴다. Caddyfile이 대표 도메인과 `www.<대표 도메인>`을 함께 등록한다. www HTTPS 요청은 경로·조회 문자열을 보존해 대표 HTTPS 주소로 **301 영구 이동**한다. Caddy가 두 도메인의 인증서를 자동 발급·갱신하려면 DNS와 80/443 연결이 정상이어야 한다. [Caddy 자동 HTTPS](https://caddyserver.com/docs/automatic-https), [영구 이동 설정](https://caddyserver.com/docs/caddyfile/directives/redir)
 
-기존 서버에는 새 Caddyfile을 전달한 뒤 확인하고 설정만 다시 불러온다. 앱 이미지 빌드나 앱 서비스 재시작은 필요 없다.
+Caddyfile은 파일 하나를 컨테이너에 연결한다. 압축 해제나 파일 통째 교체로 호스트 파일이 새로 생기면 기존 컨테이너가 예전 파일을 계속 볼 수 있다. **교체 후 Caddy만 다시 만든다. 단순 reload나 restart만으로 파일 연결이 갱신된다고 보장할 수 없다.** 인증서 저장 volume은 유지하며 앱 이미지 빌드나 앱 서비스 재시작은 필요 없다.
 
 ```bash
+prod up -d --no-deps --force-recreate caddy
+sha256sum Caddyfile
+prod exec -T caddy sha256sum /etc/caddy/Caddyfile
 prod exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-prod exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
 curl -sS -o /dev/null -w '%{http_code}\n' https://biz-aid.cloud/api/health
 curl -sSI https://www.biz-aid.cloud/
 curl -sSIL https://www.biz-aid.cloud/
@@ -236,6 +241,7 @@ scripts/smoke_prod.sh https://biz-aid.cloud
 
 | 확인 | 정상이면 이렇게 보임 |
 | --- | --- |
+| Caddy 재생성·파일 지문 | Caddy만 Recreated, 호스트·컨테이너 SHA의 첫 64자 일치 |
 | Caddy validate | Valid configuration |
 | 대표 /api/health | 200 |
 | https://www.biz-aid.cloud/ | 인증서 오류 없이 HTTP 301, Location: https://biz-aid.cloud/ |
@@ -263,7 +269,7 @@ smoke 실패 예시(진짜 응답이나 비밀값이 아닌 설명용 합성 예
 
 서비스 상태는 `prod ps`로 확인한다. 오류 로그를 확인할 때 전체 설정·inspect 환경·인증 응답·개인정보 포함 로그를 공유하지 않는다. `down -v`, collection 삭제, DB reset은 사용하지 않는다. 이번 서버 정상 동작은 사용자 제공 사실이며 리허설·부하 검증 결과와 구분한다.
 
-이미지 업데이트가 필요한 다음 묶음은 새 태그를 따로 준비한 뒤 서버 설정의 태그 변경 → prod pull → prod up -d → 사용자 smoke 순서다. 기존 데이터 복원은 반복하지 않는다. 되돌릴 때도 이미지와 이미 적용된 Flyway의 호환성을 먼저 확인한다.
+이미지 업데이트와 되돌리기는 §9의 서비스별 태그 절차를 따른다. 기존 데이터 복원은 반복하지 않는다. 되돌릴 때도 이미지와 이미 적용된 Flyway의 호환성을 먼저 확인한다.
 
 RDS는 AWS 화면의 자동 백업·수동 snapshot을 사용한다. 회원 데이터 백업은 공고 덤프와 별도로 보관한다. V2는 새 이름으로 snapshot을 만들고 기존 백업을 덮어쓰지 않는다.
 
@@ -276,10 +282,10 @@ mkdir -p backups
 sha256sum backups/$SNAPSHOT_NAME
 ```
 
-리허설 스크립트는 이미지 저장소·태그·플랫폼을 인자로 받거나 BIZAID_IMAGE_REPO·BIZAID_IMAGE_TAG·BIZAID_IMAGE_PLATFORM 셸 설정에서 받는다. 맥북 프로젝트의 의존성이 설치된 .venv 환경을 사용한다. 선택한 이미지 3개를 미리 로컬에 준비해야 하며 기존 ARM 전용 이름이나 소스 build를 사용하지 않는다. 아래는 **실행 방식 설명이며 묶음7-1에서는 리허설을 실행하지 않는다.** --execute는 실제 임시 DB·컨테이너·Bedrock 호출을 시작한다.
+리허설 스크립트는 이미지 저장소·서비스별 태그·플랫폼을 인자로 받거나 BIZAID_IMAGE_REPO·BIZAID_FRONTEND_TAG·BIZAID_BACKEND_TAG·BIZAID_FASTAPI_TAG·BIZAID_IMAGE_PLATFORM 셸 설정에서 받는다. 맥북 프로젝트의 의존성이 설치된 .venv 환경을 사용한다. 선택한 이미지 3개를 미리 로컬에 준비해야 하며 기존 ARM 전용 이름이나 소스 build를 사용하지 않는다. 아래는 **실행 방식 설명이며 이번 작업에서는 리허설을 실행하지 않는다.** --execute는 실제 임시 DB·컨테이너·Bedrock 호출을 시작한다.
 
 ```bash
-.venv/bin/python scripts/rehearse_prod.py --execute --image-repo YOUR_DOCKERHUB_USER/YOUR_PRIVATE_REPO --image-tag 20261005-03 --platform linux/amd64
+.venv/bin/python scripts/rehearse_prod.py --execute --image-repo YOUR_DOCKERHUB_USER/YOUR_PRIVATE_REPO --frontend-tag 20261005-03 --backend-tag 20261005-03 --fastapi-tag 20261005-03 --platform linux/amd64
 ```
 
 **macOS Docker Desktop의 공유 폴더 권한은 Ubuntu 서버와 달라 서버의 PermissionError를 재현하지 못할 수 있다.** 맥북 리허설의 성공을 서버 권한 검사 통과로 대신하지 않는다. 복원 뒤 서버에서 이미지의 실제 실행 사용자로 읽기 검사와 HTTPS·www 확인을 별도로 수행한다. 이때도 worker는 1개로 유지하며 swap을 메모리 성능의 대체물로 보지 않는다.
@@ -290,5 +296,167 @@ sha256sum backups/$SNAPSHOT_NAME
 | 백업 | 새로운 이름·지문으로 보존, 원본 덮어쓰기 없음 |
 | 리허설 이미지 선택 | 지정한 저장소·태그·linux/amd64 사용 |
 | 서버 최종 확인 | 모델·인증서 읽기 검사, 대표 HTTPS·www 이동·smoke를 따로 확인 |
+
+## 8. 현재 운영 서버를 서비스별 태그 방식으로 전환
+
+이번 전환에서는 이미지 3개를 모두 **20261005-03**으로 유지한다. §1의 DEPLOY_*와 prod 함수를 준비하고 §2에서 새 실행 묶음을 기존 S3 경로에 올린다. 기존 전달 자료·Docker 이미지·모델·DB·인증서 volume을 지우거나 다시 복원하지 않는다. `release.sh`는 맥북 전용이라 서버 묶음에 들어가지 않는다.
+
+서버에서 §3처럼 새 묶음을 받아 SHA를 비교한다. 기존 파일은 별도 폴더에 보관하고, 압축은 임시 폴더에 먼저 푼다. 백업 폴더가 이미 있으면 멈춰 이전 백업을 보존한다.
+
+```bash
+cd ~/bizaid
+mkdir -p backups
+mkdir -m 700 backups/bundle7-1b || exit 1
+cp -p .env.prod backups/bundle7-1b/.env.prod
+chmod 600 backups/bundle7-1b/.env.prod
+cp -p docker-compose.prod.yml Caddyfile backups/bundle7-1b/
+cp -a scripts backups/bundle7-1b/
+mkdir incoming-7-1b || exit 1
+tar -xzf deploy-kit-7-1b.tar.gz -C incoming-7-1b
+cp incoming-7-1b/docker-compose.prod.yml incoming-7-1b/docker-compose.restore.yml incoming-7-1b/Caddyfile incoming-7-1b/.env.prod.example .
+cp -a incoming-7-1b/scripts/. scripts/
+mkdir -p docs
+cp incoming-7-1b/docs/deployment.md docs/
+nano .env.prod
+```
+
+`.env.prod`에 다음 **공개 태그 3줄만 추가**한다. 다른 설정과 비밀값은 유지하며 견본 파일로 덮어쓰지 않는다. 과거 공통 태그 줄은 더 이상 읽지 않으므로 정리해도 된다. 백업은 서버 안에만 보관하고 업로드하거나 Git에 넣지 않는다.
+
+```dotenv
+BIZAID_FRONTEND_TAG=20261005-03
+BIZAID_BACKEND_TAG=20261005-03
+BIZAID_FASTAPI_TAG=20261005-03
+```
+
+서버 셸의 같은 이름 export를 §1의 unset으로 해제하고 검사한다. 전체 `prod config` 대신 아래 옵션을 사용하면 비밀값을 출력하지 않는다.
+
+```bash
+prod config --quiet
+prod config --images
+prod ps
+prod up -d
+prod ps
+```
+
+| 단계 | 정상이면 이렇게 보임 |
+| --- | --- |
+| 백업·파일 반영 | 기존 파일 백업 존재, .env.prod는 원래 파일 유지, 자료 재복원 없음 |
+| 태그 추가 | 화면·서버 본체·AI 서버 모두 20261005-03 |
+| config --quiet | 출력 없이 정상 종료; 태그 누락이면 해당 변수 이름과 이유로 실패 |
+| config --images | 기존 저장소의 frontend/backend/fastapi-20261005-03; Qdrant·Caddy 이미지도 기존과 같음 |
+| up -d 전후 | 앱 3개는 같은 이미지·설정이므로 기존 컨테이너 유지; 변경됐다면 다른 설정 변경 여부 확인 |
+
+마지막으로 §6의 **Caddy 강제 재생성 → 호스트·컨테이너 파일 SHA 비교 → validate → 대표 HTTPS·www → smoke**를 실행한다. Caddy만 새 컨테이너가 되는 것은 의도한 결과이며, 인증서 volume은 그대로다. 태그 방식 전환에는 앱 이미지 재빌드·push가 없다. smoke는 AI 질문 1회를 실제 사용한다.
+
+| 마지막 확인 | 정상이면 이렇게 보임 |
+| --- | --- |
+| Caddy 파일 연결 | 서버와 컨테이너 안 Caddyfile SHA 일치, validate 성공 |
+| 대표 도메인·www | 대표 health 200, www 인증서 정상과 301 이동 |
+| smoke | 5단계 모두 PASS |
+
+## 9. 업데이트 배포: 필요한 서비스만 새 이미지로 교체
+
+**서버를 §8 방식으로 전환한 뒤 사용한다.** 코드를 바꾸고 검토·검사·커밋까지 마친 상태에서 맥북의 릴리스 스크립트를 실행한다. 미커밋 변경이나 새 미추적 파일이 있으면 dry-run도 멈춘다. 이 스크립트는 Git commit/push나 서버 접속을 하지 않는다. Docker Desktop과 buildx, 비공개 저장소에 대한 Docker Hub 로그인·쓰기 권한이 필요하다.
+
+```bash
+docker login --username nagt1997
+scripts/release.sh 20261006-01 backend --dry-run
+scripts/release.sh 20261006-01 backend
+```
+
+예시 태그는 매번 새 이름으로 정한다. 기본 저장소는 `nagt1997/bizaid`다. 다른 저장소라면 **맥북에서만** BIZAID_IMAGE_REPO를 지정한다. 로그인 확인에는 기존 비공개 backend-20261005-03을 조회한다. 그 태그가 없어진 경우 맥북의 BIZAID_BACKEND_TAG를 조회 가능한 기존 backend 태그로 지정한다. 이 값은 로그인 검사 기준이며 새 릴리스 태그는 첫 번째 인자를 사용한다.
+
+선택한 서비스만 linux/amd64로 만들고, 이미지에 현재 Git 커밋 번호를 `org.opencontainers.image.revision` 라벨로 기록한다. 모든 선택 태그가 비어 있는지 먼저 확인하고 push 직전에도 다시 확인한다. 이미 존재하는 태그는 중단하며 인증·통신 실패도 중단한다. **같은 서비스·태그를 동시에 릴리스하지 않는다.** dry-run은 계획만 표시하고 Docker·저장소에 접속하지 않으므로 로그인과 태그 존재 여부 검사는 실제 실행 때 한다. 실제 push가 실패하면 앞서 올라간 이미지는 보존하며 전체 성공 전에 서버를 적용하지 않는다. [Docker 이미지 조회](https://docs.docker.com/reference/cli/docker/buildx/imagetools/inspect/), [Docker 로그인](https://docs.docker.com/reference/cli/docker/login/)
+
+| 맥북 단계 | 정상이면 이렇게 보임 |
+| --- | --- |
+| 로그인 | Login Succeeded; 토큰·비밀번호는 공유하지 않음 |
+| dry-run | DRY-RUN, 선택한 서비스의 빌드·push 계획과 커밋 라벨; 실제 빌드·push 없음 |
+| 실제 릴리스 | PASS와 선택한 서비스의 새 태그 줄·서버 명령 출력 |
+| 다른 서비스 | 빌드·push 계획과 태그 변경 줄에 포함되지 않음 |
+
+### 9-1. 서버 본체 하나만 배포
+
+릴리스가 모두 성공한 뒤 서버에서 `.env.prod`의 해당 태그 줄만 바꾼다. 이전 태그를 별도로 기록해 두되 비밀값은 기록하지 않는다. 아래 예시에서 화면·AI 태그는 그대로다.
+
+```bash
+cd ~/bizaid
+nano .env.prod
+```
+
+```dotenv
+BIZAID_BACKEND_TAG=20261006-01
+```
+
+```bash
+prod config --quiet
+prod config --images
+prod pull backend && prod up -d --no-deps backend
+prod ps
+scripts/smoke_prod.sh https://biz-aid.cloud
+```
+
+| 서버 단계 | 정상이면 이렇게 보임 |
+| --- | --- |
+| 태그·config | backend만 새 태그, frontend·fastapi는 기존 태그 |
+| pull·up | backend만 교체, Qdrant·Caddy·나머지 앱은 유지 |
+| smoke | health·landing·trial·ai_query·usage 모두 PASS |
+
+### 9-2. 화면과 서버 본체를 함께 배포
+
+화면과 서버 본체의 요청·응답 약속을 함께 바꿨다면 **두 태그를 함께 바꾸고 배포한다.** 서로 맞지 않는 버전을 따로 적용하지 않는다. 한 번의 릴리스에서는 선택한 서비스들이 같은 새 태그를 쓰며, 배포하지 않는 AI 서버 태그는 유지한다.
+
+```bash
+scripts/release.sh 20261006-02 frontend backend --dry-run
+scripts/release.sh 20261006-02 frontend backend
+```
+
+성공 후 서버에서 다음 두 줄만 편집한다.
+
+```dotenv
+BIZAID_FRONTEND_TAG=20261006-02
+BIZAID_BACKEND_TAG=20261006-02
+```
+
+```bash
+prod config --quiet
+prod config --images
+prod pull frontend backend && prod up -d --no-deps frontend backend
+prod ps
+scripts/smoke_prod.sh https://biz-aid.cloud
+```
+
+| 단계 | 정상이면 이렇게 보임 |
+| --- | --- |
+| 맥북 | frontend·backend만 빌드·push 성공 |
+| 서버 | 두 앱이 새 태그로 교체, fastapi 태그와 검색 자료 유지 |
+| 확인 | smoke 모두 PASS, 화면에서 바꾼 기능도 직접 확인 |
+
+fastapi만 또는 세 서비스를 모두 배포할 때도 같은 방식으로 서비스 이름과 해당 태그 줄을 지정한다. 서로 다른 시점에 만든 태그는 서비스별로 다른 값을 써도 된다.
+
+### 9-3. 되돌리기와 적용 범위
+
+문제가 생기면 **바꾼 서비스의 태그 줄만 기록해 둔 이전 값으로** 돌린다. 예를 들어 backend만 바꿨다면 다음 줄만 되돌린다.
+
+```dotenv
+BIZAID_BACKEND_TAG=20261005-03
+```
+
+```bash
+prod config --quiet
+prod pull backend && prod up -d --no-deps backend
+prod ps
+scripts/smoke_prod.sh https://biz-aid.cloud
+```
+
+화면·서버 본체를 함께 바꿨다면 두 태그를 함께 이전 값으로 돌리고 두 서비스를 지정한다. 이미지 태그를 돌려도 DB 구조와 검색 자료는 자동으로 되돌아가지 않는다.
+
+| 주의·확인 | 해야 할 일 / 정상 결과 |
+| --- | --- |
+| DB 구조 변경(Flyway) 포함 | **배포 전에 RDS 수동 snapshot을 만들고 생성 완료를 확인**; 이전 이미지와 새 DB의 호환성도 먼저 확인 |
+| 되돌리기 | 바꾼 서비스만 이전 이미지로 실행, smoke PASS; DB를 자동 삭제·복원하지 않음 |
+| 검색 자료 재생성 필요 | 이 이미지 교체 절차만으로 처리할 수 없음; 별도 데이터 작업·검증·백업 절차를 먼저 준비 |
+| 모델 변경 필요 | 새 모델 자료와 서버 읽기 권한 확인을 별도 준비; 기존 자료를 임의 덮어쓰지 않음 |
+| 설정·Caddy만 변경 | 앱 이미지는 다시 만들지 않음; Caddy 파일 교체 시 §6대로 강제 재생성 |
 
 [전체 프로젝트 설명](../PROJECT_MASTER_GUIDE.md) · [README](../README.md)
