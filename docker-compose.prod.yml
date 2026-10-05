@@ -26,13 +26,13 @@ services:
   frontend:
     <<: *runtime
     image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:frontend-${BIZAID_IMAGE_TAG:?이미지 태그 필수}
-    platform: linux/arm64
+    platform: ${BIZAID_IMAGE_PLATFORM:-linux/amd64}
     networks: [edge, service]
     depends_on: [backend]
   backend:
     <<: *runtime
     image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:backend-${BIZAID_IMAGE_TAG:?이미지 태그 필수}
-    platform: linux/arm64
+    platform: ${BIZAID_IMAGE_PLATFORM:-linux/amd64}
     environment:
       SPRING_PROFILES_ACTIVE: prod
       MYSQL_HOST: ${MYSQL_HOST:?운영 DB 주소 필수}
@@ -62,7 +62,7 @@ services:
   fastapi:
     <<: *runtime
     image: ${BIZAID_IMAGE_REPO:?이미지 저장소 필수}:fastapi-${BIZAID_IMAGE_TAG:?이미지 태그 필수}
-    platform: linux/arm64
+    platform: ${BIZAID_IMAGE_PLATFORM:-linux/amd64}
     command: [uvicorn, biz_aid_pipeline.api.app:app, --host, 0.0.0.0, --port, "8000", --workers, "${FASTAPI_WORKERS:-1}", --no-access-log]
     environment:
       BIZAID_ENV: prod
@@ -78,6 +78,7 @@ services:
       LLM_PROVIDER: bedrock
       BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-global.anthropic.claude-haiku-4-5-20251001-v1:0}
       BEDROCK_REGION: ${BEDROCK_REGION:-ap-northeast-2}
+      AWS_REGION: ${AWS_REGION:-ap-southeast-2}
       INTERNAL_AI_API_KEY: ${INTERNAL_AI_API_KEY:?내부 인증키 필수}
       BIZAID_TRACING_ENABLED: "false"
       LANGSMITH_TRACING: "false"

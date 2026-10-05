@@ -65,8 +65,8 @@ bizaid:
       max-creates-per-ip-per-day: ${BIZAID_TRIAL_MAX_CREATES_PER_IP:20}
   # 이용약관·개인정보처리방침 현재 버전(시행일). 화면 frontend/src/features/legal/legalVersions.ts와 같아야 한다.
   legal:
-    terms-version: "2026-10-04.3"
-    privacy-version: "2026-10-04.3"
+    terms-version: "2026-10-05.1"
+    privacy-version: "2026-10-05.1"
   # 공통 계약 폴더(기업 지역 표준명 등). IntelliJ(working dir backend/)는 ../contracts, Compose는 /contracts mount.
   contracts-path: ${BIZAID_CONTRACTS_PATH:../contracts}
   jwt:

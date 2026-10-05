@@ -18,6 +18,9 @@ class LegalVersionTests(unittest.TestCase):
             server = re.search(rf'^\s+{server_key}: "([^"]+)"', yml, re.MULTILINE).group(1)
             shown = re.search(rf'export const {screen_name} = "([^"]+)";', screen).group(1)
             self.assertEqual(server, shown, server_key)
+            self.assertEqual(server, "2026-10-05.1")
+            test_yml = (ROOT / "backend/src/test/resources/application.yml").read_text(encoding="utf-8")
+            self.assertIn(f'{server_key}: "{server}"', test_yml)
             # 버전은 V13 column 길이(20)·시행일 형식을 따른다.
             self.assertRegex(server, r"^\d{4}-\d{2}-\d{2}(?:\.\d+)?$")
 

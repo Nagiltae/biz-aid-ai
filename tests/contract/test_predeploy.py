@@ -100,9 +100,18 @@ class ProductionBoundaryTests(unittest.TestCase):
         self.assertIn("proxy_set_header X-Forwarded-For $remote_addr", nginx)
         self.assertNotIn("$proxy_add_x_forwarded_for", nginx)
         self.assertIn("set_real_ip_from 172.29.52.0/24", nginx)
+        # BOUNDARY: 사용자 확정 운영 값만 예시에 허용한다. credential과 Hub 개인 설정은 계속 빈칸이다.
+        public_names = {"BEDROCK_MODEL_ID", "BEDROCK_REGION", "BIZAID_AI_DAILY_LIMIT", "BIZAID_AI_DAILY_LIMIT_PER_IP",
+            "BIZAID_AI_GLOBAL_DAILY_LIMIT", "BIZAID_MODEL_PATH", "BIZAID_SIGNUP_PER_IP_PER_DAY", "BIZAID_TRIAL_ENABLED",
+            "CADDY_HTTPS_BIND", "CADDY_HTTP_BIND", "CADDY_SITE", "FASTAPI_WORKERS", "MYSQL_DATABASE", "MYSQL_HOST",
+            "MYSQL_PORT", "MYSQL_SSL_CA", "MYSQL_SSL_MODE", "MYSQL_TLS_CERTS_PATH", "MYSQL_USER", "QDRANT_COLLECTION",
+            "MYSQL_TRUSTSTORE_URL", "MYSQL_TRUSTSTORE_TYPE", "QDRANT_URL", "BIZAID_IMAGE_PLATFORM", "AWS_REGION",
+            "AWS_S3_BUCKET", "AWS_S3_PREFIX"}
         for line in (ROOT / ".env.prod.example").read_text().splitlines():
             if line and not line.startswith("#"):
-                self.assertTrue(line.endswith("="), line)
+                name, value = line.split("=", 1)
+                if name not in public_names:
+                    self.assertEqual(value, "", name)
 
 
 class SmokePortabilityTests(unittest.TestCase):

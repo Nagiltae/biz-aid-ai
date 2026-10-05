@@ -190,4 +190,4 @@ scripts/dev.sh down               # 전체 중지(데이터 volume은 지우지 
 
 개발 Agent는 [AGENTS.md](AGENTS.md)부터 읽고, 사용자는 이 README 다음에 PROJECT_MASTER_GUIDE를 읽는 것이 가장 빠릅니다.
 
-ARM 운영 서버의 이미지 배포·데이터 복원·설정은 [배포 설명서](docs/deployment.md)를 참고하세요. 실제 AWS 배포는 사용자 실행 단계입니다.
+x86_64 운영 서버의 이미지 배포·데이터 복원·설정은 [배포 설명서](docs/deployment.md)를 참고하세요. 실제 AWS 배포는 사용자 실행 단계입니다.

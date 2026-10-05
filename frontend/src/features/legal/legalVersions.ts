@@ -1,7 +1,7 @@
 // 이용약관·개인정보처리방침 현재 버전(같은 시행일의 개정은 .번호로 구분). 가입·체험 동의 기록에 서버 설정(bizaid.legal.*) 값이 남는다.
 // BOUNDARY: backend application.yml의 bizaid.legal.terms-version / privacy-version과 같아야 한다(tests/contract/test_legal_versions.py).
-export const TERMS_VERSION = "2026-10-04.3";
-export const PRIVACY_VERSION = "2026-10-04.3";
+export const TERMS_VERSION = "2026-10-05.1";
+export const PRIVACY_VERSION = "2026-10-05.1";
 
 /** 사용자가 공공데이터포털에서 확인한 공공누리 제3유형(출처표시·변경금지)을 안내한다. */
 export const DATA_SOURCE = {

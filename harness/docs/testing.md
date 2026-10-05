@@ -18,7 +18,7 @@
 | check-comments.sh | Python tokenize / AST docstring·Bash comment의 한글 여부 | 주석 WHY의 적절성·누락은 AGY / 사용자 검토 |
 | check-harness.sh | 정적 문서 링크·Registry·Skill·명령·실제 module / Compose / CI·Workspace 제어·Review metadata | AGY 독립 Architecture 판단·저자 신원 인증 |
 | check-all.sh | 위 Harness·Python Contract·MySQL Integration 검사 전부 실행, 적용 범위 요약 | Backend/Frontend 별도 build·test, Browser E2E, Live AI Eval |
-| (서비스 V1/V2) backend | `docker run --rm -v "$PWD/backend":/app -v bizaid-gradle-cache:/home/gradle/.gradle -w /app gradle:8.14-jdk21 gradle test` — H2 격리 DB의 인증·기업정보·QueryDSL 검색·대화·활동·workflow State/점유와 가짜 FastAPI 응답 검증 | check-all에 포함되지 않음. 실제 MySQL은 Compose E2E로 확인 |
+| (서비스 V1/V2) backend | `docker run --rm -v "$PWD/backend":/app -v "$PWD/contracts":/contracts:ro -v bizaid-gradle-cache:/home/gradle/.gradle -w /app gradle:8.14-jdk21 gradle test` — H2 격리 DB의 인증·기업정보·QueryDSL 검색·대화·활동·workflow State/점유와 가짜 FastAPI 응답 검증 | check-all에 포함되지 않음. 실제 MySQL은 Compose E2E로 확인 |
 | (서비스 V1/V2) frontend | `cd frontend && npm ci && npm run typecheck && npm test && npm run build` — V1 화면과 V2 추천 시작·단계 진행·답변·복원·최종 결과 | check-all에 포함되지 않음 |
 
 0 = 해당 진입점의 **현재 명시된 범위** 통과, 1 = 실패, 2 = CLI 사용 오류.
@@ -285,4 +285,4 @@ Spring PredeployTest는 H2에서 전체 AI 상한·환불·IP별 가입/체험�
 
 ## 묶음6-0 배포 준비 검증
 
-배포bundle allowlist·독립Compose config·ARM build-only·기존대상거절·공고COMMIT전개수검증·V2 exact count·모델checksum·오류비밀값차단은tests/contract/test_deploy_kit.py가검사한다. 실제AWS/RDS/Bedrock은호출하지않는다. 개발환경기동·체험인증/공고목록과자료준비는별도local점검이며전체검사는마지막1회실행한다.
+배포bundle allowlist·독립Compose config·amd64 기본/ARM 옵션 build-only·기존대상거절·공고COMMIT전개수검증·V2 exact count·모델checksum·오류비밀값차단은tests/contract/test_deploy_kit.py가검사한다. 실제AWS/RDS/Bedrock은호출하지않는다. 실제운영추가지시는동의버전2026-10-05.1·과거동의보존/체험기록·amd64베이스지원9개를별도로확인한다. 개발환경기동·체험인증/공고목록과자료준비는별도local점검이며전체검사는마지막1회실행한다.

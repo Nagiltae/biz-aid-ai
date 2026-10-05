@@ -120,4 +120,4 @@ V2 비교 입력은 `evals/cases-v2/`에 별도 동결해 V1 baseline과 분리�
 
 ## 묶음6-0 운영 실행 준비
 
-개발 Compose/dev.sh/dev profile은 유지한다. 운영은docker-compose.prod.yml의ARM image를단일비공개Hub저장소에서pull하고서버에저장소를복제하지않는다. 소스가있는명시build는docker-compose.build.yml만사용한다. backend가먼저RDS schema를만든뒤공고/V2/모델을복원하고전체서비스를시작한다. 서버bundle은실행파일allowlist이며Secret·제품소스·데이터를포함하지않는다. 실제AWS배포는아직미실행이다. [운영 설명서](../../docs/deployment.md).
+개발 Compose/dev.sh/dev profile은 유지한다. 운영은docker-compose.prod.yml의amd64 image를단일비공개Hub저장소에서pull하고서버에저장소를복제하지않는다. 소스가있는명시build는docker-compose.build.yml만사용한다. backend가먼저RDS schema를만든뒤공고/V2/모델을복원하고전체서비스를시작한다. 서버bundle은실행파일allowlist이며Secret·제품소스·데이터를포함하지않는다. 실제AWS배포는아직미실행이다. [운영 설명서](../../docs/deployment.md).

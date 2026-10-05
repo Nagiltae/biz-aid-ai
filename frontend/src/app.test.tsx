@@ -770,8 +770,14 @@ it("shows finalized privacy policy with overseas processing and contact", async 
   mockFetch(loggedOut);
   renderAt("/privacy");
   expect(await screen.findByRole("heading", { name: "개인정보처리방침" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "5. 국외 이전" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "5. 개인정보의 국외 이전" })).toBeInTheDocument();
   expect(screen.getByText(/해외 AWS 지역/)).toBeInTheDocument();
+  const policy = screen.getByRole("article", { name: "개인정보처리방침" });
+  expect(policy).toHaveTextContent("2026-10-05.1");
+  expect(policy).toHaveTextContent("호주, AWS 아시아태평양(시드니)");
+  expect(policy).toHaveTextContent("벤처 인증·기업부설연구소 보유·수출 여부");
+  expect(policy).toHaveTextContent("AI 질문·답변, 추천 진행 상태와 추가 답변");
+  expect(policy).toHaveTextContent("서비스 데이터의 국외 저장을 거부하면 회원·체험 서비스를 이용할 수 없습니다");
   expect(screen.queryByText(/초안/)).not.toBeInTheDocument();
   expect(screen.getByText(/개인정보 관련 문의: nagt1997@naver.com/)).toBeInTheDocument();
 });

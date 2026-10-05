@@ -71,7 +71,21 @@ class PublicServiceTest extends ApiTestSupport {
                 .andReturn().getResponse().getContentAsString()).get("user").get("id").asLong();
         List<String> rows = jdbc.queryForList("select concat(document_type, '@', document_version) from user_consents "
                 + "where user_id = ? and agreed_at is not null order by document_type", String.class, userId);
-        assertThat(rows).containsExactly("PRIVACY@2026-10-04.3", "TERMS@2026-10-04.3");
+        assertThat(rows).containsExactly("PRIVACY@2026-10-05.1", "TERMS@2026-10-05.1");
+    }
+
+    @Test
+    void newConsentVersionDoesNotRewriteExistingConsentHistory() throws Exception {
+        signup("old-legal@example.com");
+        Long previousUser = jdbc.queryForObject("select id from users where email = 'old-legal@example.com'", Long.class);
+        // BOUNDARY: 과거 동의는 H2 fixture로만 구성한다. 개정 뒤 새 가입이 과거 버전을 덮어쓰면 안 된다.
+        jdbc.update("update user_consents set document_version = '2026-10-04.3' where user_id = ?", previousUser);
+        signup("new-legal@example.com");
+        Long currentUser = jdbc.queryForObject("select id from users where email = 'new-legal@example.com'", Long.class);
+        assertThat(jdbc.queryForList("select document_version from user_consents where user_id = ?", String.class, previousUser))
+                .containsExactlyInAnyOrder("2026-10-04.3", "2026-10-04.3");
+        assertThat(jdbc.queryForList("select document_version from user_consents where user_id = ?", String.class, currentUser))
+                .containsExactlyInAnyOrder("2026-10-05.1", "2026-10-05.1");
     }
 
     @Test
@@ -100,6 +114,8 @@ class PublicServiceTest extends ApiTestSupport {
         // 체험 계정도 동의 기록이 남는다(체험하기 버튼 아래 안내).
         assertThat(jdbc.queryForObject("select count(*) from user_consents where user_id = ?", Integer.class,
                 first.get("user").get("id").asLong())).isEqualTo(2);
+        assertThat(jdbc.queryForList("select document_version from user_consents where user_id = ?", String.class,
+                first.get("user").get("id").asLong())).containsExactlyInAnyOrder("2026-10-05.1", "2026-10-05.1");
     }
 
     @Test

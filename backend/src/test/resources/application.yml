@@ -40,8 +40,8 @@ bizaid:
       daily-pool-limit: 200
       max-creates-per-ip-per-day: 1000
   legal:
-    terms-version: "2026-10-04.3"
-    privacy-version: "2026-10-04.3"
+    terms-version: "2026-10-05.1"
+    privacy-version: "2026-10-05.1"
   # 테스트는 backend/에서 실행하므로 저장소의 공통 계약을 그대로 읽는다(복사본 없음).
   contracts-path: ../contracts
   jwt:

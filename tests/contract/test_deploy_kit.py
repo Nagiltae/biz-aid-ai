@@ -41,24 +41,56 @@ class DeployKitTests(unittest.TestCase):
             for name in ["frontend", "backend", "fastapi"]:
                 self.assertEqual(services[name]["image"], "fixture/deploy:" + name + "-test")
                 self.assertNotIn("build", services[name])
-                self.assertEqual(services[name]["platform"], "linux/arm64")
+                self.assertEqual(services[name]["platform"], "linux/amd64")
+            overridden = subprocess.run(["docker", "compose", "--env-file", os.devnull, "-f", str(path / "docker-compose.prod.yml"),
+                "config", "--format", "json"], env=dict(environment, BIZAID_IMAGE_PLATFORM="linux/arm64"), capture_output=True)
+            self.assertEqual(overridden.returncode, 0)
+            self.assertEqual(json.loads(overridden.stdout)["services"]["fastapi"]["platform"], "linux/arm64")
 
     def test_build_only_never_pushes_and_rejects_bad_names(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             docker = directory / "docker"
-            docker.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALLS"\n')
+            docker.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALLS"\n'
+                'if [ "$1 $2" = "image inspect" ]; then printf "%s\\n" "${BUILT_PLATFORM:-linux/amd64}"; fi\n')
             docker.chmod(0o755)
             calls = directory / "calls"
             environment = dict(os.environ, PATH=str(directory) + os.pathsep + os.environ["PATH"], CALLS=str(calls))
             subprocess.run([str(ROOT / "scripts/push_images.sh"), "fixture/deploy", "test", "--build-only"], env=environment, capture_output=True, check=True)
             lines = calls.read_text().splitlines()
-            self.assertEqual(sum("buildx build --platform linux/arm64" in line for line in lines), 3)
+            self.assertEqual(sum("buildx build --platform linux/amd64" in line for line in lines), 3)
             self.assertFalse(any(line.startswith("push ") or line.startswith("login") for line in lines))
             subprocess.run([str(ROOT / "scripts/push_images.sh"), "fixture/deploy", "test"], env=environment, capture_output=True, check=True)
             self.assertEqual(sum(line.startswith("push fixture/deploy:") for line in calls.read_text().splitlines()), 3)
+            subprocess.run([str(ROOT / "scripts/push_images.sh"), "fixture/deploy", "arm", "--platform", "linux/arm64", "--build-only"],
+                env=dict(environment, BUILT_PLATFORM="linux/arm64"), capture_output=True, check=True)
+            self.assertEqual(sum("buildx build --platform linux/arm64" in line for line in calls.read_text().splitlines()), 3)
+            mismatch = subprocess.run([str(ROOT / "scripts/push_images.sh"), "fixture/deploy", "wrong"],
+                env=dict(environment, BUILT_PLATFORM="linux/arm64"), capture_output=True)
+            self.assertEqual(mismatch.returncode, 1)
+            self.assertFalse(any("push fixture/deploy:frontend-wrong" in line for line in calls.read_text().splitlines()))
             bad = subprocess.run([str(ROOT / "scripts/push_images.sh"), "bad;command", "test"], env=environment, capture_output=True)
             self.assertEqual(bad.returncode, 2)
+            invalid = subprocess.run([str(ROOT / "scripts/push_images.sh"), "fixture/deploy", "test", "--platform", "linux/unknown"],
+                env=environment, capture_output=True)
+            self.assertEqual(invalid.returncode, 2)
+
+    def test_real_server_public_settings_and_empty_secrets(self):
+        lines = (ROOT / ".env.prod.example").read_text().splitlines()
+        values = dict(line.split("=", 1) for line in lines if line and not line.startswith("#"))
+        expected = {"AWS_REGION":"ap-southeast-2", "BEDROCK_REGION":"ap-northeast-2", "BIZAID_IMAGE_PLATFORM":"linux/amd64",
+            "MYSQL_HOST":"bizaid-db.cb0ek4accq15.ap-southeast-2.rds.amazonaws.com", "MYSQL_DATABASE":"bizaid", "MYSQL_USER":"bizaid_app",
+            "MYSQL_SSL_MODE":"VERIFY_IDENTITY", "MYSQL_PORT":"3306", "CADDY_SITE":"biz-aid.cloud",
+            "AWS_S3_BUCKET":"amazon-s3-biz-aid-bucket-695694684371-ap-southeast-2-an"}
+        for name, value in expected.items():
+            self.assertEqual(values[name], value, name)
+        for name in ("MYSQL_PASSWORD", "MYSQL_TRUSTSTORE_PASSWORD", "JWT_SECRET", "INTERNAL_AI_API_KEY"):
+            self.assertEqual(values[name], "", name)
+        guide = (ROOT / "docs/deployment.md").read_text()
+        self.assertIn("ap-southeast-2/ap-southeast-2-bundle.pem", guide)
+        self.assertIn('deploy/${BIZAID_IMAGE_TAG}', guide)
+        self.assertNotIn("biz-aid/deploy/", guide)
+        self.assertIn('--region "$AWS_REGION"', guide)
 
     def test_existing_programs_never_write(self):
         before = "\n".join(f"{name}\t{1 if i == 0 else 0}" for i, name in enumerate(restore.TABLES)).encode()

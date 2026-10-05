@@ -692,3 +692,9 @@ V1 종료 상태를 V2 변경과 같은 조건으로 비교하도록 SEARCH_LIST
 - 사용자결정:ARM t4g.large/Ubuntu24.04,RDS MySQL8.4,단일비공개Hub3태그,pull전용서버bundle. 명시build override와안전복원·설명서/Contract를등록한다.
 - 개발Compose/dev.sh/기존migration·vector·V1/V2원본은보존한다. 실제push/AWS생성/S3업로드/Bedrock은미실행이다.
 - handoff/bundle6-0-handoff.md만동적산출물로등록한다. Generated출력으로제품입력을숨기지않고기존gate를유지한다.
+
+## 2026-10-05 묶음6-0 추가 지시 — 실제 운영 서버 반영
+
+- 사용자 확정 Ubuntu24.04 x86_64/8GB+swap2GB,시드니 EC2/RDS/S3를운영설명서·공개예시에반영한다. Bedrock만서울global profile유지.
+- 운영image 기본amd64, build --platform옵션·image검증, 전달prefix deploy/<태그>/ 및시드니CA/VERIFY_IDENTITY. 개발Compose/dev.sh/profile·기존data02·migration불변.
+- 개인정보시드니저장/Bedrock다국가처리·실제저장항목을안내하고서버/화면동의버전2026-10-05.1로동기화한다. 과거동의불변/신규가입·체험버전기록을검사하며법률검토는남긴다.
