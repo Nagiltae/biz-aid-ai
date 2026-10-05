@@ -189,7 +189,7 @@ DB 비밀번호를 새로 정해야 하는 상황이면 RDS 계정 비밀번호�
 
 | 이름 | 넣을 값·뜻 | 누가 사용하나 |
 | --- | --- | --- |
-| `MYSQL_HOST` | `bizaid-db.cb0ek4accq15.ap-southeast-2.rds.amazonaws.com` | Spring·FastAPI·DB 복원 도구 |
+| `MYSQL_HOST` | `YOUR_DB_ENDPOINT.ap-southeast-2.rds.amazonaws.com` | Spring·FastAPI·DB 복원 도구 |
 | `MYSQL_PORT` | `3306` | 위 프로그램 |
 | `MYSQL_DATABASE` | `bizaid` | 위 프로그램 |
 | `MYSQL_USER` | `bizaid_app` | 위 프로그램 |

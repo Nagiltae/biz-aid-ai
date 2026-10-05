@@ -4,6 +4,9 @@
 .env.*
 !.env.dev.example
 !.env.prod.example
+# WHY: 서버 인증서와 모델 자료가 공개 저장소에 섞이지 않도록 루트 폴더를 제외한다.
+/certs/
+/models/
 .venv/
 __pycache__/
 *.pyc

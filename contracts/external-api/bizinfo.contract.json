@@ -5,7 +5,7 @@
     "kind": "user_provided_sanitized_real_sample",
     "received_on": "2026-09-27",
     "fixture": "tests/fixtures/external-api/bizinfo-user-sample.json",
-    "fixture_sha256": "e544fe5e7463687472ce28ea01ea81efbd471fdba49b7dc5f6f977884148aa5a",
+    "fixture_sha256": "73e3efa19125da070b7c509d9c5a08677d9670c62dbc902f7edd0f6a952fd6a2",
     "wire_bytes_available": false
   },
   "request": {
