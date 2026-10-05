@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo '사용법: scripts/release.sh <새 태그> <frontend|backend|fastapi...> [--dry-run]' >&2
+  echo '사용법: scripts/release.sh [새 태그] <frontend|backend|fastapi...> [--dry-run]' >&2
   exit 2
 }
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -17,12 +17,15 @@ for argument in "$@"; do
     *) arguments+=("$argument") ;;
   esac
 done
-[[ ${arguments[1]+present} ]] || usage
-tag="${arguments[0]}"
-[[ "$tag" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,100}$ ]] || usage
+[[ ${arguments[0]+present} ]] || usage
+case "${arguments[0]}" in
+  frontend|backend|fastapi) tag="$(TZ=Asia/Seoul date +%Y%m%d-%H%M)"; requested=("${arguments[@]}") ;;
+  *) [[ ${arguments[1]+present} ]] || usage; tag="${arguments[0]}"; requested=("${arguments[@]:1}") ;;
+esac
+[[ "$tag" != latest && "$tag" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,100}$ ]] || usage
 services=()
 selected_services=' '
-for service in "${arguments[@]:1}"; do
+for service in "${requested[@]}"; do
   case "$service" in frontend|backend|fastapi) ;; *) usage ;; esac
   [[ "$selected_services" != *" $service "* ]] || usage
   selected_services+="$service "
@@ -48,23 +51,12 @@ build_arguments() {
   if [[ "$service" == frontend ]]; then context="$ROOT/frontend"; file="$context/Dockerfile.prod"; fi
   if [[ "$service" == fastapi ]]; then file="$ROOT/data-pipeline/Dockerfile.prod"; fi
   build=(docker buildx build --platform linux/amd64 --load -f "$file" -t "$repository:$service-$tag"
-         --label "org.opencontainers.image.revision=$revision" "$context")
+         --label "org.opencontainers.image.revision=$revision" --label "org.bizaid.release-tag=$tag" "$context")
 }
 print_command() { printf '%q ' "$@"; printf '\n'; }
 server_steps() {
-  echo '서버 .env.prod에서 선택한 서비스의 줄만 바꾸세요:'
-  for service in "${services[@]}"; do
-    case "$service" in
-      frontend) echo "BIZAID_FRONTEND_TAG=$tag" ;;
-      backend) echo "BIZAID_BACKEND_TAG=$tag" ;;
-      fastapi) echo "BIZAID_FASTAPI_TAG=$tag" ;;
-    esac
-  done
-  echo '서버에서 직접 실행:'
-  echo 'prod config --quiet'
-  echo "prod pull ${services[*]} && prod up -d --no-deps ${services[*]}"
-  echo 'prod ps'
-  echo 'scripts/smoke_prod.sh https://biz-aid.cloud'
+  echo '서버 ~/bizaid에서 다음 한 줄을 실행하세요:'
+  echo "bash scripts/deploy.sh ${services[*]}"
 }
 
 if [[ "$dry_run" == true ]]; then
@@ -72,6 +64,10 @@ if [[ "$dry_run" == true ]]; then
   echo '실행 시 Docker/buildx·비공개 저장소 로그인·기존 태그를 검사합니다. 지금은 Docker·registry에 접근하지 않습니다.'
   for service in "${services[@]}"; do build_arguments; print_command "${build[@]}"; done
   for service in "${services[@]}"; do print_command docker push "$repository:$service-$tag"; done
+  for service in "${services[@]}"; do
+    print_command docker tag "$repository:$service-$tag" "$repository:$service-latest"
+    print_command docker push "$repository:$service-latest"
+  done
   echo '다음은 실제 릴리스 성공 후 적용할 서버 명령입니다. dry-run 결과로 배포하지 마세요.'
   server_steps
   exit 0
@@ -112,6 +108,8 @@ for service in "${services[@]}"; do
   [[ "$actual" == linux/amd64 ]] || fail "이미지 플랫폼 불일치: $service"
   labeled="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$repository:$service-$tag" 2>/dev/null)" || fail "이미지 커밋 라벨 확인 실패: $service"
   [[ "$labeled" == "$revision" ]] || fail "이미지 커밋 라벨 불일치: $service"
+  released="$(docker image inspect --format '{{index .Config.Labels "org.bizaid.release-tag"}}' "$repository:$service-$tag" 2>/dev/null)" || fail "릴리스 라벨 확인 실패: $service"
+  [[ "$released" == "$tag" ]] || fail "릴리스 라벨 불일치: $service"
 done
 require_clean
 # WHY: 오래 걸린 빌드 사이에 다른 릴리스가 같은 태그를 올렸을 수 있어 push 전에 다시 확인한다.
@@ -122,6 +120,15 @@ for service in "${services[@]}"; do
   print_command docker push "$repository:$service-$tag"
   docker push "$repository:$service-$tag" >"$release_tmp/push.log" 2>&1 ||
     fail "push 실패: $service. 앞서 올라간 이미지는 보존하며 자동 재시도하지 않습니다(원문 출력 안 함)."
+done
+# WHY: 선택한 고정 버전이 모두 올라간 뒤 latest를 안내표처럼 갱신한다. 실행·되돌리기는 고정 버전만 쓴다.
+for service in "${services[@]}"; do
+  require_clean
+  print_command docker tag "$repository:$service-$tag" "$repository:$service-latest"
+  docker tag "$repository:$service-$tag" "$repository:$service-latest" >"$release_tmp/tag.log" 2>&1 || fail "latest 연결 실패: $service"
+  print_command docker push "$repository:$service-latest"
+  docker push "$repository:$service-latest" >"$release_tmp/push.log" 2>&1 ||
+    fail "latest push 실패: $service. 일부 latest가 바뀌었을 수 있습니다. 전체 PASS 전에는 배포하지 마세요(원문 출력 안 함)."
 done
 echo "PASS: 선택한 서비스 ${services[*]} / 태그 $tag / 커밋 $revision"
 server_steps

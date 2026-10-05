@@ -2,9 +2,18 @@
 
 사용자 확인 기준으로 **2026-10-05 `https://biz-aid.cloud` 운영 배포 완료**, 이미지 태그는 **20261005-03 / linux/amd64**다. 서버는 Ubuntu 24.04 x86_64, 메모리 8GB + swap 2GB, Docker 29 / Compose 5다. EC2·RDS·자료 전달 S3는 시드니(ap-southeast-2), Bedrock 호출은 서울(ap-northeast-2)이다.
 
-묶음7-1b는 화면·서버 본체·AI 서버의 이미지 태그를 따로 관리한다. **현재 서버를 새 설정 방식으로 전환할 때는 기존 이미지를 그대로 사용하며 빌드·push가 필요 없다.** 이후 앱 업데이트 때만 맥북에서 선택한 서비스를 빌드·push하고 서버에서는 pull한다. 서버에는 GitHub 연결이나 소스 빌드가 필요 없다. 이 문서의 서버 접속·업로드·설정 적용·smoke는 사용자가 직접 실행한다. 현재 서버 전환은 §8, 이후 업데이트는 §9를 따른다. www 인증서는 적용·확인 전까지 미확인 상태다.
+묶음7-1c는 서비스별 태그를 유지하면서 버전 자동 생성과 명령 한 줄 배포·되돌리기를 추가한다. **현재 서버를 새 설정 방식으로 전환할 때는 기존 이미지를 그대로 사용하며 빌드·push가 필요 없다.** 이후 앱 업데이트 때만 맥북에서 선택한 서비스를 빌드·push하고 서버에서는 pull한다. 서버에는 GitHub 연결이나 소스 빌드가 필요 없다. 이 문서의 서버 접속·업로드·설정 적용·smoke는 사용자가 직접 실행한다. 현재 서버 전환은 §8, 이후 업데이트는 §9를 따른다. www 인증서는 적용·확인 전까지 미확인 상태다.
 
 명령은 일반 따옴표가 필요한 곳에만 ASCII 따옴표를 쓴다. 서버에서는 Bash를 사용하고 폴더는 공백 없는 `~/bizaid`로 둔다. 문서에서 복사한 둥근 따옴표(`“ ”`, `‘ ’`)를 명령에 넣지 않는다. 실제 `.env.prod` 내용, 로그인 토큰, 전체 Compose 설정을 출력하거나 공유하지 않는다.
+
+평소 배포는 이 4줄이다. §9-0의 서버 스크립트 설치와 맥북 Docker 로그인·코드 커밋을 먼저 한 번 준비한다. 아래는 **backend 하나**를 기준으로 한 서로 다른 작업 예시이며, 되돌리기는 문제가 있을 때만 실행한다.
+
+| 어디서 / 할 일 | 명령 한 줄 | 정상이면 이렇게 보임 |
+| --- | --- | --- |
+| 맥북 / 새 버전 게시 | `scripts/release.sh backend` | 한국 시각 버전 자동 생성, 고정 버전·latest push 후 PASS |
+| 서버 ~/bizaid / 배포 | `bash scripts/deploy.sh backend` | 백업·이전/지금 표, 점검 PASS; .env.prod 수동 편집 없음 |
+| 서버 / 필요할 때 되돌리기 | `bash scripts/deploy.sh --rollback backend` | 직전 태그로 실행, 같은 점검 PASS |
+| 서버 / 상태 보기 | `bash scripts/deploy.sh status` | 서비스별 설정 태그·실행 중 이미지 표시 |
 
 ## 1. 개발·운영과 셸 변수를 구분
 
@@ -64,7 +73,7 @@ aws s3 cp $DEPLOY_KIT ${DEPLOY_S3}/deploy-kit-7-1b.tar.gz --region $DEPLOY_REGIO
 | 확인 | 정상이면 이렇게 보임 |
 | --- | --- |
 | 실행 묶음 생성 | `서버 실행 묶음 생성 완료` |
-| 묶음 내용 | Compose 2개, Caddyfile, 운영 견본, 스크립트 4개, 배포 설명서(총 9개) |
+| 묶음 내용 | Compose 2개, Caddyfile, 운영 견본, 스크립트 5개, 배포 설명서(총 10개) |
 | SHA 기록 | 64자리 지문과 파일 이름, 비밀값 없음 |
 | S3 업로드 | deploy/20261005-03/deploy-kit-7-1b.tar.gz에 새 파일 업로드 |
 | 이미지 | 기존 20261005-03 태그 유지; 빌드·push 없음 |
@@ -354,109 +363,129 @@ prod ps
 | 대표 도메인·www | 대표 health 200, www 인증서 정상과 301 이동 |
 | smoke | 5단계 모두 PASS |
 
-## 9. 업데이트 배포: 필요한 서비스만 새 이미지로 교체
+## 9. 평소 업데이트 배포: 맥북 한 줄 + 서버 한 줄
 
-**서버를 §8 방식으로 전환한 뒤 사용한다.** 코드를 바꾸고 검토·검사·커밋까지 마친 상태에서 맥북의 릴리스 스크립트를 실행한다. 미커밋 변경이나 새 미추적 파일이 있으면 dry-run도 멈춘다. 이 스크립트는 Git commit/push나 서버 접속을 하지 않는다. Docker Desktop과 buildx, 비공개 저장소에 대한 Docker Hub 로그인·쓰기 권한이 필요하다.
+**서비스별 태그 설정(§8)과 아래 스크립트 설치를 끝낸 뒤 사용한다.** 화면·서버 본체·AI 서버 이름은 frontend·backend·fastapi다. 서버에서는 `~/bizaid`에서 실행한다. GitHub 연결·서버 빌드·prod 셸 함수는 필요 없다.
+
+### 9-0. 서버 스크립트는 처음 한 번만 설치
+
+맥북에서 새 실행 묶음을 만든다. §1의 DEPLOY_*는 기존 S3 `deploy/20261005-03/` 전달 경로를 사용한다. 새 파일 이름으로 기존 묶음과 자료를 보존한다. 코드·설명서를 검토하고 커밋한 뒤 릴리스한다. Docker 로그인은 처음 또는 만료 때 직접 한다.
 
 ```bash
+export DEPLOY_KIT=/private/tmp/bizaid-deploy-kit-20261006-7-1c.tar.gz
+scripts/make_deploy_bundle.sh $DEPLOY_KIT
+shasum -a 256 $DEPLOY_KIT
+aws s3 cp $DEPLOY_KIT ${DEPLOY_S3}/deploy-kit-7-1c.tar.gz --region $DEPLOY_REGION --profile bizaid-dev
 docker login --username nagt1997
-scripts/release.sh 20261006-01 backend --dry-run
-scripts/release.sh 20261006-01 backend
 ```
 
-예시 태그는 매번 새 이름으로 정한다. 기본 저장소는 `nagt1997/bizaid`다. 다른 저장소라면 **맥북에서만** BIZAID_IMAGE_REPO를 지정한다. 로그인 확인에는 기존 비공개 backend-20261005-03을 조회한다. 그 태그가 없어진 경우 맥북의 BIZAID_BACKEND_TAG를 조회 가능한 기존 backend 태그로 지정한다. 이 값은 로그인 검사 기준이며 새 릴리스 태그는 첫 번째 인자를 사용한다.
-
-선택한 서비스만 linux/amd64로 만들고, 이미지에 현재 Git 커밋 번호를 `org.opencontainers.image.revision` 라벨로 기록한다. 모든 선택 태그가 비어 있는지 먼저 확인하고 push 직전에도 다시 확인한다. 이미 존재하는 태그는 중단하며 인증·통신 실패도 중단한다. **같은 서비스·태그를 동시에 릴리스하지 않는다.** dry-run은 계획만 표시하고 Docker·저장소에 접속하지 않으므로 로그인과 태그 존재 여부 검사는 실제 실행 때 한다. 실제 push가 실패하면 앞서 올라간 이미지는 보존하며 전체 성공 전에 서버를 적용하지 않는다. [Docker 이미지 조회](https://docs.docker.com/reference/cli/docker/buildx/imagetools/inspect/), [Docker 로그인](https://docs.docker.com/reference/cli/docker/login/)
-
-| 맥북 단계 | 정상이면 이렇게 보임 |
-| --- | --- |
-| 로그인 | Login Succeeded; 토큰·비밀번호는 공유하지 않음 |
-| dry-run | DRY-RUN, 선택한 서비스의 빌드·push 계획과 커밋 라벨; 실제 빌드·push 없음 |
-| 실제 릴리스 | PASS와 선택한 서비스의 새 태그 줄·서버 명령 출력 |
-| 다른 서비스 | 빌드·push 계획과 태그 변경 줄에 포함되지 않음 |
-
-### 9-1. 서버 본체 하나만 배포
-
-릴리스가 모두 성공한 뒤 서버에서 `.env.prod`의 해당 태그 줄만 바꾼다. 이전 태그를 별도로 기록해 두되 비밀값은 기록하지 않는다. 아래 예시에서 화면·AI 태그는 그대로다.
+서버에서 같은 파일을 받고 SHA가 맥북과 같은지 확인한다. 이번에 필요한 것은 scripts·문서 갱신뿐이다. 현재 Compose·Caddy·실제 .env.prod·이미지·모델·DB·인증서 자료는 그대로 둔다.
 
 ```bash
 cd ~/bizaid
-nano .env.prod
-```
-
-```dotenv
-BIZAID_BACKEND_TAG=20261006-01
-```
-
-```bash
-prod config --quiet
-prod config --images
-prod pull backend && prod up -d --no-deps backend
-prod ps
-scripts/smoke_prod.sh https://biz-aid.cloud
-```
-
-| 서버 단계 | 정상이면 이렇게 보임 |
-| --- | --- |
-| 태그·config | backend만 새 태그, frontend·fastapi는 기존 태그 |
-| pull·up | backend만 교체, Qdrant·Caddy·나머지 앱은 유지 |
-| smoke | health·landing·trial·ai_query·usage 모두 PASS |
-
-### 9-2. 화면과 서버 본체를 함께 배포
-
-화면과 서버 본체의 요청·응답 약속을 함께 바꿨다면 **두 태그를 함께 바꾸고 배포한다.** 서로 맞지 않는 버전을 따로 적용하지 않는다. 한 번의 릴리스에서는 선택한 서비스들이 같은 새 태그를 쓰며, 배포하지 않는 AI 서버 태그는 유지한다.
-
-```bash
-scripts/release.sh 20261006-02 frontend backend --dry-run
-scripts/release.sh 20261006-02 frontend backend
-```
-
-성공 후 서버에서 다음 두 줄만 편집한다.
-
-```dotenv
-BIZAID_FRONTEND_TAG=20261006-02
-BIZAID_BACKEND_TAG=20261006-02
-```
-
-```bash
-prod config --quiet
-prod config --images
-prod pull frontend backend && prod up -d --no-deps frontend backend
-prod ps
-scripts/smoke_prod.sh https://biz-aid.cloud
+aws s3 cp ${DEPLOY_S3}/deploy-kit-7-1c.tar.gz deploy-kit-7-1c.tar.gz --region $DEPLOY_REGION
+sha256sum deploy-kit-7-1c.tar.gz
+mkdir incoming-7-1c || exit 1
+tar -xzf deploy-kit-7-1c.tar.gz -C incoming-7-1c
+mkdir -p backups
+mkdir -m 700 backups/bundle7-1c || exit 1
+cp -a scripts backups/bundle7-1c/
+cp -a incoming-7-1c/scripts/. scripts/
+mkdir -p docs
+cp incoming-7-1c/docs/deployment.md docs/
+bash scripts/deploy.sh status
 ```
 
 | 단계 | 정상이면 이렇게 보임 |
 | --- | --- |
-| 맥북 | frontend·backend만 빌드·push 성공 |
-| 서버 | 두 앱이 새 태그로 교체, fastapi 태그와 검색 자료 유지 |
-| 확인 | smoke 모두 PASS, 화면에서 바꾼 기능도 직접 확인 |
+| 실행 묶음 | 10개 파일, deploy.sh 포함; release.sh·소스·실제 설정·자료 제외 |
+| 서버 SHA | 맥북에서 기록한 SHA와 같음 |
+| status | frontend/backend/fastapi 모두 현재 20261005-03 이미지 표시 |
+| 기존 운영 이미지 | 릴리스 라벨·latest가 없어도 status 정상; 이번 설치에 재빌드·컨테이너 교체 없음 |
+| 도구 | Docker Compose·Python 3·curl 준비. 기존 Ubuntu 서버의 도구를 사용 |
 
-fastapi만 또는 세 서비스를 모두 배포할 때도 같은 방식으로 서비스 이름과 해당 태그 줄을 지정한다. 서로 다른 시점에 만든 태그는 서비스별로 다른 값을 써도 된다.
+### 9-1. 하나만 배포
 
-### 9-3. 되돌리기와 적용 범위
-
-문제가 생기면 **바꾼 서비스의 태그 줄만 기록해 둔 이전 값으로** 돌린다. 예를 들어 backend만 바꿨다면 다음 줄만 되돌린다.
-
-```dotenv
-BIZAID_BACKEND_TAG=20261005-03
-```
+맥북에서 코드를 검토·검사·커밋한 뒤 다음 한 줄을 실행한다. 변경이 남아 있으면 중단한다. 별도 Git push는 이 배포에 필요 없다. 태그는 **한국 시각 YYYYMMDD-HHMM**으로 자동 생성하며 같은 분에 이미 같은 서비스 태그가 있으면 중단한다. 새 분에 다시 실행하면 된다.
 
 ```bash
-prod config --quiet
-prod pull backend && prod up -d --no-deps backend
-prod ps
-scripts/smoke_prod.sh https://biz-aid.cloud
+scripts/release.sh backend
 ```
 
-화면·서버 본체를 함께 바꿨다면 두 태그를 함께 이전 값으로 돌리고 두 서비스를 지정한다. 이미지 태그를 돌려도 DB 구조와 검색 자료는 자동으로 되돌아가지 않는다.
+선택한 서비스만 linux/amd64로 빌드한다. 이미지에는 현재 커밋 라벨 `org.opencontainers.image.revision`과 버전 라벨 `org.bizaid.release-tag`를 붙인다. 고정 버전 이미지를 모두 push한 뒤 같은 이미지를 서비스별 latest로도 push한다. **전체 PASS를 확인한 뒤** 출력된 서버 한 줄을 실행한다. 부분 push 실패 때 서버를 적용하지 않는다.
 
-| 주의·확인 | 해야 할 일 / 정상 결과 |
+```bash
+bash scripts/deploy.sh backend
+```
+
+서버는 .env.prod의 저장소 이름으로 backend-latest를 pull하고 라벨에서 실제 버전을 확인한다. 실행은 **backend-latest가 아니라 backend-고정버전**을 사용한다. 현재 태그와 같으면 `이미 최신`으로 건너뛰며 백업·기록·재시작·AI 점검을 반복하지 않는다.
+
+바뀌는 서비스가 있으면 같은 폴더에 `.env.prod.backup-시각-번호` 백업을 만든다. 백업·운영 설정·deploy-history.log는 권한 600으로 관리한다. 선택한 태그 줄만 바꾸고 없으면 추가한다. 나머지 설정은 그대로 보존한다. 저장소·서비스 태그·도메인만 해석하며 비밀값을 출력하거나 설정 파일을 셸로 실행하지 않는다. 셸의 같은 이름 공개 변수는 Compose에 전달하지 않아 파일 값을 사용한다.
+
+스크립트는 config --quiet → 바뀐 서비스만 pull → up -d --no-deps → 실행 중 고정 이미지 확인 → 새 AI 서버의 내부 health 준비 확인 → 대표 health 준비 대기 → smoke 한 번 순서로 실행한다. smoke는 체험 계정 1개와 AI 질문 1회를 만든다. 자동으로 반복하지 않는다.
+
+| 단계 | 정상이면 이렇게 보임 |
 | --- | --- |
-| DB 구조 변경(Flyway) 포함 | **배포 전에 RDS 수동 snapshot을 만들고 생성 완료를 확인**; 이전 이미지와 새 DB의 호환성도 먼저 확인 |
-| 되돌리기 | 바꾼 서비스만 이전 이미지로 실행, smoke PASS; DB를 자동 삭제·복원하지 않음 |
-| 검색 자료 재생성 필요 | 이 이미지 교체 절차만으로 처리할 수 없음; 별도 데이터 작업·검증·백업 절차를 먼저 준비 |
-| 모델 변경 필요 | 새 모델 자료와 서버 읽기 권한 확인을 별도 준비; 기존 자료를 임의 덮어쓰지 않음 |
-| 설정·Caddy만 변경 | 앱 이미지는 다시 만들지 않음; Caddy 파일 교체 시 §6대로 강제 재생성 |
+| 맥북 | 자동 버전·고정 이미지·latest 게시 완료 PASS, 서버 명령 한 줄 |
+| 서버 설정 | 백업 파일 이름(내용은 표시 안 함), 해당 서비스 태그만 교체 |
+| 컨테이너 | 선택한 서비스만 고정 버전으로 실행; 다른 앱·Qdrant·Caddy는 유지 |
+| 점검 | `점검 PASS: https://대표도메인` |
+| 마지막 표 | 서비스 / 이전 / 지금 / 해당 이전 버전으로 되돌리는 명령 |
+| 같은 버전 재실행 | `이미 최신`, 설정·기록·서비스 변경과 AI 호출 없음 |
+
+계획만 보고 싶을 때는 `scripts/release.sh backend --dry-run`을 쓴다. dry-run도 커밋된 깨끗한 폴더가 필요하며 Docker·저장소에는 접속하지 않는다. 고정 태그를 직접 지정하는 기존 방식 `scripts/release.sh 20261006-0115 backend`도 지원한다. latest는 직접 버전 이름으로 사용할 수 없다. 기본 저장소는 기존 nagt1997/bizaid이며 맥북 BIZAID_IMAGE_REPO로 다른 비공개 저장소를 지정할 수 있다. 로그인 검사는 조회 가능한 기존 backend 태그로 확인한다(기본 20261005-03, 맥북 BIZAID_BACKEND_TAG로 변경 가능). 같은 서비스·태그를 동시에 릴리스하지 않는다.
+
+### 9-2. 여러 서비스를 함께 배포
+
+화면과 서버 본체의 요청·응답을 함께 바꿨다면 두 서비스를 함께 게시·배포한다. 명령 한 번에 선택한 이미지들은 같은 자동 버전을 쓰며, 배포하지 않는 AI 태그는 유지한다. 두 서비스 교체가 동시에 한순간에 완료되는 것은 아니므로 서로 호환되는 변경을 준비한다.
+
+```bash
+scripts/release.sh frontend backend
+```
+
+서버에서:
+
+```bash
+bash scripts/deploy.sh frontend backend
+```
+
+| 단계 | 정상이면 이렇게 보임 |
+| --- | --- |
+| 맥북 | frontend·backend 고정 버전과 latest 모두 PASS |
+| 서버 | 두 서비스 중 태그가 바뀌는 것만 교체, fastapi 유지 |
+| 점검 | 두 서비스 적용 후 smoke 한 번 PASS, 화면의 바꾼 기능도 직접 확인 |
+
+fastapi만 바꿀 때는 서비스 이름을 fastapi로, 셋 다 바꿀 때는 frontend backend fastapi로 지정한다. latest는 서비스별이라 서로 다른 날짜에 게시한 버전도 독립적으로 유지된다.
+
+### 9-3. 되돌리기·명시 버전·상태 보기
+
+서버에서 직전 버전으로 되돌리는 명령은 다음 한 줄이다. 기록은 시각·서비스·이전 태그·새 태그만 담는다. 현재 태그에 대응하는 마지막 기록을 사용한다. 되돌리기도 새 기록을 남기므로 다시 --rollback하면 직전에 실행했던 버전으로 돌아간다.
+
+```bash
+bash scripts/deploy.sh --rollback backend
+```
+
+여러 서비스를 함께 바꿨다면 `bash scripts/deploy.sh --rollback frontend backend`로 함께 되돌린다. **되돌릴 때도 백업·config·pull·컨테이너 확인·smoke를 똑같이 실행한다.** 기록이 없거나 태그 줄이 처음 추가돼 이전 값을 모르면 임의 버전을 고르지 않고 중단한다. 이미 아는 버전으로 지정할 수 있다.
+
+```bash
+bash scripts/deploy.sh frontend=20261005-03
+bash scripts/deploy.sh status
+```
+
+명시 버전은 latest나 릴리스 라벨 없이도 동작하므로 기존 20261005-03으로 되돌릴 수 있다. status는 서비스별 설정 태그와 실행 중 컨테이너 이미지만 표시한다. 백업 내용·토큰·전체 Compose 환경은 표시하지 않는다. --rollback은 latest 게시 상태를 바꾸지 않는다. 되돌린 뒤 일반 배포를 실행하면 여전히 최신으로 게시된 버전을 다시 받는다는 점을 기억한다.
+
+| 명령·상황 | 정상이면 이렇게 보임 / 할 일 |
+| --- | --- |
+| --rollback | 기록의 이전 버전으로 해당 서비스 교체, 점검 PASS |
+| 서비스=버전 | 지정한 고정 이미지를 실행, latest·라벨 조회 없음 |
+| status | 서비스별 설정 태그·실행 중 이미지, 설정/기록 수정 없음 |
+| smoke 실패 | 실패 단계·HTTP 상태·이유와 되돌리는 명령, 실패 종료. **자동으로 되돌리지 않음** |
+| config/pull/up/상태 실패 | 실패 단계와 되돌리는 명령 안내. 새 태그 설정·백업·기록은 보존; 출력된 복구 명령으로 대응 |
+| 오래된 .deploy.lock | 동시에 배포하지 않음. 실제 작업이 끝났는지 먼저 확인하고 남은 잠금을 정리 |
+| DB 구조 변경(Flyway) | **배포 전에 RDS 수동 snapshot 생성 완료 확인**. 이미지 되돌리기가 DB 구조까지 되돌리지 않음; 이전 이미지 호환성 확인 |
+| 검색 자료 재생성·모델 변경 | 이 한 줄 이미지 배포만으로 처리할 수 없음. 별도 데이터 준비·검증·백업·서버 읽기 권한 검사 필요 |
+| Caddy 파일만 변경 | 앱 재빌드 없음. 파일 교체 후 §6의 Caddy 강제 재생성 절차 사용 |
+
+점검 실패 후 원인을 고치거나 출력된 되돌리기 명령을 선택한다. 같은 실패 버전의 latest를 다시 실행하면 태그가 같아 건너뛴다. 재점검이 필요하면 `scripts/smoke_prod.sh https://biz-aid.cloud`를 담당자가 직접 실행한다(추가 AI 질문 1회). 실제 서비스·이미지·자료를 지우는 down -v나 DB 초기화는 사용하지 않는다.
 
 [전체 프로젝트 설명](../PROJECT_MASTER_GUIDE.md) · [README](../README.md)

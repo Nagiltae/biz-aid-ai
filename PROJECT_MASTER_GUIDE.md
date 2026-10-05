@@ -2411,3 +2411,11 @@ DB schema를 Flyway로 관리하고 적용된 migration은 수정하지 않았�
 현재 서버 전환은 세 태그를 모두 20261005-03으로 유지한다. 기존 S3 전달 경로에 새 실행 묶음을 올리고 설정·자료를 보존한다. Caddyfile 파일 교체 뒤에는 Caddy만 강제 재생성해서 파일 연결을 갱신한다. 이번 작업에서 실제 빌드·push·서버 접속·리허설은 실행하지 않는다.
 
 사용자 실행 절차는 [배포 설명서 §8·§9](docs/deployment.md), 빌드 방식 근거와 검사 결과는 [묶음7-1b 보고서](harness/workspace/reports/development/2026-10-05-bundle7-1b-release-tags.md)에 기록한다.
+
+## 32. 명령 한 줄 배포와 되돌리기(묶음7-1c, 2026-10-06)
+
+맥북에서 `scripts/release.sh backend`를 실행하면 한국 시각 YYYYMMDD-HHMM으로 버전을 정한다. 커밋 라벨·릴리스 버전 라벨을 붙인 고정 이미지를 게시하고 같은 이미지를 backend-latest로 게시한다. 기존 태그 인자와 dry-run도 유지한다. 이미 있는 고정 태그를 덮지 않으며 latest만 갱신한다.
+
+서버는 `bash scripts/deploy.sh backend`로 latest 라벨의 버전을 찾아 해당 고정 이미지를 실행한다. .env.prod의 선택 태그만 바꾸고 백업·설정·이력을 600 권한으로 보관한다. config·pull·선택 서비스 실행·상태·준비 확인 뒤 smoke를 한 번 실행한다. 실패 때 자동으로 되돌리지 않고 이전 버전 명령을 알려 준다. `--rollback backend`는 기록의 직전 버전을 같은 절차로 적용하고, `status`는 태그·실행 중 이미지로 상태를 보여 준다. 기존 20261005-03은 라벨·latest 없이도 명시 버전과 status로 사용할 수 있다.
+
+서버 도구는 운영자가 전달하는 10파일 실행 묶음에 포함한다. 서버 GitHub 연결·빌드·prod 셸 함수는 필요 없다. 설치·평소 네 줄·DB/검색 자료 범위는 [배포 설명서 §9](docs/deployment.md)에 있다. 실제 설정 파일·운영 배포·Git commit/push는 이번 개발 검사의 대상이 아니다.

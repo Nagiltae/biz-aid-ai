@@ -31,8 +31,9 @@ class DeployKitTests(unittest.TestCase):
             subprocess.run([str(ROOT / "scripts/make_deploy_bundle.sh"), str(path / "kit.tar.gz")], check=True, capture_output=True)
             with tarfile.open(path / "kit.tar.gz") as archive:
                 names = set(archive.getnames())
-                self.assertEqual(len(names), 9)
+                self.assertEqual(len(names), 10)
                 self.assertIn("scripts/prod_smoke.py", names)
+                self.assertIn("scripts/deploy.sh", names)
                 self.assertNotIn("docker-compose.build.yml", names)
                 self.assertNotIn("scripts/release.sh", names)
                 self.assertFalse(any(n.startswith(("backend/", "frontend/", "data-pipeline/", "harness/", "tests/")) for n in names))

@@ -98,7 +98,7 @@ def workspace_category(name):
     if name in ("harness/workspace/handoff/bundle1-handoff.md", "harness/workspace/handoff/bundle2-handoff.md",
                 "harness/workspace/handoff/bundle3-handoff.md", "harness/workspace/handoff/bundle4-handoff.md",
                 "harness/workspace/handoff/bundle5-1-handoff.md", "harness/workspace/handoff/bundle5-2-handoff.md",
-                "harness/workspace/handoff/bundle6-0-handoff.md"):
+                "harness/workspace/handoff/bundle6-0-handoff.md", "harness/workspace/handoff/bundle7-1c-handoff.md"):
         return "GENERATED_CHECKPOINT"
     for category, names in STATIC_WORKSPACE_FILES.items():
         if name in names:

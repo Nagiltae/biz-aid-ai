@@ -38,10 +38,13 @@ if a[:2]==['buildx','build']:
     sys.exit(0)
 if a[:2]==['image','inspect']:
     if 'Architecture' in a[3]: print(os.environ.get('FAKE_PLATFORM','linux/amd64'))
+    elif 'org.bizaid.release-tag' in a[3]: print(os.environ.get('FAKE_RELEASE_TAG',a[-1].rsplit(':',1)[-1].split('-',1)[1]))
     else: print(os.environ.get('FAKE_LABEL','a'*40))
     sys.exit(0)
+if a[0]=='tag': sys.exit(0)
 if a[0]=='push':
     if mode=='push_failed': print('fixture-secret',file=sys.stderr); sys.exit(1)
+    if mode=='latest_failed' and a[1].endswith('-latest'): print('fixture-secret',file=sys.stderr); sys.exit(1)
     sys.exit(0)
 sys.exit(2)
 '''
@@ -84,7 +87,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_argument_errors_stop_before_docker(self):
         for args in ((), ("new",), ("new;command", "backend"), ("new", "mysql"),
-                     ("new", "backend", "backend"), ("new", "backend", "--unknown"), ("--dry-run",)):
+                     ("new", "backend", "backend"), ("new", "backend", "--unknown"), ("--dry-run",), ("latest", "backend")):
             with self.subTest(args=args):
                 self.assertEqual(self.run_release(*args).returncode, 2)
         self.assertEqual(self.docker_calls(), [])
@@ -95,11 +98,10 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn("DRY-RUN", result.stdout)
         self.assertIn("--platform linux/amd64 --load", result.stdout)
         self.assertIn("org.opencontainers.image.revision=" + REVISION, result.stdout)
-        self.assertIn("BIZAID_BACKEND_TAG=new", result.stdout)
-        self.assertIn("BIZAID_FASTAPI_TAG=new", result.stdout)
-        self.assertNotIn("BIZAID_FRONTEND_TAG", result.stdout)
-        self.assertIn("prod pull backend fastapi && prod up -d --no-deps backend fastapi", result.stdout)
-        self.assertIn("scripts/smoke_prod.sh https://biz-aid.cloud", result.stdout)
+        self.assertIn("org.bizaid.release-tag=new", result.stdout)
+        self.assertIn("docker tag fixture/deploy:backend-new fixture/deploy:backend-latest", result.stdout)
+        self.assertIn("docker push fixture/deploy:fastapi-latest", result.stdout)
+        self.assertIn("bash scripts/deploy.sh backend fastapi", result.stdout)
         self.assertEqual(self.docker_calls(), [])
 
     def test_dirty_tree_blocks_real_and_dry_run_before_docker(self):
@@ -141,7 +143,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(len(builds), 1)
         self.assertEqual(Path(builds[0][builds[0].index("-f") + 1]).resolve(), (self.work / "backend/Dockerfile").resolve())
         self.assertEqual(Path(builds[0][-1]).resolve(), self.work.resolve())
-        self.assertEqual([call[1] for call in self.docker_calls() if call[0] == "push"], ["fixture/deploy:backend-new"])
+        self.assertEqual([call[1] for call in self.docker_calls() if call[0] == "push"], ["fixture/deploy:backend-new", "fixture/deploy:backend-latest"])
         self.assertNotIn("BIZAID_FRONTEND_TAG=new", result.stdout)
         self.assertNotIn("BIZAID_FASTAPI_TAG=new", result.stdout)
 
@@ -160,7 +162,7 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(Path(args[-1]).resolve(), context.resolve())
             self.assertEqual(args[args.index("-t") + 1], "fixture/deploy:" + service + "-new")
             self.assertIn("org.opencontainers.image.revision=" + REVISION, args)
-        self.assertEqual([call[1] for call in calls if call[0] == "push"], ["fixture/deploy:frontend-new", "fixture/deploy:fastapi-new"])
+        self.assertEqual([call[1] for call in calls if call[0] == "push"], ["fixture/deploy:frontend-new", "fixture/deploy:fastapi-new", "fixture/deploy:frontend-latest", "fixture/deploy:fastapi-latest"])
         self.assertNotIn("BIZAID_BACKEND_TAG=new", result.stdout)
 
     def test_tag_appearing_during_build_blocks_push(self):
@@ -170,18 +172,30 @@ class ReleaseTests(unittest.TestCase):
         self.assertFalse(any(call[0] == "push" for call in self.docker_calls()))
 
     def test_changed_source_and_wrong_image_metadata_block_push(self):
-        for environment in ({"FAKE_MODE": "changed_source"}, {"FAKE_PLATFORM": "linux/arm64"}, {"FAKE_LABEL": "b" * 40}):
+        for environment in ({"FAKE_MODE": "changed_source"}, {"FAKE_PLATFORM": "linux/arm64"}, {"FAKE_LABEL": "b" * 40}, {"FAKE_RELEASE_TAG": "wrong"}):
             result = self.run_release("new", "backend", **environment)
             self.assertEqual(result.returncode, 1)
             (self.directory / "changed").unlink(missing_ok=True)
         self.assertFalse(any(call[0] == "push" for call in self.docker_calls()))
 
     def test_build_and_push_failure_hide_raw_output_and_do_not_offer_server_apply(self):
-        for mode in ("build_failed", "push_failed"):
+        for mode in ("build_failed", "push_failed", "latest_failed"):
             result = self.run_release("new", "backend", FAKE_MODE=mode)
             self.assertEqual(result.returncode, 1)
             self.assertNotIn("fixture-secret", result.stdout + result.stderr)
-            self.assertNotIn("서버 .env.prod에서", result.stdout)
+            self.assertNotIn("bash scripts/deploy.sh", result.stdout)
+
+    def test_auto_tag_uses_korean_time_and_latest_is_not_probed(self):
+        date = self.bin / "date"
+        date.write_text('#!/bin/sh\n[ "$TZ" = Asia/Seoul ] || exit 1\n[ "$1" = +%Y%m%d-%H%M ] || exit 1\nprintf "20261006-0115\\n"\n')
+        date.chmod(0o755)
+        result = self.run_release("backend")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.docker_calls()
+        self.assertIn(["tag", "fixture/deploy:backend-20261006-0115", "fixture/deploy:backend-latest"], calls)
+        self.assertFalse(any(c[:3] == ["buildx", "imagetools", "inspect"] and c[-1].endswith('-latest') for c in calls))
+        self.assertIn("bash scripts/deploy.sh backend", result.stdout)
+        self.assertTrue(all("org.bizaid.release-tag=20261006-0115" in c for c in calls if c[:2] == ["buildx", "build"]))
 
 
 if __name__ == "__main__":

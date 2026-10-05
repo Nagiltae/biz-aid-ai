@@ -42,3 +42,4 @@ __pycache__/
 
 # 이번 배포 준비 Task의 동적 인수인계만 제외한다.
 /harness/workspace/handoff/bundle6-0-handoff.md
+/harness/workspace/handoff/bundle7-1c-handoff.md
