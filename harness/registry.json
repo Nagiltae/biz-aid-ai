@@ -277,7 +277,7 @@
   "required_files": [
     ".claude/settings.json",
     ".dockerignore",
-    ".env.example",
+    ".env.dev.example",
     ".env.prod.example",
     ".github/workflows/ci.yml",
     ".gitignore",

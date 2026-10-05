@@ -576,11 +576,11 @@ class HarnessPolicyTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertEqual(set(result.stdout.splitlines()), {".env.dev", ".env.prod"})
-        ignored = subprocess.run(["git", "check-ignore", "--no-index", ".env.example"],
+        ignored = subprocess.run(["git", "check-ignore", "--no-index", ".env.dev.example"],
                                  cwd=self.directory, capture_output=True, text=True)
         self.assertEqual(ignored.returncode, 1)
-        tracked = subprocess.check_output(["git", "ls-files", ".env.example"], cwd=self.directory, text=True)
-        self.assertEqual(tracked.strip(), ".env.example")
+        tracked = subprocess.check_output(["git", "ls-files", ".env.dev.example"], cwd=self.directory, text=True)
+        self.assertEqual(tracked.strip(), ".env.dev.example")
 
     def test_tracked_profile_secret_file_is_rejected(self):
         # 실제 사용자 Secret은 복사하지 않고 격리된 Git fixture의 합성 설정으로만 추적 오류를 재현한다.
@@ -597,7 +597,7 @@ class HarnessPolicyTests(unittest.TestCase):
 
     def test_ignored_env_example_is_rejected(self):
         path = self.directory / ".gitignore"
-        path.write_text(path.read_text(encoding="utf-8") + "\n.env.example\n", encoding="utf-8")
+        path.write_text(path.read_text(encoding="utf-8") + "\n.env.dev.example\n", encoding="utf-8")
         self.git("add", "--", ".gitignore")
         result = self.check("git-tracked")
         self.assertEqual(result.returncode, 1)

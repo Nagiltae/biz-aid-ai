@@ -32,7 +32,7 @@ require_service() {
 }
 
 if [[ ! -f "$ROOT/.env.dev" ]]; then
-  echo ".env.dev가 없습니다. .env.example을 참고해 저장소 루트에 만드세요." >&2
+  echo ".env.dev가 없습니다. .env.dev.example을 참고해 저장소 루트에 만드세요." >&2
   exit 1
 fi
 # 모델 artifact는 process environment로만 받는다. 없으면 기본 cache 경로를 쓴다(이미지에는 넣지 않음).

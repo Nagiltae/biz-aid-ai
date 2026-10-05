@@ -1360,7 +1360,7 @@ biz-aid-ai/
 │   └── docker/
 │
 ├── docker-compose.yml                     # 개발환경 실행
-├── .env.example
+├── .env.dev.example
 │
 └── .github/
     └── workflows/

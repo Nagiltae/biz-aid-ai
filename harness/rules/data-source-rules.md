@@ -14,7 +14,7 @@ Phase 1A는 source_payload JSON에 실제 source field를 보존한다. Raw snap
 실제 upstream 응답을 확인하지 않고 필수 field나 envelope를 확정하지 않는다.
 
 Local Probe는 Git Branch와 별개인 --profile dev / prod를 명시한다. 선택한 Secret 파일만 읽고 fallback하지 않는다.
-.env.dev / .env.prod는 사용자 관리 파일로 수정·삭제·stage·값 출력하지 않는다. .env.example·.env.prod.example은 비밀값 없는 설정 이름/설명 예시만 추적한다.
+.env.dev / .env.prod는 사용자 관리 파일로 수정·삭제·stage·값 출력하지 않는다. .env.dev.example·.env.prod.example은 비밀값 없는 설정 이름/설명 예시만 추적한다.
 원본 수집·적재는 dev Live만 허용한다. 명시 운영 질문 서버의 읽기 전용 DB/TLS·검색 연결은 묶음5-2 사용자 승인 범위이며, 실제 운영 배포는 별도 승인한다.
 
 ## Phase 2 Document Acquisition 안전 규칙

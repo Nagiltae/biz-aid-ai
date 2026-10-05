@@ -126,8 +126,8 @@ Synthetic ID의 미존재는 사전 보장하지 않는다. 실제 응답 ID·�
 
 Environment Profile은 dev / prod 두 개이며 Git Branch와 별개다. Probe의 `--profile`은 필수다.
 dev는 `.env.dev`, prod는 `.env.prod`만 읽으며 다른 Profile이나 legacy `.env`로 fallback하지 않는다.
-`.env.example`은 APP_PROFILE=dev와 세 BIZINFO 설정의 예시다. APP_PROFILE은 Probe의 자동 선택자가 아니다.
-실제 사용자 Secret 파일은 수정·삭제·stage하지 않는다. `.env.*` ignore / `!.env.example` 추적 정책을 유지한다.
+`.env.dev.example`은 APP_PROFILE=dev와 세 BIZINFO 설정의 예시다. APP_PROFILE은 Probe의 자동 선택자가 아니다.
+실제 사용자 Secret 파일은 수정·삭제·stage하지 않는다. `.env.*` ignore / `!.env.dev.example` 추적 정책을 유지한다.
 우선순위는 Process / OS Environment → 선택된 파일 → 비밀이 아닌 Endpoint / json default다. key의 기본값은 없다.
 선택된 파일이 없어도 OS Environment로 설정할 수 있어 향후 GitHub Environment / Secrets의 runtime 주입을 지원한다.
 현재 운영 배포는 구현하지 않으며 이번 Task는 dev만 실행했다. 실제 사용자 prod 파일을 읽거나 호출하지 않았다.

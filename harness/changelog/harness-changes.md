@@ -40,7 +40,7 @@ Backlog: IMP-019 부분 해결(질문 지역 충돌 처리·순위 반영은 남
 ## 2026-10-03 — 맞춤 추천 판정 90초 시간 초과·과열 수정
 
 원인(실측): 2번째 공고(PBLN_000000000123260) 판정에서 모델이 같은 criteria 13개를 반복 생성했다. 5,000 token 동안 끝나지 않았고 상한이 없었다(num_predict 327,680). 또 client timeout(300초)이 stream 읽기 사이 대기라서, Spring이 90초에 포기한 뒤에도 FastAPI·Ollama가 18분 넘게 20,905 token을 생성했다(팬 과열).
-수정: LLM 호출에 전체 기한 75초를 둔다(계약 internal-api `llm_call`, stream으로 받다가 넘으면 연결을 닫아 Ollama도 멈춤, `llm_timeout`→503). num_ctx 32768을 명시했다(실행 중인 값과 같아 재적재 없음). 자격 판정에는 criteria maxItems 12·num_predict 1,024를 두고, 상한에 닿은 출력은 판정하지 않고 `eligibility_output_limit_reached`로 실패시킨다(계약 eligibility `criterion_output`). OLLAMA_TIMEOUT_SECONDS는 기한을 줄이기만 한다(.env.example 75).
+수정: LLM 호출에 전체 기한 75초를 둔다(계약 internal-api `llm_call`, stream으로 받다가 넘으면 연결을 닫아 Ollama도 멈춤, `llm_timeout`→503). num_ctx 32768을 명시했다(실행 중인 값과 같아 재적재 없음). 자격 판정에는 criteria maxItems 12·num_predict 1,024를 두고, 상한에 닿은 출력은 판정하지 않고 `eligibility_output_limit_reached`로 실패시킨다(계약 eligibility `criterion_output`). OLLAMA_TIMEOUT_SECONDS는 기한을 줄이기만 한다(.env.dev.example 75).
 prompt·판정 규칙·Top 3 순위·식별값은 바꾸지 않았다. Backlog IMP-029(일부 공고 criteria 과다·반복) 신규.
 
 ## 2026-10-03 — AI 검색 화면: 대기 안내와 최근 질문 우선 표시
@@ -172,7 +172,7 @@ V1 기준선·V1 collection은 동결 상태를 유지하고, 다음 작업을 V
 ## 2026-10-01 — V2-6 LangSmith 선택적 실행 추적
 
 FastAPI `observability/tracing.py`: 설정(`BIZAID_TRACING_ENABLED`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` 기본 biz-aid)으로 켜는 RunTree 직접 기록. workflow 요청 = 최상위 실행, 하위 personalized_search·natural_filter·mysql_candidates·qdrant_search·eligibility·apply_answers·final_result. 값은 요약 함수 + 형식 검사(이중), SDK 런타임/환경변수 자동 첨부 off, workflow 실행 중 LangChain/LangGraph 자동 추적 강제 off(`tracing_context(enabled=False)`), 실패 무시.
-State에 `trace_key`(무작위, thread_id) 추가(선택 필드, schema_version 유지). requirements에 langsmith==0.14.2 명시(기존 간접 의존성과 같은 버전). `.env.example` 변수 4개.
+State에 `trace_key`(무작위, thread_id) 추가(선택 필드, schema_version 유지). requirements에 langsmith==0.14.2 명시(기존 간접 의존성과 같은 버전). `.env.dev.example` 변수 4개.
 규칙 변경(보고): AI 경계의 "LangSmith 지금 연동하지 않는다"를 선택적 추적·외부 전송 금지 항목·무작위 식별값·장애 무시 규칙 3줄로 교체. 내부 API 계약에 tracing 절.
 운영 사고(보고): 첫 실제 진단을 이름 `biz_aid`로 보내 LangSmith가 같은 이름의 새 프로젝트를 자동 생성했다(실제 프로젝트 이름은 `biz-aid`, ID 928ce4c3…). 진단 기록 2건만 있으며 삭제는 사용자 결정. 기본 이름을 `biz-aid`로 고친 뒤 재진단해 기존 프로젝트 저장을 확인했다.
 결과: [Report](../workspace/reports/development/2026-10-01-v2-6-langsmith-tracing.md). AGY 검토 pending.
@@ -394,7 +394,7 @@ ID / count / 완전성 / normalization 검증이 끝나기 전에 DB mutation을
 - M-1: 불필요한 workflow/reference는 생성하지 않고 Target와 현재 Skill 구조를 명시.
 - M-2: Compose·ignore·Registry·Context 크기·Review 증거·Raw 무결성·출력 충돌의 WHY 주석 보강.
 - M-3 / I-4: Checkpoint Format·복원과 current-task 교체·이전 상태 보존 절차 정의.
-- M-4: 공식 명세 전 환경변수 추정 없음. .env.example 보존.
+- M-4: 공식 명세 전 환경변수 추정 없음. .env.dev.example 보존.
 - M-5: pending-only Gate 계약은 유지하고 측정·Human Review 후 확장 Task 절차만 정의.
 - 사용자 요청에 따라 pending 고정 검사를 Evidence 검증이 필요한 review_complete 전환으로 교체.
   독립 원문·검토 대상 hash는 고정하며 자기 Report를 Evidence로 사용할 수 없도록 검증.
@@ -698,3 +698,10 @@ V1 종료 상태를 V2 변경과 같은 조건으로 비교하도록 SEARCH_LIST
 - 사용자 확정 Ubuntu24.04 x86_64/8GB+swap2GB,시드니 EC2/RDS/S3를운영설명서·공개예시에반영한다. Bedrock만서울global profile유지.
 - 운영image 기본amd64, build --platform옵션·image검증, 전달prefix deploy/<태그>/ 및시드니CA/VERIFY_IDENTITY. 개발Compose/dev.sh/profile·기존data02·migration불변.
 - 개인정보시드니저장/Bedrock다국가처리·실제저장항목을안내하고서버/화면동의버전2026-10-05.1로동기화한다. 과거동의불변/신규가입·체험버전기록을검사하며법률검토는남긴다.
+
+## 2026-10-05 묶음6-2 — 개발 설정 견본 이름 정리
+
+- 사용자 요청으로 개발 견본 이름을 `.env.dev.example`로 바꾼다. 견본은 실행 설정으로 읽히지 않으며 안내·문서·Git 제외 예외·Registry·검사 기준의 이름만 맞춘다.
+- 견본 내용과 `.env.prod.example`, 실제 설정 파일, 서비스 코드·Compose 설정을 보존한다. 실제 설정값 열람·서비스 재시작·commit·push는 하지 않는다.
+- 과거 보고서는 유지한다. 보고서 밖 검사 산출물(JSON·로그)의 이름 문자열은 사용자 지정 전체 변경 범위에 따라 교체하며 과거 검사 결과를 이번 통과 근거로 사용하지 않는다.
+- 전체 검사는 실제 설정 읽기와 DB 준비가 포함되어 이번 사용자 제한에 따라 실행하지 않는다. 실제 설정을 열지 않는 정적 검사와 Git 제외·이력·기존 검사 회귀만 확인한다.

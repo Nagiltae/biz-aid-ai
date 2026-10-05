@@ -148,7 +148,7 @@ V1 collection `bizaid_chunks_v1_228acdd12220`은 기준선 재현용이므로 �
 
 ## 로컬 실행과 검증
 
-실제 비밀값은 Git에 추적되지 않는 `.env.dev`에 둡니다. 변수 이름만 [.env.example](.env.example)에서 확인합니다.
+실제 비밀값은 Git에 추적되지 않는 `.env.dev`에 둡니다. 변수 이름만 [.env.dev.example](.env.dev.example)에서 확인합니다.
 
 ```bash
 python3.11 -m venv .venv

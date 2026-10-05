@@ -2,7 +2,7 @@
 /.idea/
 .env
 .env.*
-!.env.example
+!.env.dev.example
 !.env.prod.example
 .venv/
 __pycache__/
