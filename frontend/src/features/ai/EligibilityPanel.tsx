@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../shared/api/client";
+import { DemoCompanyNotice } from "../../shared/components/DemoCompanyNotice";
 import { Loading } from "../../shared/components/StateViews";
 import { useAuth } from "../auth/AuthContext";
 import { USAGE_KEY } from "../usage/usageApi";
@@ -48,6 +49,7 @@ export function EligibilityPanel({ pblancId }: { pblancId: string }) {
   return (
     <section className="card">
       <h2>우리 회사 지원 가능 여부</h2>
+      <DemoCompanyNotice />
       <p className="muted small">등록한 기업정보와 공고문의 자격 조건을 비교합니다. 아래 정보는 저장하지 않고 이번 확인에만 씁니다.</p>
       <form onSubmit={submit}>
         <label className="field compact">

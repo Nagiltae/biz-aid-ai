@@ -1,6 +1,7 @@
 import { AiGeneratedNotice } from "../ai/AiGeneratedNotice";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { DemoCompanyNotice } from "../../shared/components/DemoCompanyNotice";
 import { CitationList } from "../ai/CitationList";
 import { STATUS_TEXT, fieldLabel } from "../ai/EligibilityResultView";
 import { ANSWER_FIELDS, parseAnswer, type AnswerValue, type FinalItem, type FinalResult, type WorkflowResponse } from "./workflowApi";
@@ -146,6 +147,7 @@ export function MissingInfoForm({ response, submitting, onSubmit }: {
   return (
     <form className="card missing-form" onSubmit={submit} aria-label="추가 정보 입력">
       <h2>판정에 필요한 정보를 알려 주세요</h2>
+      <DemoCompanyNotice />
       <p className="muted small">
         입력한 값은 <strong>이번 추천 판정에만</strong> 쓰이며 내 기업정보에는 저장되지 않습니다. 기업정보를 바꾸려면{" "}
         <Link to="/company">내 기업정보</Link>에서 수정하세요. 모르는 항목은 비워 두면 됩니다.

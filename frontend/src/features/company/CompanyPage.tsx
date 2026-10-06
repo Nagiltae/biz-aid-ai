@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../shared/api/client";
+import { DemoCompanyNotice } from "../../shared/components/DemoCompanyNotice";
 import { ErrorMessage, FieldMessage, Loading, fieldMessage } from "../../shared/components/StateViews";
 import { COMPANY_SIZES, companyApi, type Company, type CompanyInput } from "./companyApi";
 import { useAuth } from "../auth/AuthContext";
@@ -93,6 +94,7 @@ export function CompanyPage() {
           <button type="button" className="button" onClick={() => { setSaved(false); setEditing(true); }}>수정</button>
         )}
       </div>
+      {(company === null || editing) && <DemoCompanyNotice />}
       {company === null ? (
         <>
           <p className={state?.needCompany ? "alert warn" : "alert info"} role="status">
