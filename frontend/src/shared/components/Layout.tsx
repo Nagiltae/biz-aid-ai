@@ -13,7 +13,7 @@ export function Layout() {
       <header className="header">
         <div className="header-inner">
           <NavLink to="/" className="brand">
-            BizAid <span className="brand-sub">지원사업 추천</span>
+            BizAid <span className="brand-sub">지원사업 찾기</span>
           </NavLink>
           <nav className="nav" aria-label="주요 메뉴">
             <NavLink to="/ai" className={link}>AI 검색</NavLink>
