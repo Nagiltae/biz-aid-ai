@@ -139,7 +139,28 @@
     "candidate_limit": 10,
     "region_bonus": 0.001,
     "minimum_score_ratio": 0.9,
-    "basis": "2026-10-03 one V2 finance query: top10 RRF 0.02626..0.03110, Gyeonggi rank6 0.02804 vs national rank3 0.02847. Add 0.001 only inside top10 and >=90% of best original score. No query/vector/RRF changes. Zero bonus preserves order."
+    "basis": "2026-10-03 one V2 finance query: top10 RRF 0.02626..0.03110, Gyeonggi rank6 0.02804 vs national rank3 0.02847. Add 0.001 only inside top10 and >=90% of best original score. No query/vector/RRF changes. Zero bonus preserves order.",
+    "company_query": {
+      "rule": "IMP-019 option A (2026-10-06 user approval): code builds a short company sentence from industry, business_entity_type, business-age bucket, employee bucket, revenue bucket and true flags (exporter, venture_certified, research_institute); no LLM. When the sentence exists, the same candidate scope is searched twice (question, company sentence) with the existing program-level hybrid discovery, each to depth, then fused by weighted RRF: 1/(rrf_k+question_rank) + company_weight/(rrf_k+company_rank). The fused top candidate_limit then goes through the unchanged regional bonus and Top3. Without any of these fields the path is exactly the previous single question search.",
+      "rrf_k": 60,
+      "depth": 30,
+      "company_weight": 0.3,
+      "generic_question_weight": 0.6,
+      "weight_basis": "2026-10-06 one Bedrock run (evals/ai-improvement-1/compare_company_weights.py; question extraction memoized per question): candidates 0.3/0.3, 0.5/0.5, 0.3/0.6, 0.5/0.8 vs off over 4 sample companies x 2 questions and cases-v2 V2-16..18 (original and with company A ranking fields). All candidates made Top3 differ per company and kept every cases-v2 expected program in Top3; 0.5 replaced a closer V2-17 program with a less related one; generic 0.6 gave the same Top3 as 0.3 and 0.8 only reordered one company. 0.3/0.6 keeps the question dominant. One sample, not a quality claim.",
+      "generic_question": "natural filter extracted no category, target or jurisdiction from the question",
+      "fields": [
+        "industry",
+        "business_entity_type",
+        "business_start_date",
+        "employee_count",
+        "annual_revenue_krw",
+        "exporter",
+        "venture_certified",
+        "research_institute"
+      ],
+      "privacy": "the company sentence is never logged, traced or returned; applied_conditions.company.company_query records only {applied, fields (names), weight, generic_question}",
+      "output_fields": "each program keeps rank, rrf_score (question-search RRF; null if the program came only from the company search), original_rank, original_score, region_bonus, final_score and adds question_rank, company_rank, company_weight, blended_score (fused score used as original_score)"
+    }
   },
   "question_routing": {
     "list_phrases": [

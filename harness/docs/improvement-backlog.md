@@ -273,6 +273,8 @@
 
 - Bundle2 Evidence: 기업 지역+전국 규칙을 소관/제목으로 확장하고 AI 검색에도 optional지역을 적용. 질문 지역 unapplied는 불변. 제목은 실제 자격의 대리 지표이며 IMP-031 AI 추출은 장기 과제. 고정질문P3의 실제 추출은 창업+소상공인이고 서울에 해당하는 정형 후보0이다. 회사규모로 가능한 중소기업·창업벤처까지 질문의 명시 대상을 임의 확장하지 않았다. [묶음2 Report](../workspace/reports/development/2026-10-03-bundle2-region-data.md).
 
+- AI 개선 1단계 Evidence(2026-10-06, A안): 업종·사업자 형태·업력 구간·직원 구간·매출 구간·수출/벤처/연구소(참일 때만)로 코드가 기업정보 문장을 만들고 같은 후보 안에서 한 번 더 공고 검색, 질문 검색과 가중 RRF(질문 1 : 기업 0.3, 일반 질문 0.6)로 합친다. LLM 없음, 지역 필터·규모 필터·지역 가산점 불변. 예시 회사 4개×질문 2개에서 회사마다 Top3가 달라졌고(0단계: A·A2 동일, 일반 질문 4개 회사 동일) cases-v2 20/20·V2-16~18 Top3 유지. 음식점 소상공인의 일반 질문 1위는 여전히 TIPS(업력 문장의 "창업기업"이 창업 공고와 가까움)라 OPEN 유지. 레거시 /internal/v2/personalized-search는 Spring이 4개 값만 보내 업력만 반영된다. [0단계 측정](../../docs/ai-improvement-before.md), [Report](../workspace/reports/development/2026-10-06-ai-improvement-1.md).
+
 ## IMP-020 Top 3 자격 판정 전체 응답이 Spring 응답 제한시간을 넘음
 
 - Area: V2 개인화 판정 / 서비스 응답 시간
@@ -419,6 +421,8 @@
 - Bundle4 Evidence(2026-10-04): 123260 단일 판정은 Ollama·Bedrock 모두 NEEDS_MORE_INFO로 완료. Bedrock 추천에서는120174가1280token 상한에 도달해 fail-closed(시험/10문항 회귀 각1회 관찰). 기준을 반복 조정하지 않았으며 provider별 출력 예산 후속 결정이 필요하다. [Report](../workspace/reports/development/2026-10-04-bundle4-quality.md).
 
 - Bundle5-1 Evidence(2026-10-04): 출력 상한 2560 적용 뒤 120174 Bedrock 단일 판정 1회 완료(10조건, 1,446 token). 1280 상한이 원인이었음을 1건으로 확인했을 뿐 과분할 문제 전체 해결은 아니어서 OPEN 유지. [Report](../workspace/reports/development/2026-10-04-bundle5-1-features.md).
+
+- AI 개선 1단계 Evidence(2026-10-06, A안): 판정 prompt에 좋은 예/나쁜 예("확인서 제출 가능" → "중소기업 또는 중견기업")와 묶기 예시를 추가했다(조건 상한·token 한도·evidence_ids 규칙 불변). Bedrock 판정 12건에서 실제 서류형 조건 1 → 0, 중복 0 → 0, 한도 도달 0 → 0, 입력 약 +176 token. 지원 내용(대출한도)을 조건으로 쓰는 경우가 1건 남아 OPEN 유지. [Report](../workspace/reports/development/2026-10-06-ai-improvement-1.md).
 
 ## IMP-030 여러 지역 대상인데 소관이 한 광역인 공고가 다른 지역 기업 후보에서 빠짐
 

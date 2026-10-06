@@ -1,5 +1,10 @@
 # Harness 변경 이력
 
+## 2026-10-06 — AI 개선 1단계(Claude)
+
+사용자 승인: IMP-019 A안(기업정보 문장 2차 검색 + 가중 RRF, 질문 1 : 기업 0.3 / 일반 질문 0.6, LLM 없음)과 IMP-029 A안(판정 prompt 좋은 예/나쁜 예). 계약: rag-answer `personalized_ranking.company_query`, internal-api 개인화 검색 요청·응답 필드, eligibility `prompt_examples`. 기존 필터·지역 가산점·조건 상한·token 한도·key/vector/V1/Gold/cases-v2 기대값 불변.
+Harness: current-task를 이번 Task로 교체(묶음6-0 원문은 Final Report 부록에 보존). 0단계 측정 스크립트 3개·`docs/ai-improvement-before.md`, 가중치 비교 스크립트를 Registry에 등록. 커밋 153228d에서 Registry에 빠진 `frontend/src/shared/components/DemoCompanyNotice.tsx`도 등록(내용 변경 없음). 규칙 완화 없음.
+
 ## 2026-10-06 — 묶음7-1c 한 줄 배포·되돌리기
 
 사용자 요청으로 release.sh는 한국 시각 자동 태그와 버전 라벨을 추가하고 고정 버전 게시 뒤 같은 이미지를 서비스별 latest로 게시한다. 기존 명시 태그·커밋 라벨·미커밋/중복 태그/인증 오류 중단을 유지한다. 서버 deploy.sh는 공개 설정만 해석하고 선택 태그만 원자적으로 교체한다. 600 백업·이전 태그 기록·명시 구버전·되돌리기·상태 보기·한 번의 smoke와 실패 시 복구 명령을 제공한다. 실제 앱·Dockerfile·Compose 서비스 정의는 그대로다.

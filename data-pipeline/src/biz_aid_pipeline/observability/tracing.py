@@ -226,7 +226,10 @@ def discovery_summary(result):
 
 
 def search_summary(result):
-    return {"status": result.get("status"), "candidate_count": result.get("candidate_count"), "program_count": len(result.get("programs") or [])}
+    # BOUNDARY(IMP-019): 기업정보 검색 문장·항목 값은 보내지 않고 적용 여부만 보낸다.
+    company_query = ((result.get("applied_conditions") or {}).get("company") or {}).get("company_query") or {}
+    return {"status": result.get("status"), "candidate_count": result.get("candidate_count"), "program_count": len(result.get("programs") or []),
+            "company_query_applied": bool(company_query.get("applied"))}
 
 
 def eligibility_summary(result):

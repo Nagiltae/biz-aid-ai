@@ -141,6 +141,9 @@ class EligibilityContractTests(unittest.TestCase):
         self.assertIn("같은 조건을 두 번 쓰지 않는다", request.system)
         self.assertIn("관련 조건은 하나로 묶는다(보통 2~8개)", request.system)
         self.assertIn("독립적인 필수 요건을 생략하지 않는다", request.system)
+        # IMP-029 A안(2026-10-06): 서류형 조건 대신 그 서류가 증명하는 자격을 쓰는 좋은 예/나쁜 예와 묶기 예시.
+        self.assertIn('나쁜 예: "중소기업 또는 중견기업 확인서 제출 가능" → 좋은 예: "중소기업 또는 중견기업"', request.system)
+        self.assertIn('좋은 예: "국세·지방세 체납 중이 아님" 하나', request.system)
         # 2026-10-03 진단의 반복 폭주처럼 상한까지 찬 목록은 잘렸을 수 있어 판정하지 않는다(ELIGIBLE 오판 방지).
         full = [criterion(f"요건 {number}", "MET", ["credit_score"]) for number in range(limits["max_criteria"])]
         with self.assertRaisesRegex(PipelineError, "^eligibility_output_limit_reached$"):

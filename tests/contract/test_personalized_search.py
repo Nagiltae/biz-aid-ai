@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from datetime import date
@@ -7,8 +8,10 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "data-pipeline/src"))
 
 from biz_aid_pipeline.candidates.natural import NaturalFilterResult
-from biz_aid_pipeline.candidates.personalized import (CompanySearchProfile, PersonalizedSearchService, combine,
-                                                       company_conditions)
+from biz_aid_pipeline.candidates.personalized import (CompanySearchProfile, PersonalizedSearchService, blend_rankings, combine,
+                                                       company_conditions, company_query)
+from biz_aid_pipeline.observability import tracing
+from biz_aid_pipeline.rag.service import rag_contract
 from biz_aid_pipeline.candidates.service import ProgramCandidateFilter, ProgramCandidateRepository, ProgramCandidateService
 from biz_aid_pipeline.config.settings import PipelineError
 from test_program_candidates import engine_with, row
@@ -126,6 +129,88 @@ class PersonalizedSearchTests(unittest.TestCase):
             "금융", CompanySearchProfile.from_dict({"business_status": "폐업"}), AS_OF)
         # 폐업 기업은 LLM·검색 없이 명확한 상태로 끝난다.
         self.assertEqual((closed["status"], len(natural.calls), len(discovery.calls)), ("COMPANY_CLOSED", 1, 1))
+
+
+class RankedDiscovery:
+    """질문·기업정보 문장마다 정해진 공고 순위를 돌려주는 가짜 discovery(호출 문장은 기록하되 결과에는 넣지 않는다)."""
+
+    def __init__(self, orders):
+        self.orders, self.calls = orders, []
+
+    def discover(self, query, candidates, limit=None):
+        self.calls.append((query, limit))
+        order = next(value for key, value in self.orders.items() if key in query)
+        return [{"rank": rank, "pblanc_id": pblanc, "rrf_score": 1.0 / (60 + rank)} for rank, pblanc in enumerate(order[:limit], 1)]
+
+
+RESTAURANT = {"company_size": "소상공인", "industry": "음식점업", "business_entity_type": "개인사업자", "business_start_date": "2024-03-01",
+              "employee_count": 3, "annual_revenue_krw": 150000000, "exporter": False, "venture_certified": True}
+
+
+class CompanyRankingTests(unittest.TestCase):
+    def test_company_sentence_uses_buckets_not_raw_values_and_only_listed_fields(self):
+        text, used = company_query(CompanySearchProfile.from_dict(RESTAURANT), AS_OF)
+        self.assertEqual(text, "음식점업 개인사업자 창업 3년 이내 창업기업 상시근로자 5인 미만 연매출 10억 미만 벤처기업")
+        self.assertEqual(used, ["industry", "business_entity_type", "business_start_date", "employee_count", "annual_revenue_krw",
+                                "venture_certified"])
+        # 원래 값(직원 3명·매출 1.5억·개업일)은 문장에 없다. 아니오(False)는 검색어가 되지 않는다.
+        for raw in ("3명", "150000000", "2024-03-01", "수출"):
+            self.assertNotIn(raw, text)
+        # 후보 조건용 4개 값만 있으면 문장이 없고 기존 경로 그대로다.
+        self.assertEqual(company_query(CompanySearchProfile.from_dict({"company_size": "소상공인", "region": "경기도"}), AS_OF), (None, []))
+        with self.assertRaisesRegex(PipelineError, "company_search_profile_invalid:employee_count"):
+            CompanySearchProfile.from_dict({"employee_count": "3"})
+        with self.assertRaisesRegex(PipelineError, "company_search_profile_invalid:exporter"):
+            CompanySearchProfile.from_dict({"exporter": "yes"})
+
+    def test_weighted_rrf_keeps_question_weight_larger(self):
+        question = [{"rank": rank, "pblanc_id": pblanc, "rrf_score": 0.1} for rank, pblanc in enumerate(["Q1", "Q2", "Q3"], 1)]
+        company = [{"rank": rank, "pblanc_id": pblanc, "rrf_score": 0.2} for rank, pblanc in enumerate(["Q3", "C1"], 1)]
+        blended = blend_rankings(question, company, 0.5, 60, 10)
+        # 두 검색 모두에 있는 Q3가 1위, 질문 1위 Q1이 기업정보 검색에만 있는 C1보다 앞선다.
+        self.assertEqual([item["pblanc_id"] for item in blended], ["Q3", "Q1", "Q2", "C1"])
+        self.assertEqual({key: blended[0][key] for key in ("rank", "question_rank", "company_rank", "company_weight")},
+                         {"rank": 1, "question_rank": 3, "company_rank": 1, "company_weight": 0.5})
+        self.assertAlmostEqual(blended[0]["blended_score"], 1 / 63 + 0.5 / 61)
+        # 기업정보 검색에서만 온 공고는 질문 검색 점수(rrf_score)가 없다.
+        self.assertIsNone(blended[-1]["rrf_score"])
+        # 같은 순위면 질문 가중치(1)가 기업정보 가중치(<1)보다 크다.
+        self.assertEqual(blend_rankings([{"rank": 1, "pblanc_id": "A"}], [{"rank": 1, "pblanc_id": "B"}], 0.5, 60, 2)[0]["pblanc_id"], "A")
+
+    def test_company_sentence_reranks_inside_candidates_without_leaking_the_sentence(self):
+        rows = [row(f"P{index}") for index in range(1, 6)]
+        repository = ProgramCandidateRepository(engine_with(rows))
+        orders = {"금융": ["P1", "P2", "P3", "P4", "P5"], "음식점업": ["P4", "P5", "P3"]}
+        spec = rag_contract()["personalized_ranking"]["company_query"]
+        for categories, weight in ((["금융"], spec["company_weight"]), ([], spec["generic_question_weight"])):
+            with self.subTest(generic=not categories):
+                discovery = RankedDiscovery(orders)
+                service = PersonalizedSearchService(FakeNaturalFilter(extraction(categories)), ProgramCandidateService(repository),
+                                                    lambda: discovery)
+                result = service.search("금융 지원사업", CompanySearchProfile.from_dict(RESTAURANT), AS_OF)
+                # 같은 후보 scope로 질문·기업정보 문장 두 번 검색한다(depth까지).
+                self.assertEqual([limit for _, limit in discovery.calls], [spec["depth"], spec["depth"]])
+                self.assertIn("음식점업", discovery.calls[1][0])
+                applied = result["applied_conditions"]["company"]["company_query"]
+                self.assertEqual((applied["applied"], applied["weight"], applied["generic_question"]), (True, weight, not categories))
+                self.assertIn("industry", applied["fields"])
+                # RISK: 문장 원문은 응답·추적 요약 어디에도 없다.
+                self.assertNotIn("음식점업", json.dumps(result, ensure_ascii=False))
+                self.assertNotIn("음식점업", json.dumps(tracing.search_summary(result), ensure_ascii=False))
+                self.assertTrue(tracing.search_summary(result)["company_query_applied"])
+                top = result["programs"]
+                self.assertEqual(len(top), 3)
+                # 기존 기록 필드는 유지되고 새 점수 필드가 붙는다.
+                for key in ("original_rank", "original_score", "region_bonus", "final_score", "question_rank", "company_rank",
+                            "company_weight", "blended_score"):
+                    self.assertIn(key, top[0])
+        # 순위용 항목이 없으면 기존처럼 질문으로 한 번만 검색한다.
+        discovery = RankedDiscovery(orders)
+        plain = PersonalizedSearchService(FakeNaturalFilter(extraction(["금융"])), ProgramCandidateService(repository),
+                                          lambda: discovery).search("금융 지원사업", CompanySearchProfile.from_dict({"company_size": "소상공인"}), AS_OF)
+        self.assertEqual(discovery.calls, [("금융 지원사업", 10)])
+        self.assertEqual([item["pblanc_id"] for item in plain["programs"]], ["P1", "P2", "P3"])
+        self.assertFalse(plain["applied_conditions"]["company"]["company_query"]["applied"])
 
 
 if __name__ == "__main__":

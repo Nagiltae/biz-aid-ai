@@ -12,8 +12,13 @@ PROGRAM_FIELDS = ("name", "category", "target", "jurisdiction_name", "executing_
 
 
 def search_profile(company):
-    """판정용 기업정보 snapshot에서 검색에 쓰는 4개 값만 코드로 꺼낸다(V2-1 매핑 입력과 같다)."""
-    return CompanySearchProfile(company.company_size, company.business_status, company.region, company.business_start_date)
+    """판정용 기업정보 snapshot에서 검색에 쓰는 값만 코드로 꺼낸다.
+
+    앞 4개는 V2-1 후보 조건 입력, 나머지는 IMP-019 순위용 기업정보 문장 입력이다. 신용점수·체납·추가 사실은 넘기지 않는다.
+    """
+    return CompanySearchProfile(company.company_size, company.business_status, company.region, company.business_start_date,
+                                company.industry, company.business_entity_type, company.employee_count, company.annual_revenue_krw,
+                                company.exporter, company.venture_certified, company.research_institute)
 
 
 class PersonalizedEligibilityService:
