@@ -39,6 +39,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login", "/api/auth/refresh",
                                 "/api/auth/logout", "/api/auth/trial").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/trial", "/api/health").permitAll()
+                        // WHY: 외부 생존 감시(UptimeRobot 무료 플랜)는 HEAD로만 확인한다. 상태 확인 주소 하나만 HEAD를 연다.
+                        .requestMatchers(HttpMethod.HEAD, "/api/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/programs", "/api/programs/filter-options",
                                 "/api/programs/{pblancId}").permitAll()
                         .requestMatchers("/error").permitAll()

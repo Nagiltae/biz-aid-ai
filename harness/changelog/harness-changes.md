@@ -1,5 +1,9 @@
 # Harness 변경 이력
 
+## 2026-10-06 — 상태 확인 주소 HEAD 허용(Claude)
+
+사용자 승인: UptimeRobot 무료 플랜(HEAD만 사용)이 401을 받아 Down으로 보이는 문제. SecurityConfig에 `HEAD /api/health` 공개 허용 한 줄만 추가했다(GET 허용·다른 주소·보안 설정 불변). ProdSecurityTest에 HEAD 200·다른 주소 HEAD 401, HealthHeadHttpTest(실제 내장 Tomcat)에 HEAD 본문 없음·GET JSON 확인을 추가했다. 규칙 완화 없음.
+
 ## 2026-10-06 — 운영 모니터링(Claude)
 
 사용자 승인: 운영 서버 cron 점검 스크립트 `scripts/monitor_prod.sh`(컨테이너 5개·디스크 80%·메모리 90%·FastAPI 내부 /health·최근 10분 AI 실패 3건·backend ERROR 10건, SNS 메일, 1시간 1회 반복·해결 메일, --dry-run/--test). 주제 ARN은 서버 monitor.conf에서 읽는다. 오늘 AI 사용량은 DB 비밀값 없이 셀 수 없어 제외했다. 서버 묶음 10→11개, docs/deployment.md §10. Docker 로그 제한은 이미 공통 설정(10m×3)이 있어 Compose를 바꾸지 않고 테스트로 고정했다. 앱 기능·Caddyfile 변경 없음, 규칙 완화 없음.

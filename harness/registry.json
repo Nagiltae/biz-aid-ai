@@ -277,7 +277,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-10-06-prod-monitoring.md",
+  "report": "harness/workspace/reports/development/2026-10-06-health-head.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -405,6 +405,7 @@
     "backend/src/test/java/com/bizaid/ApiTestSupport.java",
     "backend/src/test/java/com/bizaid/AuthFlowTest.java",
     "backend/src/test/java/com/bizaid/CompanyConversationAiTest.java",
+    "backend/src/test/java/com/bizaid/HealthHeadHttpTest.java",
     "backend/src/test/java/com/bizaid/PredeployTest.java",
     "backend/src/test/java/com/bizaid/ProdSecurityTest.java",
     "backend/src/test/java/com/bizaid/ProgramSearchTest.java",

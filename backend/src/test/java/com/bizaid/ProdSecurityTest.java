@@ -1,6 +1,8 @@
 package com.bizaid;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,5 +21,15 @@ class ProdSecurityTest extends ApiTestSupport {
         for (String path : new String[] {"/v3/api-docs", "/swagger-ui/index.html"}) {
             mvc.perform(get(path)).andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("not_found"));
         }
+    }
+
+    @Test
+    void healthAcceptsHeadWithoutLoginForUptimeMonitorsAndOtherHeadRequestsStayProtected() throws Exception {
+        // 외부 생존 감시(HEAD만 사용)를 위해 상태 확인 주소만 HEAD를 연다. 본문 제거는 실제 Tomcat 검사(HealthHeadHttpTest)가 확인한다.
+        mvc.perform(head("/api/health")).andExpect(status().isOk());
+        mvc.perform(get("/api/health")).andExpect(status().isOk()).andExpect(content().json("{\"status\":\"ok\"}", true));
+        // 다른 주소의 권한은 그대로다: 로그인이 필요한 주소는 HEAD도 401이다.
+        mvc.perform(head("/api/company")).andExpect(status().isUnauthorized());
+        mvc.perform(head("/api/conversations")).andExpect(status().isUnauthorized());
     }
 }
