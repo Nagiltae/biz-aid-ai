@@ -73,7 +73,7 @@ aws s3 cp $DEPLOY_KIT ${DEPLOY_S3}/deploy-kit-7-1b.tar.gz --region $DEPLOY_REGIO
 | 확인 | 정상이면 이렇게 보임 |
 | --- | --- |
 | 실행 묶음 생성 | `서버 실행 묶음 생성 완료` |
-| 묶음 내용 | Compose 2개, Caddyfile, 운영 견본, 스크립트 5개, 배포 설명서(총 10개) |
+| 묶음 내용 | Compose 2개, Caddyfile, 운영 견본, 스크립트 6개(운영 점검 monitor_prod.sh 포함), 배포 설명서(총 11개) |
 | SHA 기록 | 64자리 지문과 파일 이름, 비밀값 없음 |
 | S3 업로드 | deploy/20261005-03/deploy-kit-7-1b.tar.gz에 새 파일 업로드 |
 | 이미지 | 기존 20261005-03 태그 유지; 빌드·push 없음 |
@@ -398,7 +398,7 @@ bash scripts/deploy.sh status
 
 | 단계 | 정상이면 이렇게 보임 |
 | --- | --- |
-| 실행 묶음 | 10개 파일, deploy.sh 포함; release.sh·소스·실제 설정·자료 제외 |
+| 실행 묶음 | 11개 파일, deploy.sh·monitor_prod.sh 포함; release.sh·소스·실제 설정·자료 제외 |
 | 서버 SHA | 맥북에서 기록한 SHA와 같음 |
 | status | frontend/backend/fastapi 모두 현재 20261005-03 이미지 표시 |
 | 기존 운영 이미지 | 릴리스 라벨·latest가 없어도 status 정상; 이번 설치에 재빌드·컨테이너 교체 없음 |
@@ -487,5 +487,77 @@ bash scripts/deploy.sh status
 | Caddy 파일만 변경 | 앱 재빌드 없음. 파일 교체 후 §6의 Caddy 강제 재생성 절차 사용 |
 
 점검 실패 후 원인을 고치거나 출력된 되돌리기 명령을 선택한다. 같은 실패 버전의 latest를 다시 실행하면 태그가 같아 건너뛴다. 재점검이 필요하면 `scripts/smoke_prod.sh https://biz-aid.cloud`를 담당자가 직접 실행한다(추가 AI 질문 1회). 실제 서비스·이미지·자료를 지우는 down -v나 DB 초기화는 사용하지 않는다.
+
+## 10. 운영 점검·장애 알림(cron 10분마다)
+
+`scripts/monitor_prod.sh`가 서버 안에서 10분마다 아래를 확인한다. 문제가 있으면 SNS 주제(bizaid-alerts)로 메일 1통을 보낸다. 같은 문제는 1시간에 1번만 다시 보내고, 풀리면 해결 메일을 1통 보낸다. 비밀값 파일(.env.prod)·DB를 읽지 않고 로그는 줄 수만 센다. 메일에는 무엇이·몇 건·확인 명령 1줄만 들어간다.
+
+| 확인 | 기준(설정으로 변경) | 방법 |
+| --- | --- | --- |
+| 컨테이너 caddy·frontend·backend·fastapi·qdrant | 하나라도 running이 아님 | compose label로 docker ps |
+| 디스크(루트) | 80% 이상 | df |
+| 메모리 | 90% 이상(사용 가능 메모리 기준) | /proc/meminfo |
+| FastAPI 상태 | /health 응답 없음 | 컨테이너 안에서 http://127.0.0.1:8000/health (외부 미공개) |
+| AI(Bedrock) 실패·시간 초과 | 최근 10분 3건 이상 | backend 로그의 `AI upstream error … status=503/504`·`AI upstream io failure … TimeoutException` 줄 수와 fastapi 로그의 `Bedrock invocation failed` 줄 수 중 큰 값 |
+| backend 오류 | 최근 10분 ERROR 로그 10건 이상 | backend 로그의 ERROR 수준 줄 수(예상 못 한 500 오류가 남는 줄) |
+
+넣지 않은 것과 이유:
+- **오늘 AI 사용량(일일 한도 300의 80%)**: 사용량은 RDS의 `ai_usage_counters`에만 있고, 성공한 AI 호출은 로그에 남지 않는다. 그래서 DB 비밀번호 없이는 셀 수 없다. CloudWatch의 Bedrock 일일 token 경보로 대신 본다.
+- **5xx 응답 수**: Caddy·nginx는 개인정보(IP·주소) 때문에 접속 기록을 남기지 않는다. Caddyfile을 바꾸지 않고 backend ERROR 줄 수로 대신 센다. AI 503/504는 위의 AI 항목에서 센다.
+- **맞춤 추천 안의 공고별 판정 시간 초과**: HTTP 200 결과 안의 실패로만 기록되고 로그에 남지 않는다. Bedrock 호출 실패(SDK 오류)는 fastapi 줄 수로 잡히지만, 시간 초과는 CloudWatch Bedrock 응답 시간 경보가 대신한다.
+
+Docker 로그 크기는 docker-compose.prod.yml의 공통 설정으로 이미 모든 서비스에 json-file 10MB × 3개가 적용돼 있다(서비스당 최대 약 30MB). 이번에 바꾸지 않았으므로 컨테이너를 다시 만들 필요가 없다.
+
+UptimeRobot으로 backend까지 확인하려면 `https://biz-aid.cloud/api/health`를 등록한다. 정상이면 HTTP 200과 `{"status":"ok"}`가 온다(Caddy → frontend nginx → backend 경로 전체 확인, DB 연결은 확인하지 않음). 키워드 감시를 쓴다면 `"ok"`를 키워드로 둔다.
+
+### 10-1. 설치(처음 한 번)
+
+§9-0과 같은 방법으로 새 실행 묶음의 `scripts/`를 서버 `~/bizaid/scripts/`에 복사한 뒤 `~/bizaid`에서 진행한다. 컨테이너·Compose·Caddy·.env.prod는 건드리지 않는다.
+
+1) 설정 파일을 만든다. 주제 ARN은 코드에 없고 이 파일에만 둔다(AWS 콘솔 SNS → 주제 bizaid-alerts의 ARN을 복사).
+
+```bash
+cd ~/bizaid
+printf 'SNS_TOPIC_ARN=%s\nSNS_REGION=ap-southeast-2\n' '여기에_주제_ARN_붙여넣기' > monitor.conf
+chmod 600 monitor.conf
+```
+
+기준을 바꾸려면 같은 파일에 `DISK_PERCENT=80`, `MEMORY_PERCENT=90`, `AI_FAILURES=3`, `BACKEND_ERRORS=10`, `REPEAT_SECONDS=3600` 같은 줄을 넣는다. 컨테이너 묶음 이름이 `biz-aid-prod`가 아니면 `COMPOSE_PROJECT=`도 넣는다.
+
+2) 보내지 않고 점검만 해 본다. 첫 줄에 `문제 0건`이 보이면 정상이다.
+
+```bash
+bash scripts/monitor_prod.sh --dry-run
+```
+
+3) 테스트 메일을 1통 보낸다. 메일함(스팸함 포함)에 `[BizAid] TEST monitor mail`이 와야 한다. 실패하면 EC2 역할의 sns:Publish 권한, ARN, 지역을 확인한다.
+
+```bash
+bash scripts/monitor_prod.sh --test
+```
+
+4) cron에 등록한다(10분마다). 결과 한 줄은 시스템 로그(journal)에 `bizaid-monitor`로 남는다. 경로는 서버 사용자 홈에 맞춘다(Ubuntu 기본 사용자는 /home/ubuntu).
+
+```bash
+( crontab -l 2>/dev/null; echo '*/10 * * * * bash /home/ubuntu/bizaid/scripts/monitor_prod.sh 2>&1 | logger -t bizaid-monitor' ) | crontab -
+crontab -l
+journalctl -t bizaid-monitor --since "30 min ago"
+```
+
+| 상황 | 할 일 |
+| --- | --- |
+| 알림 메일 | 메일의 "확인" 명령을 ~/bizaid에서 실행해 원인을 본다 |
+| 같은 문제 메일이 계속 옴 | 1시간마다 1통이 정상. 해결되면 RESOLVED 메일이 온다 |
+| 메일이 안 옴 | `journalctl -t bizaid-monitor`에서 `SNS 메일 전송 실패`를 확인한다 |
+| 상태 초기화 | `rm -rf ~/bizaid/.monitor-state`(다음 점검에서 현재 문제를 다시 알림) |
+
+### 10-2. 끄기
+
+cron 줄만 지우면 멈춘다. 서비스·컨테이너에는 영향이 없다.
+
+```bash
+crontab -l | grep -v 'scripts/monitor_prod.sh' | crontab -
+crontab -l
+```
 
 [전체 프로젝트 설명](../PROJECT_MASTER_GUIDE.md) · [README](../README.md)

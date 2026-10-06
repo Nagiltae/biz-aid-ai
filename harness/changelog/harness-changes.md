@@ -1,5 +1,9 @@
 # Harness 변경 이력
 
+## 2026-10-06 — 운영 모니터링(Claude)
+
+사용자 승인: 운영 서버 cron 점검 스크립트 `scripts/monitor_prod.sh`(컨테이너 5개·디스크 80%·메모리 90%·FastAPI 내부 /health·최근 10분 AI 실패 3건·backend ERROR 10건, SNS 메일, 1시간 1회 반복·해결 메일, --dry-run/--test). 주제 ARN은 서버 monitor.conf에서 읽는다. 오늘 AI 사용량은 DB 비밀값 없이 셀 수 없어 제외했다. 서버 묶음 10→11개, docs/deployment.md §10. Docker 로그 제한은 이미 공통 설정(10m×3)이 있어 Compose를 바꾸지 않고 테스트로 고정했다. 앱 기능·Caddyfile 변경 없음, 규칙 완화 없음.
+
 ## 2026-10-06 — AI 개선 1단계(Claude)
 
 사용자 승인: IMP-019 A안(기업정보 문장 2차 검색 + 가중 RRF, 질문 1 : 기업 0.3 / 일반 질문 0.6, LLM 없음)과 IMP-029 A안(판정 prompt 좋은 예/나쁜 예). 계약: rag-answer `personalized_ranking.company_query`, internal-api 개인화 검색 요청·응답 필드, eligibility `prompt_examples`. 기존 필터·지역 가산점·조건 상한·token 한도·key/vector/V1/Gold/cases-v2 기대값 불변.

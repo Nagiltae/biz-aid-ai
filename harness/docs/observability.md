@@ -28,3 +28,5 @@ AI 실행 추적(Tracing)은 **LangSmith**로 확정했고 V2-6에서 V2 추천 
 구현 경계는 `data-pipeline/src/biz_aid_pipeline/observability/tracing.py`, 계약은 `contracts/schemas/internal-api.contract.json`, 개인정보 규칙은 [AI 경계](../rules/ai-boundary-rules.md)를 따른다.
 
 묶음4의 `llm.generate` 자식 단계는 명시적 추적이 활성화된 요청 안에서 provider·model·token 개수만 기록한다. Prompt·기업정보·생성 본문은 계속 전송하지 않는다. 자동 LangChain/Bedrock tracing은 켜지 않는다.
+
+운영 서버 점검(2026-10-06): `scripts/monitor_prod.sh`를 cron으로 10분마다 실행한다. 컨테이너·디스크·메모리·FastAPI 내부 /health와 최근 10분 로그의 AI 실패·backend ERROR **줄 수만** 세고, 문제를 SNS 메일로 알린다. 로그 내용·비밀값·사용자 질문은 메일과 출력에 넣지 않는다. 설치·끄기는 [운영 설명서 §10](../../docs/deployment.md)을 따른다.

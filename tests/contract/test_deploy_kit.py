@@ -31,8 +31,10 @@ class DeployKitTests(unittest.TestCase):
             subprocess.run([str(ROOT / "scripts/make_deploy_bundle.sh"), str(path / "kit.tar.gz")], check=True, capture_output=True)
             with tarfile.open(path / "kit.tar.gz") as archive:
                 names = set(archive.getnames())
-                self.assertEqual(len(names), 10)
+                self.assertEqual(len(names), 11)
                 self.assertIn("scripts/prod_smoke.py", names)
+                # 2026-10-06 운영 점검(cron) 스크립트도 서버 묶음에 들어간다.
+                self.assertIn("scripts/monitor_prod.sh", names)
                 self.assertIn("scripts/deploy.sh", names)
                 self.assertNotIn("docker-compose.build.yml", names)
                 self.assertNotIn("scripts/release.sh", names)
@@ -49,6 +51,10 @@ class DeployKitTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             services = json.loads(result.stdout)["services"]
             tags = {"frontend": "front-test", "backend": "back-test", "fastapi": "ai-test"}
+            # 모든 서비스에 Docker 로그 크기 제한(디스크 29GB 서버에서 로그가 디스크를 채우지 않게)이 있다.
+            for name, service in services.items():
+                self.assertEqual(service["logging"]["driver"], "json-file", name)
+                self.assertEqual((service["logging"]["options"]["max-size"], service["logging"]["options"]["max-file"]), ("10m", "3"), name)
             for name in ["frontend", "backend", "fastapi"]:
                 self.assertEqual(services[name]["image"], "fixture/deploy:" + name + "-" + tags[name])
                 self.assertNotIn("build", services[name])
