@@ -46,6 +46,25 @@ class HarnessPolicyTests(unittest.TestCase):
         path.unlink()
         self.assertEqual(self.check("harness").returncode, 1)
 
+    def test_readme_png_assets_pass_format(self):
+        self.assertEqual(self.check("format").returncode, 0)
+
+    def test_readme_png_corruption_and_truncation_fail_format(self):
+        path = self.directory / "docs/images/bizaid-01-service-flow.png"
+        original = path.read_bytes()
+        for damaged in (b"not a PNG\n", original[:-12], original[:20] + bytes([original[20] ^ 1]) + original[21:]):
+            with self.subTest(size=len(damaged)):
+                path.write_bytes(damaged)
+                result = self.check("format")
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("PNG", result.stderr)
+
+    def test_readme_png_is_still_strict_outside_image_directory(self):
+        # BOUNDARY: binary 예외가 다른 경로의 미분류 입력을 숨기지 않아야 한다.
+        (self.directory / "unexpected.png").write_bytes(
+            (self.directory / "docs/images/bizaid-01-service-flow.png").read_bytes())
+        self.assertEqual(self.check("format").returncode, 1)
+
     def test_user_handoff_output_is_narrow_and_non_gating(self):
         path = self.directory / "harness/workspace/handoff/bundle1-handoff.md"
         path.parent.mkdir(parents=True, exist_ok=True)

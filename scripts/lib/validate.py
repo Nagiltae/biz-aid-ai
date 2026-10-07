@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import tokenize
+import zlib
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -301,6 +302,30 @@ def setup_check():
     print("N/A: Java/Node builds and live upstream, Qdrant server, LLM calls; separate service validation")
 
 
+def png_format_check(name, raw):
+    # WHY: README 그림도 strict 입력이다. 텍스트 검사에서 제외하는 대신 PNG 구조·CRC·끝을 검사한다.
+    if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError(f"invalid PNG signature: {name}")
+    offset, has_data = 8, False
+    while offset + 12 <= len(raw):
+        size = int.from_bytes(raw[offset:offset + 4], "big")
+        kind = raw[offset + 4:offset + 8]
+        end = offset + 12 + size
+        if end > len(raw) or zlib.crc32(raw[offset + 4:end - 4]) != int.from_bytes(raw[end - 4:end], "big"):
+            raise ValueError(f"invalid PNG chunk/CRC: {name}")
+        if offset == 8 and (kind != b"IHDR" or size != 13
+                or not int.from_bytes(raw[offset + 8:offset + 12], "big")
+                or not int.from_bytes(raw[offset + 12:offset + 16], "big")):
+            raise ValueError(f"invalid PNG header/dimensions: {name}")
+        has_data = has_data or (kind == b"IDAT" and size > 0)
+        if kind == b"IEND":
+            if size == 0 and end == len(raw) and has_data:
+                return
+            raise ValueError(f"invalid PNG end/data: {name}")
+        offset = end
+    raise ValueError(f"incomplete PNG: {name}")
+
+
 def format_check():
     files = project_files()
     for name in files:
@@ -308,6 +333,9 @@ def format_check():
         if not path.is_file():
             raise ValueError(f"missing project file: {name}")
         raw = path.read_bytes()
+        if name.startswith("docs/images/") and name.endswith(".png"):
+            png_format_check(name, raw)
+            continue
         text = raw.decode("utf-8")
         if not raw or not raw.endswith(b"\n") or b"\r" in raw:
             raise ValueError(f"UTF-8/LF/final newline required: {name}")
@@ -320,7 +348,7 @@ def format_check():
     # 이미 추적된 생성물도 Git diff에 남으므로 입력 자산의 경로만 명시해 공백을 검사한다.
     run("git", "diff", "--check", "--", *files)
     run("git", "diff", "--cached", "--check", "--", *files)
-    print("PASS: static/project text/JSON format and Git whitespace; generated outputs excluded")
+    print("PASS: static/project text/JSON/README PNG format and Git whitespace; generated outputs excluded")
 
 
 def lint_check():

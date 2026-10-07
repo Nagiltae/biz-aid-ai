@@ -1,5 +1,20 @@
 # Harness 변경 이력
 
+## 2026-10-07 — README 주제별 설명 이미지
+
+사용자 승인으로 서비스 흐름·아키텍처·문서 처리·AI 판단·실험 결과·배포 운영의 6개 PNG를 생성해 docs/images에 저장하고 README에 연결한다. 실제 화면 자리와 기존 설명/측정 근거를 보존한다. 그림은 공개 자료만으로 생성하고 숫자·날짜·연결 관계를 직접 확인한다. 이미지 생성 프롬프트와 선택 결과는 Generated Artifact에 보관한다.
+새 PNG는 Registry에 strict 입력으로 등록한다. 텍스트 전용 형식 검사가 binary를 읽지 못하므로 docs/images PNG에만 서명·chunk CRC·헤더/크기·종료 구조 검사를 적용하고 손상/잘림/다른 경로 검사로 경계를 확인한다. 기존 텍스트·추적·검토 규칙은 유지한다. 앱·운영 구성·Rule 변경 없음, 실제 환경 파일·서버/AWS 조회 없음, commit/push 없음. 이전 Task와 Git 상태는 새 Report에 보존한다.
+
+## 2026-10-07 — 프로젝트 전체 마스터 가이드 갱신
+
+사용자 승인으로 기존 PROJECT_MASTER_GUIDE를 현재 서비스·데이터 처리·AI·DB·계약·화면/API·개발/운영·배포/복구·검증·작업 경계와 실제 코드 경로를 연결한 인수인계 문서로 갱신한다. 구현, 과거 측정, 사용자 확인 운영 완료, 이번 미검증 상태를 구분한다. AGENTS/architecture의 낡은 진행 상태 설명만 동기화하며 Rule·앱 코드·인프라 정의는 바꾸지 않는다.
+이전 README Task 원문과 staged 상태는 새 Generated Report에 보존하고 current-task·Registry.report를 맞춘다. README 내용과 index는 유지한다. 실제 환경 파일·서버/AWS·AI 호출 없이 정적 검사만 수행하며 전체 gate·AGY 승인 완료를 주장하지 않는다. 기존 가이드의 원문은 Git 기록으로 보존한다.
+
+## 2026-10-07 — 포트폴리오 README 정리
+
+사용자 승인으로 README를 서비스 소개·화면/영상 자리·운영 구조·기술 판단과 측정·배포/되돌리기·제한/한계·테스트·짧은 로컬 실행 순으로 정리한다. 기존 문서·보고서의 수치를 출처와 표본 한계로 구분하며 공개 식별값을 넣지 않는다. 앱 코드·실제 설정·운영 서버·AWS는 변경/조회하지 않는다.
+새 Task 전환은 이전 current-task 원문을 Generated Report에 보존하고 current-task·Registry.report만 동기화한다. 규칙·검증 입력·AGY 승인 상태는 그대로다. 전체 gate는 실제 .env.dev 열람 금지와 충돌하므로 실행하지 않고 가능한 기존 정적 검사를 기록한다.
+
 ## 2026-10-06 — 상태 확인 주소 HEAD 허용(Claude)
 
 사용자 승인: UptimeRobot 무료 플랜(HEAD만 사용)이 401을 받아 Down으로 보이는 문제. SecurityConfig에 `HEAD /api/health` 공개 허용 한 줄만 추가했다(GET 허용·다른 주소·보안 설정 불변). ProdSecurityTest에 HEAD 200·다른 주소 HEAD 401, HealthHeadHttpTest(실제 내장 Tomcat)에 HEAD 본문 없음·GET JSON 확인을 추가했다. 규칙 완화 없음.

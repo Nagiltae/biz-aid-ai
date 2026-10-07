@@ -277,7 +277,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-10-06-health-head.md",
+  "report": "harness/workspace/reports/development/2026-10-07-readme-infographics.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -540,6 +540,12 @@
     "docs/ai-improvement-before.md",
     "docs/deployment.md",
     "docs/environment-guide.md",
+    "docs/images/bizaid-01-service-flow.png",
+    "docs/images/bizaid-02-architecture.png",
+    "docs/images/bizaid-03-document-pipeline.png",
+    "docs/images/bizaid-04-evidence-decision.png",
+    "docs/images/bizaid-05-improvement-results.png",
+    "docs/images/bizaid-06-deployment-operations.png",
     "evals/README.md",
     "evals/ai-improvement-0/measure_company_ranking.py",
     "evals/ai-improvement-0/measure_eligibility_split.py",

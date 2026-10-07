@@ -1,193 +1,138 @@
 # BizAid AI
 
-기업 정보와 실제 공고문 근거를 함께 사용해 중소기업 지원사업을 찾고, 질문하고, 지원 가능성을 검토하는 서비스입니다.
+**회사 정보와 공고문 근거를 함께 사용해 중소기업 지원사업을 찾고, 지원 가능성을 검토하는 포트폴리오 서비스입니다.**
 
-## 해결하려는 문제
+[운영 사이트 바로가기](https://biz-aid.cloud) · 가입 없이 예시 기업정보로 체험할 수 있습니다.
 
-기업마당 API에는 공고명·분야·대상·기관·신청기간 같은 정형 정보가 있지만, 업력·매출·신용점수·제외 조건처럼 실제 신청 판단에 필요한 내용은 PDF·HWP·HWPX 공고문에 흩어져 있습니다.
+> 실제 정보 대신 예시 정보를 넣어 주세요. AI 판정은 참고용이며, 신청 전 원문 공고를 확인해야 합니다.
 
-BizAid AI는 역할을 나눠 이 문제를 해결합니다.
+![예시 기업정보 입력부터 지원사업 검색, 맞춤 추천과 자격 근거 확인까지의 서비스 흐름](docs/images/biz-aid-gpt_image_1.png)
 
-- MySQL은 모집 상태와 지원 대상처럼 정확히 비교할 조건과 서비스 상태를 관리합니다.
-- S3는 원본 공고문과 파싱 결과를 보관합니다.
-- Qdrant는 후보 공고 안에서 관련 근거를 찾습니다.
-- 대규모 언어 모델(LLM)은 근거를 설명하고 조건별 비교를 수행합니다.
-- 일반 코드는 근거를 검증하고 지원 자격의 최종 상태를 계산합니다.
 
-## 주요 기능
+## 서비스 구조
 
-- 자연어 지원사업 검색과 특정 공고문 질문
-- 공고 ID·문서 page를 포함한 근거 표시(Citation)
-- 기업 정보 기반 Top 3 검색과 공고별 지원 자격 판정
-- 부족한 기업 정보를 추가로 묻고 다시 판정하는 단계형 추천 흐름
-- JWT 로그인, 기업정보·지원사업·대화·활동 기록 관리
-- 추천 진행 상태 저장, 새로고침 복원, 최종 추천·지원 불가·판단 불가 분류
+![bizaid-02-architecture.png](docs/images/bizaid-02-architecture.png)
 
-## 아키텍처
-
-```mermaid
-flowchart LR
-    U[사용자] --> R[React]
-    R --> S[Spring Boot]
-    S --> M[(MySQL)]
-    S -->|내부 API| F[FastAPI]
-    F --> M
-    F --> Q[(Qdrant)]
-    F --> L[Ollama / Qwen]
-    F -.선택적 실행 추적.-> LS[LangSmith]
-    P[Data Pipeline] --> M
-    P --> A[(AWS S3)]
-    P --> Q
-```
-
-| 구성요소 | 역할 |
+| 구성 | 책임과 선택한 기술 |
 | --- | --- |
-| React | 로그인·기업정보·공고·AI 검색·단계형 맞춤 추천 화면 |
-| Spring Boot | JWT, 서비스 API, JPA·QueryDSL 조회, 대화·활동·추천 State의 Source of Truth |
-| FastAPI | 질문 구조화, 후보 범위 검색, 근거 답변, 자격 비교, LangGraph 추천 단계 실행 |
-| MySQL | 공고 정형 데이터, 문서·파싱 metadata, 회원·기업·대화·workflow 상태 |
-| AWS S3 | 원본 공고문과 파싱된 DoclingDocument JSON |
-| Qdrant | BGE-M3 dense·sparse 문서 조각 검색 |
-| LangSmith | 설정으로 켜는 V2 workflow 단계 추적. 질문·기업정보·문서 원문은 전송하지 않음 |
+| React · TypeScript · Vite · TanStack Query | 화면과 서버 상태 관리. Spring만 호출합니다. |
+| Spring Boot · Spring Security · JPA · QueryDSL · Flyway | 인증, 기업정보, 대화·추천 상태의 기준 저장소와 공고 조회를 담당합니다. |
+| FastAPI · LangChain · LangGraph | 질문 해석, 검색, 자격 비교를 수행합니다. LangChain은 모델 호출에, LangGraph는 추천의 반복·분기에 사용합니다. |
+| MySQL · Qdrant · S3 | 정형 데이터 / BGE-M3 의미·단어 벡터 검색 / 원문·파싱 결과 보관을 나눕니다. |
+| Docling · PP-TableMagic · Bedrock | 문서·표를 읽고, 운영에서는 Claude Haiku 4.5로 근거 설명과 조건 비교를 수행합니다. |
 
-React는 Spring Boot만 호출합니다. Spring은 서비스 데이터와 workflow State를 소유하고, FastAPI는 받은 State로 한 단계를 실행합니다. FastAPI는 회원·기업 테이블을 직접 읽지 않습니다.
+FastAPI는 회원·기업 테이블을 직접 읽지 않습니다. Spring이 필요한 기업정보만 전달하고, 요청 사이의 추천 상태도 Spring이 저장합니다. S3는 자료 처리에 사용하며 질문 서버가 직접 읽지는 않습니다.
 
-## AI 처리 흐름
+## 기술 판단과 확인한 결과
 
-### 검색과 공고문 질문
+### 공고문을 검색 근거로 만드는 과정
 
-```text
-질문 → LangChain 기반 구조화 출력 → 질문에 실제로 있는 조건만 검증
-     → MySQL 활성 공고 후보 → 후보 안에서 Qdrant Dense + Sparse 검색
-     → RRF 순위 결합 → 목록 또는 근거 기반 답변 → 코드가 Citation 연결
-```
+![기업마당 정형 데이터와 첨부 공고문을 수집하고 보관, 파싱, 임베딩, 색인하는 과정](docs/images/bizaid-03-document-pipeline.png)
 
-### 맞춤 추천
+### AI 판단과 코드 검증의 경계
 
-```text
-저장된 기업정보 snapshot + 질문 → Top 3 검색
-→ LangGraph가 공고를 한 건씩 판정
-→ 부족 정보 질문 → 임시 답변으로 필요한 공고만 재판정
-→ 코드가 추천 / 지원 불가 / 판단 불가 조립
-→ Spring이 MySQL에 State JSON 저장, React는 nextAction만 따라감
-```
+![코드와 DB의 후보 선정, 문서 근거 검색, LLM 비교 및 코드의 최종 상태 검증](docs/images/bizaid-04-evidence-decision.png)
 
-LangChain은 LLM 호출 계층에만, LangGraph는 반복·분기가 필요한 추천 흐름에만 사용합니다. 검색 범위·RRF·근거 연결·자격 최종 상태는 일반 코드가 결정합니다.
-
-## 핵심 기술 선택
-
-| 선택 | 이유 |
+| 판단 | 이유와 결과 |
 | --- | --- |
-| 정형 데이터와 문서 지식 분리 | 날짜·상태는 DB로 정확히 판단하고 세부 조건은 원문에서 찾기 위해 |
-| JPA + QueryDSL | 일반 CRUD와 선택 조건이 많은 공고 조회를 각각 단순하고 타입 안전하게 구현하기 위해 |
-| BGE-M3 + Dense/Sparse + RRF | 의미가 비슷한 문장과 사업명·금액 같은 정확한 단어를 함께 찾기 위해 |
-| Citation을 코드에서 연결 | LLM이 존재하지 않는 page나 출처를 만드는 일을 막기 위해 |
-| 자격 최종 상태를 코드에서 계산 | 누락된 기업정보를 추측하지 않고 일관된 판정 규칙을 유지하기 위해 |
-| LangGraph State와 MySQL 저장 분리 | 그래프는 다음 단계를 정하고 Spring은 요청 사이의 상태·동시성을 관리하기 위해 |
-| 선택적 LangSmith 추적 | 단계별 지연과 오류를 보되 질문·기업정보·문서·prompt를 외부로 보내지 않기 위해 |
+| **DB가 아는 것은 코드로, 문서는 RAG로, 해석은 LLM으로** | 모집 상태·날짜·후보 범위는 DB와 코드가 결정합니다. 문서에서 근거를 찾은 뒤 LLM이 설명·비교하고, 코드가 출처와 최종 판정 상태를 검증합니다. 근거가 없으면 확인 불가로 남깁니다. |
+| **표 인식 개선** | Docling의 문서 배치 분석과 PP-TableMagic의 표 구조 검출을 결합했습니다. 금액·기간 등 원문 손실을 검사하고, 구조가 불확실하면 행·열을 만들어 내지 않고 원문을 보존합니다. 도입 시 5문서 확인에서 실패 표 영역의 원문 누락은 0글자였습니다. |
+| **RRF hybrid 검색** | BGE-M3의 의미 검색과 단어 검색 순위를 RRF로 합칩니다. 초기 고정 12문항에서 정답 문서 1위는 12/12로 의미 검색 단독과 동률이었습니다. 사업명·금액·코드의 단어 신호를 함께 유지하려고 선택했습니다. |
+| **기업정보를 순위에도 반영** | 기업정보로 만든 검색 문장을 질문과 별도로 검색하고 가중 RRF로 합칩니다. 예시 회사 4개 × 질문 2개에서 회사별 상위 3개 결과가 달라졌습니다. 추가 LLM 호출은 없습니다. 일반 질문의 적합도는 여전히 한계가 있습니다. |
+| **로컬 모델에서 Bedrock으로 전환** | 같은 고정 문항에서 답변·판정 품질과 응답 시간을 비교한 뒤 운영 모델을 바꿨습니다. 아래 표에 평가 오류까지 함께 남겼습니다. |
+| **재정렬 모델 보류** | 서비스 방식으로 범위를 좁힌 근거 검색은 12문항 모두 상위 3개 안에 정답이 있었습니다. 추가 모델의 메모리·지연 부담을 감수할 근거가 부족해, 먼저 기업정보 검색을 개선했습니다. |
 
-## 문제 해결 사례
+## 개선항목
+![고정 표본의 모델 전환 비교와 기업정보 순위 개선 결과, 측정 날짜 및 남은 한계](docs/images/biz-aid-gpt_image_3.png)
 
-1. 공고 제목 정보가 부족해 검색에서 밀린 문제를 검색 입력에 제목을 추가해 기대 근거 1위로 개선했습니다.
-2. 한 공고의 여러 조각이 목록을 독점하던 문제를 공고 단위 그룹 검색으로 바꿔 결과 2개를 5개로 회복했습니다.
-3. LLM이 질문에 없는 조건을 만들던 문제를 허용 값과 질문 원문을 다시 확인하는 Grounding Guard로 막았습니다.
-4. PDF·HWP·HWPX를 DoclingDocument로 통일하고, 구조를 증명하지 못한 표는 틀린 행·열 대신 원문과 provenance를 보존했습니다.
-5. Top 3 판정을 한 요청에 묶어 161초가 걸린 문제를 LangGraph 단계 실행으로 나눠 실제 시작 14.7초, 판정 1건 39.4초로 Spring의 90초 제한 안에 넣었습니다.
 
-## V1 고정 평가
+**모델 전환 비교 — 2026-10-04, 고정 20문항, 로컬 단발 측정**
 
-V1 종료 시점의 10개 사례를 고정해 이후 변경의 비교 기준으로 사용합니다.
+| 항목 | 로컬 Ollama | Bedrock |
+| --- | --- | --- |
+| 평가 결과 | 15 PASS / 품질 실패 3 / 평가 오류 2 | 19 PASS / 실패 1 |
+| 평균 응답 시간 | 16.58초 | 4.42초 |
+| 최대 응답 시간 | 88.83초 | 23.55초 |
 
-| 기능 | 결과 |
+평가 오류가 난 로컬 추천 문항은 비교할 수 없습니다. 이 표는 전체 서비스의 정답률이나 운영 서버의 응답 시간을 보장하지 않습니다.
+
+**후속 AI 개선 평가 — 2026-10-06**: 기존 고정 20문항에서 **20/20 PASS**, 평균 **4.34초**, 최대 **24.93초**였습니다. 모델 전환 비교와 다른 시점의 결과입니다. 평가 환경은 맥북 개발 환경이며, 저장소의 최신 개선이 운영에 반영됐는지는 별도 배포 확인이 필요합니다.
+
+측정 조건과 남은 문제는 [개선 전 측정](docs/ai-improvement-before.md), [개선 후 비교](docs/ai-improvement-after-1.md)에 정리했습니다.
+
+## 어떻게 운영하나요?
+
+![맥북의 선택 서비스 빌드, Docker Hub 게시, 서버의 고정 버전 배포와 점검 및 되돌리기](docs/images/biz-aid-gpt_image_4.png)
+
+| 항목 | 운영 방식 |
+| --- | --- |
+| AWS 구성 | EC2에서 Docker Compose와 Caddy를 실행합니다. 데이터는 RDS MySQL, 원문·복원 자료는 S3, LLM은 Bedrock을 사용합니다. |
+| 인증·접속 경계 | AWS 호출은 EC2 IAM 역할의 임시 인증정보를 사용하며 컨테이너에 AWS 키 파일을 넣지 않습니다. 내부 AI·DB·Qdrant를 브라우저에 공개하지 않습니다. |
+| 배포 | 맥북에서 선택한 서비스만 빌드해 비공개 Docker Hub에 게시합니다. 서버는 빌드 없이 이미지를 받아 실행합니다. |
+| 버전·되돌리기 | frontend·backend·fastapi의 고정 태그를 따로 관리합니다. 버전 자동 생성, 설정 백업, 변경 기록, 배포 점검을 스크립트로 처리합니다. |
+| 상태·장애 감시 | UptimeRobot으로 공개 상태 주소를 확인하고, CloudWatch 경보로 자원·Bedrock 지표를 봅니다. 서버 점검 스크립트는 컨테이너·디스크·메모리·오류를 확인해 SNS 메일로 알립니다. |
+| AI 추적 | 개발에서는 선택적 LangSmith 추적을 사용합니다. 운영에서는 외부 AI 추적을 끕니다. |
+
+평소 배포 예시입니다. 서버 명령은 `~/bizaid`에서 실행하며, 되돌리기는 문제가 있을 때만 사용합니다.
+
+| 어디서 | 목적 | 명령 |
+| --- | --- | --- |
+| 맥북 | backend 게시 · 버전 자동 생성 | `scripts/release.sh backend` |
+| 서버 | backend 배포·점검 | `bash scripts/deploy.sh backend` |
+| 서버 | 직전 backend 버전으로 되돌리기 | `bash scripts/deploy.sh --rollback backend` |
+| 서버 | 서비스별 현재 버전 확인 | `bash scripts/deploy.sh status` |
+
+점검 실패 시 자동으로 되돌리지 않고 실패 이유와 복구 명령을 보여 줍니다. DB 구조 변경이 있으면 배포 전에 RDS 스냅샷을 준비합니다. 자세한 설치·배포·알림 절차는 [운영 설명서](docs/deployment.md)를 참고하세요.
+
+### 사용량과 가입 제한
+
+| 대상 | 하루 한도 |
 | --- | ---: |
-| 지원사업 검색(SEARCH_LIST) | 4 / 4 PASS |
-| 공고문 질문(DOCUMENT_QA) | 2 / 3 PASS |
-| 지원 자격 판정 | 1 / 3 PASS |
-| **전체** | **7 / 10 PASS** |
+| 일반·체험 계정 각각의 AI 사용 | 10회 |
+| 같은 IP의 모든 계정 합산 AI 사용 | 30회 |
+| 체험 계정 전체 AI 사용 | 200회 |
+| 서비스 전체 AI 사용 | 300회 |
+| 같은 IP의 회원가입 요청 | 5회 |
 
-실패 3건은 숨기거나 보정하지 않았습니다. V1 collection과 평가 기대값은 동결되어 있으며, V2 전체 데이터 평가는 아직 수행하지 않았습니다.
+한국 자정에 초기화합니다. 검색 질문·추천 시작·단일 자격 판정을 세고, 같은 추천의 후속 단계는 추가 차감하지 않습니다. AI 오류로 실패한 요청은 예약한 횟수를 돌려줍니다. 호출 수 제한은 과금을 완전히 막는 비용 상한은 아닙니다.
 
-## 기술 스택
+## 한계와 이용 안내
 
-- Frontend: React 19, TypeScript, Vite, TanStack Query
-- Backend: Java 21, Spring Boot, Spring Security, JPA, QueryDSL, Flyway
-- AI / Pipeline: Python 3.11, FastAPI, LangChain, LangGraph, Docling, PaddleX, BGE-M3
-- Storage: MySQL 8.4, AWS S3, Qdrant
-- LLM / Observability: Ollama, Qwen3.5 9B, LangSmith
-- Infrastructure: Docker Compose, GitHub Actions
+| 한계 | 안내 |
+| --- | --- |
+| 실제 회사 정보를 받기 위한 서비스가 아님 | 포트폴리오 데모입니다. 회사명·매출·신용점수 등은 예시로 입력하세요. 입력 폼에도 안내합니다. |
+| 비밀번호 재설정 없음 | 비밀번호를 잊었다면 다른 이메일로 새로 가입하세요. 로그인 후 비밀번호 변경은 지원합니다. |
+| 일반 질문의 기업 맞춤이 약함 | 구체적인 목적을 적는 편이 좋습니다. 평가에서 음식점 소상공인에게도 TIPS 기술창업 공고가 1위로 나왔습니다. |
+| 공고 자동 갱신 없음 | 2026-10-05 배포 기준의 공고 자료를 고정해 사용합니다. 수집은 한 번 준비한 자료이며 운영 중 자동으로 갱신하지 않습니다. 최신 공고는 기업마당 원문에서 확인하세요. |
+| AI 판정은 사전 검토 | 표본 평가가 모든 업종·공고를 보장하지 않습니다. 실제 신청 여부는 원문 조건과 담당 기관에 확인해야 합니다. |
 
-## 현재 상태
+## 테스트와 품질 관리
 
-### 완료
+| 검사 | 최근 문서에 기록된 결과 · 2026-10-06 |
+| --- | --- |
+| Python Contract 테스트 | 572개 통과. 파싱·검색·AI 응답 형식·배포 등 구성요소 사이의 규칙을 검사합니다. |
+| MySQL Integration 테스트 | 69개 통과. 실제 테스트 DB에서 저장·조회·복원 경계를 검사합니다. |
+| `scripts/check-all.sh` | 종료 코드 0. 형식·문법·Contract·Integration·Git 추적·주석·Harness 검사를 묶습니다. |
 
-- V1 서비스와 실제 React → Spring → FastAPI E2E
-- V1 고정 평가 10건(7 PASS / 3 FAIL)
-- V2-0 LangChain LLM 호출 경계부터 V2-6 LangSmith 선택적 추적까지의 기능 구현
-- V2 맞춤 추천 화면과 MySQL workflow State 저장
-- dev LangSmith 추적 설정 완료. `.env.dev`에서 전용 API key와 `BIZAID_TRACING_ENABLED=true`를 사용하며, 진단 중 잘못 생성된 `biz_aid` 프로젝트는 사용자가 삭제했습니다.
+위 수치는 기존 검증 기록입니다. 이번 README 작업에서 서비스·모델 성능을 다시 측정한 결과가 아닙니다. Spring과 React의 테스트·빌드는 `check-all`과 별도로 실행합니다.
 
-### V2 데이터 상태
+Harness는 AI 개발 도구가 지킬 범위·계약·작업 상태를 저장소에 관리하는 방식입니다. `AGENTS.md` → 현재 Task → 관련 규칙·검사 → 보고서 → 독립 검토·사용자 확인 순으로 작업하며, 실행하지 않은 검사를 통과로 기록하지 않습니다.
 
-- V2 서비스 범위 데이터는 2026-10-03 기준 2,776문서·64,041 point가 V2 collection에 적재돼 있습니다(PDF·HWP·HWPX 2,534 + 이미지 105 + DOCX·PPTX 7 + 일반 ZIP 내부 파일 130). 서비스 범위 1,372공고 모두 point가 있고 단계마다 완전성 검증을 통과했습니다.
-- 서비스 검색(FastAPI)은 V2 collection(`QDRANT_COLLECTION_NAMESPACE=v2`)을 읽습니다. V1 collection(3,849 point)은 기준선 재현용으로 그대로 둡니다.
-- 일반 ZIP 내부 파일은 양식(FORM)을 빼고 적재했습니다(양식 323개는 보관만). 공고 근거를 차지하던 참고자료 40원본은 검색에서 빼고 파싱 결과만 보관합니다(IMP-028). XLSX·옛 오피스는 지원하지 않습니다.
+## 로컬 실행
 
-### 아직 검증하지 않음
-
-- V2 collection 서비스 전환
-- V2 전체 데이터에서의 검색·추천 품질과 V1 기준선 비교
-- V2 전체 workflow가 LangSmith에서 단계별로 기록되는지에 대한 실제 사용자 흐름 검증
-
-### 다음 작업
-
-1. `QDRANT_COLLECTION_NAMESPACE=v2`로 V2 collection 전환
-2. React 화면에서 추천 흐름을 끝까지 진행하고 LangSmith 기록 확인
-3. cases-v2로 V2 평가
-
-V1 collection `bizaid_chunks_v1_228acdd12220`은 기준선 재현용이므로 수정하거나 추가 적재하지 않습니다. V2 기능 Smoke는 아직 V1 collection 또는 3문서 V2 smoke collection을 사용한 기능 확인이며, V2 전체 품질 결론이 아닙니다.
-
-## 로컬 실행과 검증
-
-실제 비밀값은 Git에 추적되지 않는 `.env.dev`에 둡니다. 변수 이름만 [.env.dev.example](.env.dev.example)에서 확인합니다.
+Docker와 로컬 의존성·모델 준비, 개발 설정 작성은 [환경 설명서](docs/environment-guide.md)와 [데이터 파이프라인 실행 안내](data-pipeline/README.md)를 따릅니다. 실제 설정·비밀값은 Git에 올리지 않습니다.
 
 ```bash
-python3.11 -m venv .venv
-.venv/bin/python -m pip install -r data-pipeline/requirements.txt
-export BIZAID_DOCLING_ARTIFACTS_PATH="$HOME/.cache/biz-aid/docling-artifacts"
-
-./scripts/setup.sh
+scripts/dev.sh up
+scripts/dev.sh status
 ./scripts/check-all.sh
 ```
 
-개발 환경(MySQL·Qdrant·FastAPI·Spring·React)은 명령 하나로 다룹니다. Ollama는 host에서 따로 실행합니다(`ollama serve`).
+화면은 `http://localhost:3000`입니다. 자세한 포트·개발/운영 차이는 환경 설명서에 있습니다.
 
-```bash
-scripts/dev.sh up                 # 전체 시작(이미지가 없을 때만 빌드)
-scripts/dev.sh status             # 상태
-scripts/dev.sh logs fastapi       # 로그(mysql·qdrant·fastapi·backend·frontend)
-scripts/dev.sh restart backend    # 서비스 다시 시작
-scripts/dev.sh build fastapi      # 의존성을 바꿨을 때만 다시 빌드
-scripts/dev.sh down               # 전체 중지(데이터 volume은 지우지 않음)
-```
-
-- Frontend: `http://127.0.0.1:3000`
-- Spring Boot: `http://127.0.0.1:8080`
-- FastAPI: `http://127.0.0.1:8000`(컨테이너, 질문 처리 전용 이미지). `data-pipeline/src`를 읽기 전용으로 붙여 코드가 바뀌면 자동으로 다시 시작합니다
-- 모델은 `BIZAID_DOCLING_ARTIFACTS_PATH`(기본 `~/.cache/biz-aid/docling-artifacts`)를 읽기 전용으로 붙입니다
-- 파싱·인덱싱 배치는 지금처럼 host의 `.venv`(`data-pipeline/requirements.txt`)에서 실행합니다
-
-## 문서 안내
-
-| 목적 | 문서 |
+| 더 알아볼 내용 | 문서 |
 | --- | --- |
-| 프로젝트 전체와 기술 의사결정 학습 | [PROJECT_MASTER_GUIDE.md](PROJECT_MASTER_GUIDE.md) |
-| 다음 개발 작업과 금지 범위 | [current-task.md](harness/workspace/current-task.md) |
-| 실제 시스템 경계 | [architecture.md](harness/docs/architecture.md) |
-| 미해결 문제와 재검토 조건 | [improvement-backlog.md](harness/docs/improvement-backlog.md) |
-| 테스트가 보장하는 범위 | [testing.md](harness/docs/testing.md) |
-| API 계약 | [contracts/](contracts/README.md) |
-| 단계별 실제 실행 결과 | `harness/workspace/reports/development/`의 Task별 Report |
-
-개발 Agent는 [AGENTS.md](AGENTS.md)부터 읽고, 사용자는 이 README 다음에 PROJECT_MASTER_GUIDE를 읽는 것이 가장 빠릅니다.
-
-사용자 확인으로 2026-10-05 biz-aid.cloud 운영 배포를 완료했습니다(20261005-03, linux/amd64). [배포 설명서](docs/deployment.md)에 서비스별 이미지 태그 전환, 선택한 서비스의 릴리스·업데이트·되돌리기, 모델·인증서 권한과 www·smoke 확인 방법을 정리했습니다. `scripts/release.sh backend`는 한국 시각으로 버전을 자동 생성해 선택한 이미지만 게시합니다. 서버에서는 `bash scripts/deploy.sh backend` 한 줄로 백업·배포·점검하고 `--rollback`으로 직전 버전으로 되돌립니다. 현재 서버 전환과 실제 빌드·배포는 사용자가 실행합니다.
+| 프로젝트 전체와 구현 배경 | [PROJECT_MASTER_GUIDE](PROJECT_MASTER_GUIDE.md) |
+| AI 개선 측정·남은 문제 | [개선 전](docs/ai-improvement-before.md) · [개선 후](docs/ai-improvement-after-1.md) |
+| 실행·배포·되돌리기·모니터링 | [환경 설명서](docs/environment-guide.md) · [운영 설명서](docs/deployment.md) |
+| 테스트 범위·API 계약·작업 규칙 | [테스트 안내](harness/docs/testing.md) · [계약](contracts/README.md) · [AGENTS](AGENTS.md) |

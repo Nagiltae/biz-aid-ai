@@ -1,5 +1,7 @@
 # Architecture와 현재 상태
 
+2026-10-07 저장소 기준. 운영 배포 완료는 사용자 확인이며, 이번 문서 갱신에서 서버·AWS·실제 환경 파일을 조회하지 않았다. 아래 Phase 기록은 당시의 승인 범위이고 현재 전체 상태는 마스터 가이드에서 구분한다.
+
 처음 보는 용어의 한국어 뜻은 [용어집](glossary-ko.md)을, 프로젝트 전체 흐름은 [PROJECT_MASTER_GUIDE](../../PROJECT_MASTER_GUIDE.md)를 본다.
 
 근거: 현재 production code·Harness·PROJECT_MASTER_GUIDE. PROJECT_DESIGN.md §1–9, 19–25, 42–43, 48–58은 최초 목표와 배경이다.
@@ -10,10 +12,10 @@
 | 대상 | 설계상 책임 | 현재 상태 |
 | --- | --- | --- |
 | React | UI, 서버 상태 캐시(TanStack Query), 로그인 사용자 상태 | V1 화면과 V2 맞춤 추천(`/recommend`) 구현. 서버 `nextAction`만 따라 단계 진행·복원하며 Spring만 호출. 비로그인 소개(`/`)·약관(`/terms`·`/privacy`)·체험 표시·남은 AI 횟수·하단 출처(묶음5-1) |
-| Spring Boot | 인증·기업정보·대화·추천 State Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | JWT·기업정보·지원사업·대화·활동 기록과 `ai_workflows` JSON 저장·동시 진행 제어. 계정 관리(탈퇴·비밀번호 변경)·대화 삭제·로그인 시도 제한(계정·IP 5회/10분)·정리 스케줄러(토큰·workflow), dev 전용 Swagger(2026-10-04). 공개 서비스 기능(묶음5-1): 체험 계정(POST /api/auth/trial, 설정 on/off, 24시간 뒤 삭제, 수정 불가), 하루 AI 사용 제한(계정10회·같은IP30회·체험 합산200회, 한국 자정 초기화, DB 조건부 UPDATE), 가입 필수 동의 기록. `HttpAiGateway`로 FastAPI 연결(Compose 안에서는 `http://fastapi:8000`) |
+| Spring Boot | 인증·기업정보·대화·추천 State Source of Truth, 지원사업 조회(JPA + QueryDSL), FastAPI 호출 경계 | JWT·기업정보·지원사업·대화·활동 기록과 `ai_workflows` JSON 저장·동시 진행 제어. 계정 관리(탈퇴·비밀번호 변경)·대화 삭제·로그인 시도 제한(계정·IP 5회/10분)·정리 스케줄러(토큰·workflow), dev 전용 Swagger(2026-10-04). 공개 서비스 기능(묶음5-1): 체험 계정(POST /api/auth/trial, 설정 on/off, 24시간 뒤 삭제, 수정 불가), 하루 AI 사용 제한(계정10회·같은IP30회·체험 합산200회·서비스 합산300회, 한국 자정 초기화, DB 조건부 UPDATE), HEAD /api/health 공개 허용, 가입 필수 동의 기록. `HttpAiGateway`로 FastAPI 연결(Compose 안에서는 `http://fastapi:8000`) |
 | FastAPI | 질문 구조화·검색·비교·답변·Citation 검증·추천 단계 실행 | 내부 API v1과 V2 개인화 검색·Top 3 판정·LangGraph workflow 구현. 회원·기업 State를 소유하지 않음 |
-| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | 공고·문서·parse(V1~V5), 회원·기업·대화·AI 결과·활동·workflow(V6~V9), 일반 ZIP 내부 파일(V10), 기업 지역 표준명(V11), 로그인 시도 제한·활동 기록 COMMENT(V12), 계정 종류·약관 동의·하루 사용 횟수(V13) 구현 |
-| Qdrant | 문서 Chunk vector와 근거 metadata | V1 기준선 collection 동결. V2 서비스 범위 별도 collection은 3문서 Smoke 후 전체 파싱·적재 진행 중 |
+| MySQL | 구조화 공고·서비스 데이터·Raw metadata / JSON | 공고·문서·parse(V1~V5), 회원·기업·대화·AI 결과·활동·workflow(V6~V9), 일반 ZIP 내부 파일(V10), 기업 지역 표준명(V11), 로그인 시도 제한·활동 기록 COMMENT(V12), 계정 종류·약관 동의·하루 사용 횟수(V13), 한도 설명 COMMENT(V14), IP 예약/환불 COMMENT(V15) 구현 |
+| Qdrant | 문서 Chunk vector와 근거 metadata | V1 기준선 collection 동결. V2 서비스 범위 별도 collection 적재·정리와 운영 스냅샷 전환 완료 기록 있음. 전체 문서 의미 품질을 보장하는 것은 아님 |
 | Python Data Pipeline | 요청 처리와 분리된 수집·정규화·다운로드·파싱·색인 | 구조화 FULL·문서 수집·S3 저장·PDF/HWP/HWPX Parser(OCR·PP 표)·Chunking·dense/sparse Indexing 구현 |
 | Phase 0 도구 | 로컬 원문 보존·무결성·미측정 보고서·관찰 계약 검증·명시적인 최소 Local API Probe | 구현, dev Probe·5×20 API 품질 Batch·동일 표본의 제한된 문서 Download Gate |
 | Harness | Context / Rules / Skills / Validation / External Memory | 기반 구현, 과거 보완 Targeted Re-review PASS |
@@ -30,7 +32,7 @@ MySQL 활성 공고 후보 pblanc_id로 Qdrant 검색 범위를 제한하며 후
 실행: `scripts/dev.sh up|down|restart|logs|status|build`(내부는 `docker compose --env-file .env.dev --profile app`). 컨테이너는 `MYSQL_HOST=mysql`, FastAPI는 `QDRANT_URL=http://qdrant:6333`을 쓴다.
 fastapi는 질문 처리 전용 이미지(`data-pipeline/Dockerfile`, `requirements-api.txt`, CPU torch)다. 코드·계약·모델 artifact는 읽기 전용 mount이고 질문 서버는 BGE-M3 범위 모델만 검증한다(IMP-005). Ollama는 host(`host.docker.internal:11434`)다.
 파싱·청킹·인덱싱 배치는 host `.venv`(`requirements.txt`)에서 실행한다. 제품 Pipeline은 `data-pipeline/`이다.
-Docker Compose는 개발환경 기준이며 운영 인프라는 미결정이다.
+개발 Compose와 운영 Compose는 분리돼 있다. 운영은 EC2의 Caddy·frontend·backend·fastapi·Qdrant, 별도 MySQL RDS와 Bedrock으로 구성한다. S3는 원문/파싱 자료와 배포·복원 묶음을 보관하고 서버의 AWS 접근은 IAM 역할을 사용한다. 운영에서는 MySQL 컨테이너·Ollama를 올리지 않는다.
 MongoDB·Langfuse는 도입하지 않는다. LangSmith는 V2 workflow의 선택적·개인정보 제외 추적에만 사용한다([observability.md](observability.md)).
 Phase 2.5에서 문서 binary의 영구 저장소는 고정 dev S3이고 MySQL은 provenance와 검증 metadata를 소유한다.
 로컬 corpus는 migration 검토가 끝날 때까지 보존하며 장기 Source로 새로 생성하지 않는다.
@@ -53,7 +55,7 @@ Review Lifecycle과 증거 범위는 [workflow.md](workflow.md)에서 관리한�
 3. §5 도식의 문서 Normalize와 §19 API Normalize는 대상이 다르다. API Normalize는 `ingestion/normalizer.py`, 문서 Normalize는 Parsing Contract의 text 정규화(NFC·줄바꿈·제어문자)로 구현됐다.
 4. 사용자 확인 Endpoint / 인증 정보와 실제 Sample의 pagination / envelope / field 타입은 [External API Contract](../../contracts/external-api/README.md)에 있다. Pagination·ID·no-data와 5×20 품질 Run은 OBSERVED다. 공식 정렬·일반 오류 보장은 미확정이다.
 5. §53의 이번 API 품질 Task는 12개 주요 필드·타입/nonblank 기준·실제 행 분모·기본 정렬 선두 100건을 사용한다. API 측정에서 의미·접속은 미측정이었다. 문서 성공률은 별도 Download Gate에서 측정하고 공식 최신순 보장은 미확정이다.
-6. 결정됨: HWP는 Docker LibreOffice+H2Orestart로 PDF 변환 후 PDF route, HWPX는 native XML adapter(page 없음, section·XML 경로 provenance), PDF 표는 PP-TableMagic + fail-closed TABLE_QUALITY_FAILED다. HTML·XLSX·ZIP은 POLICY_PENDING이다.
+6. 결정됨: HWP는 Docker LibreOffice+H2Orestart로 PDF 변환 후 PDF route, HWPX는 native XML adapter(page 없음, section·XML 경로 provenance), PDF 표는 PP-TableMagic + fail-closed TABLE_QUALITY_FAILED다. HTML·XLSX 등 직접 파싱 미지원 형식은 계약에서 구분한다. 일반 ZIP의 내부 파일 추출·관계 저장은 후속 구현됐지만 ZIP 자체의 직접 파싱 route는 비활성이다.
 7. §57의 과거 API 확인 서술과 이번 사용자 제공 Sample은 별개 Evidence다. Sample을 이번 Live 실행 결과로 재사용하지 않는다.
 
 최초 Phase 0 준비에서는 최상위 문서 자체를 수정하지 않았다. 후속 승인 범위는 해당 문서 첫머리에 기록한다.
@@ -74,7 +76,7 @@ Phase 1B 승인으로 dev API 전체 pagination / Raw 완전성 검증 / 구조�
 
 dev → `.env.dev`, prod → `.env.prod`만 선택한다. Process Environment가 우선하고 generic `.env` / Profile fallback은 없다.
 Dev MySQL은 Host 127.0.0.1:3306 → container 3306이며 사용자 계정·비밀번호와 volume을 보존한다.
-설정 파일 선택과 실행 권한은 별개다. 현재 제품 API / DB 실행은 dev만 허용한다. [Infra](../../infra/README.md)를 따른다.
+설정 파일 선택과 실행 권한은 별개다. 수집·파싱·색인·DB mutation은 기존 dev 승인 경계를 따른다. 명시 운영 API 조회는 운영 구성과 아래 실행 경계를 따른다. [Infra](../../infra/README.md)를 따른다.
 
 ## Phase 3 Parsing 표현
 
@@ -120,4 +122,14 @@ V2 비교 입력은 `evals/cases-v2/`에 별도 동결해 V1 baseline과 분리�
 
 ## 묶음6-0 운영 실행 준비
 
-개발 Compose/dev.sh/dev profile은 유지한다. 운영은docker-compose.prod.yml의amd64 image를단일비공개Hub저장소에서pull하고서버에저장소를복제하지않는다. 소스가있는명시build는docker-compose.build.yml만사용한다. backend가먼저RDS schema를만든뒤공고/V2/모델을복원하고전체서비스를시작한다. 서버bundle은실행파일allowlist이며Secret·제품소스·데이터를포함하지않는다. 실제AWS배포는아직미실행이다. [운영 설명서](../../docs/deployment.md).
+개발 Compose/dev.sh/dev profile은 유지한다. 운영은docker-compose.prod.yml의amd64 image를단일비공개Hub저장소에서pull하고서버에저장소를복제하지않는다. 소스가있는명시build는docker-compose.build.yml만사용한다. backend가먼저RDS schema를만든뒤공고/V2/모델을복원하고전체서비스를시작한다. 서버bundle은실행파일allowlist이며Secret·제품소스·데이터를포함하지않는다. 이는 당시 준비 단계의 기록이다. 사용자가2026-10-05운영배포완료를확인했다. [운영 설명서](../../docs/deployment.md).
+
+
+## 운영 이후 변경과 확인 범위(2026-10-07)
+
+- 서비스별 태그는 `BIZAID_FRONTEND_TAG`, `BIZAID_BACKEND_TAG`, `BIZAID_FASTAPI_TAG`다. 맥북 `release.sh`가 선택 서비스의 고정 버전·latest를 게시하고 서버 `deploy.sh`가 실제 버전 라벨을 확인해 고정 버전으로 배포한다. 상태 보기·명시 버전·기록 기반 되돌리기를 지원한다. 상세 절차는 [배포 설명서](../../docs/deployment.md)다.
+- 복원 스크립트는 모델을 디렉터리 755·파일 644로 맞추고 컨테이너 사용자 권한으로 확인한다. 인증서도 backend 사용자로 확인한다. 맥북 Docker Desktop의 권한 동작은 Linux 운영 검증을 대신하지 못한다.
+- Caddy는 HTTPS 인증서·www 영구 리다이렉트·보안 헤더·요청 입구를 맡는다. nginx가 Spring으로 `/api`를 전달한다.
+- Bedrock은 credential chain을 사용한다. 모델 선택을 바꿔도 MySQL 후보·BGE-M3·Qdrant·판정 최종 상태 계산의 소유권은 바뀌지 않는다.
+- 기업정보 문장 2차 검색과 가중 RRF가 구현됐다. 일반 AI 질의는 지역만 전달하고, 별도 개인화 검색 API와 추천 workflow의 기업 snapshot 범위는 서로 다르다. 정확한 필드·계약·코드 경로는 [마스터 가이드](../../PROJECT_MASTER_GUIDE.md)를 따른다.
+- UptimeRobot, CloudWatch 경보, 서버 점검 스크립트와 SNS 메일을 사용한다. 이번 문서 갱신에서 실제 알림 설정·서버 태그·최신 수정의 운영 반영은 확인하지 않았다. 과거 PASS·운영 완료 기록을 현재 Task 검증으로 재사용하지 않는다.
