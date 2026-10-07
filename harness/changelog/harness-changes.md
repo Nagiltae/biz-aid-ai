@@ -1,5 +1,15 @@
 # Harness 변경 이력
 
+## 2026-10-07 — 마스터 가이드 공부·면접 자료 갱신
+
+사용자 요청으로 PROJECT_MASTER_GUIDE를 본인이 공부하고 면접에서 설명할 수 있는 자료로 확장한다. 학습 순서·기술 역할·요청 흐름·문제/실험/해결의 과정·표본과 시점이 있는 측정표·면접 질문과 답변·남은 한계를 문서 안에 연결한다. 숫자는 기존 코드/계약/문서/보고서에서 확인하며 측정과 설정값, 추정과 실험, 과거와 현재를 구분한다.
+이전 CI 수정의 이미지 5개 등록과 기록을 보존하며 이전 Task는 새 Generated Report에 보관한다. current-task와 Registry.report를 동기화하고 문서·링크·형식·격리 Harness 검사를 수행한다. 앱·테스트·검사 규칙·운영 설정은 수정하지 않으며 실제 설정 열람·서버/AWS 접속·LLM 재평가·git add/commit/push는 하지 않는다.
+
+## 2026-10-07 — CI의 README 이미지 Registry 누락 수정
+
+사용자 제공 CI 로그에서 Harness 정책 테스트 40개 실패 사례와 check-harness 실패가 같은 미등록 PNG 5개 때문에 발생한 것을 확인했다. 원인 보고 후 사용자 승인으로 기존 추적 파일 biz-aid-gpt_image_1.png부터 biz-aid-gpt_image_5.png까지 required_files에 추가한다. 파일 목록 일치 검사를 유지하며 검사 코드·규칙·CI·앱·README·이미지는 변경하지 않는다.
+작업 절차에 따라 이전 Task 원문을 새 Generated Report에 보존하고 current-task와 Registry.report를 동기화한다. 실제 환경 파일 없이 격리 Harness 정책 테스트 전체와 정적 검사를 수행한다. 원본 저장소의 전체 check-all·원격 CI·운영·AGY 검토는 실행하지 않으며 commit/push도 하지 않는다.
+
 ## 2026-10-07 — README 주제별 설명 이미지
 
 사용자 승인으로 서비스 흐름·아키텍처·문서 처리·AI 판단·실험 결과·배포 운영의 6개 PNG를 생성해 docs/images에 저장하고 README에 연결한다. 실제 화면 자리와 기존 설명/측정 근거를 보존한다. 그림은 공개 자료만으로 생성하고 숫자·날짜·연결 관계를 직접 확인한다. 이미지 생성 프롬프트와 선택 결과는 Generated Artifact에 보관한다.

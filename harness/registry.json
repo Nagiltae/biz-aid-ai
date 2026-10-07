@@ -277,7 +277,7 @@
     "tests/integration/test_phase0_document_download_cli.py",
     "tests/integration/test_structured_mysql.py"
   ],
-  "report": "harness/workspace/reports/development/2026-10-07-readme-infographics.md",
+  "report": "harness/workspace/reports/development/2026-10-07-master-guide-study-and-interview.md",
   "dynamic_paths": [
     "harness/workspace/reports/**/*.md",
     "harness/workspace/checkpoints/**/*.md",
@@ -540,6 +540,11 @@
     "docs/ai-improvement-before.md",
     "docs/deployment.md",
     "docs/environment-guide.md",
+    "docs/images/biz-aid-gpt_image_1.png",
+    "docs/images/biz-aid-gpt_image_2.png",
+    "docs/images/biz-aid-gpt_image_3.png",
+    "docs/images/biz-aid-gpt_image_4.png",
+    "docs/images/biz-aid-gpt_image_5.png",
     "docs/images/bizaid-01-service-flow.png",
     "docs/images/bizaid-02-architecture.png",
     "docs/images/bizaid-03-document-pipeline.png",
